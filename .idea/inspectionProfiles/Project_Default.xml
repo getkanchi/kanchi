@@ -1,0 +1,429 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="Eslint" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="MsBuiltinInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="MsOrderByInspection" enabled="false" level="ERROR" enabled_by_default="false" />
+    <inspection_tool class="MysqlLoadDataPathInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="MysqlParsingInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="MysqlSpaceAfterFunctionNameInspection" enabled="false" level="ERROR" enabled_by_default="false" />
+    <inspection_tool class="PgSelectFromProcedureInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="PyArgumentListInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="PyInterpreterInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <value>
+          <list size="257">
+            <item index="0" class="java.lang.String" itemvalue="graphql-relay" />
+            <item index="1" class="java.lang.String" itemvalue="reebuild-note-data" />
+            <item index="2" class="java.lang.String" itemvalue="python-dateutil" />
+            <item index="3" class="java.lang.String" itemvalue="deprecated" />
+            <item index="4" class="java.lang.String" itemvalue="typepy" />
+            <item index="5" class="java.lang.String" itemvalue="markupsafe" />
+            <item index="6" class="java.lang.String" itemvalue="python-json-logger" />
+            <item index="7" class="java.lang.String" itemvalue="sentry-sdk" />
+            <item index="8" class="java.lang.String" itemvalue="certifi" />
+            <item index="9" class="java.lang.String" itemvalue="werkzeug" />
+            <item index="10" class="java.lang.String" itemvalue="imagekitio" />
+            <item index="11" class="java.lang.String" itemvalue="iniconfig" />
+            <item index="12" class="java.lang.String" itemvalue="aniso8601" />
+            <item index="13" class="java.lang.String" itemvalue="graphql-core" />
+            <item index="14" class="java.lang.String" itemvalue="rapidfuzz" />
+            <item index="15" class="java.lang.String" itemvalue="wrapt" />
+            <item index="16" class="java.lang.String" itemvalue="typing-extensions" />
+            <item index="17" class="java.lang.String" itemvalue="click" />
+            <item index="18" class="java.lang.String" itemvalue="mbstrdecoder" />
+            <item index="19" class="java.lang.String" itemvalue="jinja2" />
+            <item index="20" class="java.lang.String" itemvalue="boto3" />
+            <item index="21" class="java.lang.String" itemvalue="execnet" />
+            <item index="22" class="java.lang.String" itemvalue="charset-normalizer" />
+            <item index="23" class="java.lang.String" itemvalue="flask" />
+            <item index="24" class="java.lang.String" itemvalue="idna" />
+            <item index="25" class="java.lang.String" itemvalue="rsa" />
+            <item index="26" class="java.lang.String" itemvalue="decorator" />
+            <item index="27" class="java.lang.String" itemvalue="pluggy" />
+            <item index="28" class="java.lang.String" itemvalue="reebuild-files" />
+            <item index="29" class="java.lang.String" itemvalue="pytest-xdist" />
+            <item index="30" class="java.lang.String" itemvalue="pyasn1" />
+            <item index="31" class="java.lang.String" itemvalue="requests" />
+            <item index="32" class="java.lang.String" itemvalue="graphene" />
+            <item index="33" class="java.lang.String" itemvalue="graphql-server" />
+            <item index="34" class="java.lang.String" itemvalue="flask-cors" />
+            <item index="35" class="java.lang.String" itemvalue="urllib3" />
+            <item index="36" class="java.lang.String" itemvalue="reebuild-foundation" />
+            <item index="37" class="java.lang.String" itemvalue="itsdangerous" />
+            <item index="38" class="java.lang.String" itemvalue="injector" />
+            <item index="39" class="java.lang.String" itemvalue="python-jose" />
+            <item index="40" class="java.lang.String" itemvalue="blinker" />
+            <item index="41" class="java.lang.String" itemvalue="six" />
+            <item index="42" class="java.lang.String" itemvalue="botocore" />
+            <item index="43" class="java.lang.String" itemvalue="pytest" />
+            <item index="44" class="java.lang.String" itemvalue="ecdsa" />
+            <item index="45" class="java.lang.String" itemvalue="datetimerange" />
+            <item index="46" class="java.lang.String" itemvalue="packaging" />
+            <item index="47" class="java.lang.String" itemvalue="reebuild-auth" />
+            <item index="48" class="java.lang.String" itemvalue="jmespath" />
+            <item index="49" class="java.lang.String" itemvalue="chardet" />
+            <item index="50" class="java.lang.String" itemvalue="reebuild-aws" />
+            <item index="51" class="java.lang.String" itemvalue="s3transfer" />
+            <item index="52" class="java.lang.String" itemvalue="pytz" />
+            <item index="53" class="java.lang.String" itemvalue="requests-toolbelt" />
+            <item index="54" class="java.lang.String" itemvalue="main" />
+            <item index="55" class="java.lang.String" itemvalue="reebuild-document-processing" />
+            <item index="56" class="java.lang.String" itemvalue="scripts" />
+            <item index="57" class="java.lang.String" itemvalue="bs4" />
+            <item index="58" class="java.lang.String" itemvalue="greenlet" />
+            <item index="59" class="java.lang.String" itemvalue="tabulate" />
+            <item index="60" class="java.lang.String" itemvalue="reebuild-signature-data" />
+            <item index="61" class="java.lang.String" itemvalue="marshmallow" />
+            <item index="62" class="java.lang.String" itemvalue="invoke" />
+            <item index="63" class="java.lang.String" itemvalue="pycparser" />
+            <item index="64" class="java.lang.String" itemvalue="pyasn1-modules" />
+            <item index="65" class="java.lang.String" itemvalue="python-graphql-client" />
+            <item index="66" class="java.lang.String" itemvalue="reebuild-mail" />
+            <item index="67" class="java.lang.String" itemvalue="soupsieve" />
+            <item index="68" class="java.lang.String" itemvalue="lxml" />
+            <item index="69" class="java.lang.String" itemvalue="gevent" />
+            <item index="70" class="java.lang.String" itemvalue="xlrd" />
+            <item index="71" class="java.lang.String" itemvalue="pynacl" />
+            <item index="72" class="java.lang.String" itemvalue="fuzzywuzzy" />
+            <item index="73" class="java.lang.String" itemvalue="asyncpg" />
+            <item index="74" class="java.lang.String" itemvalue="reportlab" />
+            <item index="75" class="java.lang.String" itemvalue="pypdf" />
+            <item index="76" class="java.lang.String" itemvalue="gunicorn" />
+            <item index="77" class="java.lang.String" itemvalue="sqlalchemy" />
+            <item index="78" class="java.lang.String" itemvalue="building-yard" />
+            <item index="79" class="java.lang.String" itemvalue="attrs" />
+            <item index="80" class="java.lang.String" itemvalue="openai" />
+            <item index="81" class="java.lang.String" itemvalue="paramiko" />
+            <item index="82" class="java.lang.String" itemvalue="fabric" />
+            <item index="83" class="java.lang.String" itemvalue="pre-accounting" />
+            <item index="84" class="java.lang.String" itemvalue="reebuild-templates" />
+            <item index="85" class="java.lang.String" itemvalue="orders" />
+            <item index="86" class="java.lang.String" itemvalue="alembic" />
+            <item index="87" class="java.lang.String" itemvalue="jellyfish" />
+            <item index="88" class="java.lang.String" itemvalue="zope-interface" />
+            <item index="89" class="java.lang.String" itemvalue="cffi" />
+            <item index="90" class="java.lang.String" itemvalue="psycopg-binary" />
+            <item index="91" class="java.lang.String" itemvalue="google-cloud-storage" />
+            <item index="92" class="java.lang.String" itemvalue="numpy" />
+            <item index="93" class="java.lang.String" itemvalue="products" />
+            <item index="94" class="java.lang.String" itemvalue="iam" />
+            <item index="95" class="java.lang.String" itemvalue="reebuild-analytics-data" />
+            <item index="96" class="java.lang.String" itemvalue="grpcio-status" />
+            <item index="97" class="java.lang.String" itemvalue="websockets" />
+            <item index="98" class="java.lang.String" itemvalue="reebuild-gcp" />
+            <item index="99" class="java.lang.String" itemvalue="textract-trp" />
+            <item index="100" class="java.lang.String" itemvalue="zope-event" />
+            <item index="101" class="java.lang.String" itemvalue="reebuild-building-yard-data" />
+            <item index="102" class="java.lang.String" itemvalue="customer-connection" />
+            <item index="103" class="java.lang.String" itemvalue="general-invoice" />
+            <item index="104" class="java.lang.String" itemvalue="et-xmlfile" />
+            <item index="105" class="java.lang.String" itemvalue="pdfkit" />
+            <item index="106" class="java.lang.String" itemvalue="pandas" />
+            <item index="107" class="java.lang.String" itemvalue="flask-smorest" />
+            <item index="108" class="java.lang.String" itemvalue="faker" />
+            <item index="109" class="java.lang.String" itemvalue="cachetools" />
+            <item index="110" class="java.lang.String" itemvalue="multidict" />
+            <item index="111" class="java.lang.String" itemvalue="yarl" />
+            <item index="112" class="java.lang.String" itemvalue="fake" />
+            <item index="113" class="java.lang.String" itemvalue="reebuild-inbox-data" />
+            <item index="114" class="java.lang.String" itemvalue="protobuf" />
+            <item index="115" class="java.lang.String" itemvalue="reebuild-document-initial-data" />
+            <item index="116" class="java.lang.String" itemvalue="googleapis-common-protos" />
+            <item index="117" class="java.lang.String" itemvalue="psycopg2-binary" />
+            <item index="118" class="java.lang.String" itemvalue="apispec" />
+            <item index="119" class="java.lang.String" itemvalue="frozenlist" />
+            <item index="120" class="java.lang.String" itemvalue="analytics" />
+            <item index="121" class="java.lang.String" itemvalue="google-cloud-documentai" />
+            <item index="122" class="java.lang.String" itemvalue="google-api-core" />
+            <item index="123" class="java.lang.String" itemvalue="beautifulsoup4" />
+            <item index="124" class="java.lang.String" itemvalue="google-crc32c" />
+            <item index="125" class="java.lang.String" itemvalue="requests-mock" />
+            <item index="126" class="java.lang.String" itemvalue="cryptography" />
+            <item index="127" class="java.lang.String" itemvalue="graphql-utils" />
+            <item index="128" class="java.lang.String" itemvalue="reebuild-order-data" />
+            <item index="129" class="java.lang.String" itemvalue="bcrypt" />
+            <item index="130" class="java.lang.String" itemvalue="reebuild-product-data" />
+            <item index="131" class="java.lang.String" itemvalue="google-cloud-core" />
+            <item index="132" class="java.lang.String" itemvalue="webargs" />
+            <item index="133" class="java.lang.String" itemvalue="customer-success" />
+            <item index="134" class="java.lang.String" itemvalue="distro" />
+            <item index="135" class="java.lang.String" itemvalue="async-timeout" />
+            <item index="136" class="java.lang.String" itemvalue="mako" />
+            <item index="137" class="java.lang.String" itemvalue="reebuild-workflow-data" />
+            <item index="138" class="java.lang.String" itemvalue="google-resumable-media" />
+            <item index="139" class="java.lang.String" itemvalue="operations" />
+            <item index="140" class="java.lang.String" itemvalue="freezegun" />
+            <item index="141" class="java.lang.String" itemvalue="algoliasearch" />
+            <item index="142" class="java.lang.String" itemvalue="tabula-py" />
+            <item index="143" class="java.lang.String" itemvalue="coverage" />
+            <item index="144" class="java.lang.String" itemvalue="reebuild-general-invoice-data" />
+            <item index="145" class="java.lang.String" itemvalue="tzdata" />
+            <item index="146" class="java.lang.String" itemvalue="tqdm" />
+            <item index="147" class="java.lang.String" itemvalue="base58" />
+            <item index="148" class="java.lang.String" itemvalue="asyncio" />
+            <item index="149" class="java.lang.String" itemvalue="pypdf2" />
+            <item index="150" class="java.lang.String" itemvalue="psycopg" />
+            <item index="151" class="java.lang.String" itemvalue="proto-plus" />
+            <item index="152" class="java.lang.String" itemvalue="pillow" />
+            <item index="153" class="java.lang.String" itemvalue="reebuild-parsing-data" />
+            <item index="154" class="java.lang.String" itemvalue="aiohttp" />
+            <item index="155" class="java.lang.String" itemvalue="grpcio" />
+            <item index="156" class="java.lang.String" itemvalue="digital-documents" />
+            <item index="157" class="java.lang.String" itemvalue="aiosignal" />
+            <item index="158" class="java.lang.String" itemvalue="openpyxl" />
+            <item index="159" class="java.lang.String" itemvalue="google-auth" />
+            <item index="160" class="java.lang.String" itemvalue="sqlalchemy-stubs" />
+            <item index="161" class="java.lang.String" itemvalue="tiktoken" />
+            <item index="162" class="java.lang.String" itemvalue="fonttools" />
+            <item index="163" class="java.lang.String" itemvalue="langchain-openai" />
+            <item index="164" class="java.lang.String" itemvalue="identify" />
+            <item index="165" class="java.lang.String" itemvalue="propcache" />
+            <item index="166" class="java.lang.String" itemvalue="google-cloud-vision" />
+            <item index="167" class="java.lang.String" itemvalue="virtualenv" />
+            <item index="168" class="java.lang.String" itemvalue="langchain-core" />
+            <item index="169" class="java.lang.String" itemvalue="aiohappyeyeballs" />
+            <item index="170" class="java.lang.String" itemvalue="humanize" />
+            <item index="171" class="java.lang.String" itemvalue="kombu" />
+            <item index="172" class="java.lang.String" itemvalue="fsspec" />
+            <item index="173" class="java.lang.String" itemvalue="google-cloud-bigquery" />
+            <item index="174" class="java.lang.String" itemvalue="pydantic" />
+            <item index="175" class="java.lang.String" itemvalue="celery" />
+            <item index="176" class="java.lang.String" itemvalue="tenacity" />
+            <item index="177" class="java.lang.String" itemvalue="pydantic-core" />
+            <item index="178" class="java.lang.String" itemvalue="gcsfs" />
+            <item index="179" class="java.lang.String" itemvalue="numba" />
+            <item index="180" class="java.lang.String" itemvalue="prompt-toolkit" />
+            <item index="181" class="java.lang.String" itemvalue="httpcore" />
+            <item index="182" class="java.lang.String" itemvalue="contourpy" />
+            <item index="183" class="java.lang.String" itemvalue="httpx" />
+            <item index="184" class="java.lang.String" itemvalue="jiter" />
+            <item index="185" class="java.lang.String" itemvalue="pikepdf" />
+            <item index="186" class="java.lang.String" itemvalue="mypy" />
+            <item index="187" class="java.lang.String" itemvalue="python-dotenv" />
+            <item index="188" class="java.lang.String" itemvalue="pre-commit" />
+            <item index="189" class="java.lang.String" itemvalue="h11" />
+            <item index="190" class="java.lang.String" itemvalue="cycler" />
+            <item index="191" class="java.lang.String" itemvalue="filelock" />
+            <item index="192" class="java.lang.String" itemvalue="oauthlib" />
+            <item index="193" class="java.lang.String" itemvalue="bottleneck" />
+            <item index="194" class="java.lang.String" itemvalue="anyio" />
+            <item index="195" class="java.lang.String" itemvalue="pyparsing" />
+            <item index="196" class="java.lang.String" itemvalue="worker" />
+            <item index="197" class="java.lang.String" itemvalue="vine" />
+            <item index="198" class="java.lang.String" itemvalue="intervaltree" />
+            <item index="199" class="java.lang.String" itemvalue="app" />
+            <item index="200" class="java.lang.String" itemvalue="nodeenv" />
+            <item index="201" class="java.lang.String" itemvalue="orjson" />
+            <item index="202" class="java.lang.String" itemvalue="kiwisolver" />
+            <item index="203" class="java.lang.String" itemvalue="google-cloud-documentai-toolbox" />
+            <item index="204" class="java.lang.String" itemvalue="pyyaml" />
+            <item index="205" class="java.lang.String" itemvalue="pandas-gbq" />
+            <item index="206" class="java.lang.String" itemvalue="regex" />
+            <item index="207" class="java.lang.String" itemvalue="platformdirs" />
+            <item index="208" class="java.lang.String" itemvalue="pdf2image" />
+            <item index="209" class="java.lang.String" itemvalue="matplotlib" />
+            <item index="210" class="java.lang.String" itemvalue="distlib" />
+            <item index="211" class="java.lang.String" itemvalue="langsmith" />
+            <item index="212" class="java.lang.String" itemvalue="cfgv" />
+            <item index="213" class="java.lang.String" itemvalue="jsonpatch" />
+            <item index="214" class="java.lang.String" itemvalue="numexpr" />
+            <item index="215" class="java.lang.String" itemvalue="pathspec" />
+            <item index="216" class="java.lang.String" itemvalue="geopy" />
+            <item index="217" class="java.lang.String" itemvalue="brotli" />
+            <item index="218" class="java.lang.String" itemvalue="mypy-extensions" />
+            <item index="219" class="java.lang.String" itemvalue="flask-httpauth" />
+            <item index="220" class="java.lang.String" itemvalue="wcwidth" />
+            <item index="221" class="java.lang.String" itemvalue="h2" />
+            <item index="222" class="java.lang.String" itemvalue="llvmlite" />
+            <item index="223" class="java.lang.String" itemvalue="sniffio" />
+            <item index="224" class="java.lang.String" itemvalue="click-didyoumean" />
+            <item index="225" class="java.lang.String" itemvalue="grpc-google-iam-v1" />
+            <item index="226" class="java.lang.String" itemvalue="flask-compress" />
+            <item index="227" class="java.lang.String" itemvalue="typing-inspection" />
+            <item index="228" class="java.lang.String" itemvalue="docker" />
+            <item index="229" class="java.lang.String" itemvalue="requests-oauthlib" />
+            <item index="230" class="java.lang.String" itemvalue="parameterized" />
+            <item index="231" class="java.lang.String" itemvalue="gotenberg-client" />
+            <item index="232" class="java.lang.String" itemvalue="geographiclib" />
+            <item index="233" class="java.lang.String" itemvalue="googlemaps" />
+            <item index="234" class="java.lang.String" itemvalue="billiard" />
+            <item index="235" class="java.lang.String" itemvalue="pyarrow" />
+            <item index="236" class="java.lang.String" itemvalue="annotated-types" />
+            <item index="237" class="java.lang.String" itemvalue="db-dtypes" />
+            <item index="238" class="java.lang.String" itemvalue="hyperframe" />
+            <item index="239" class="java.lang.String" itemvalue="tornado" />
+            <item index="240" class="java.lang.String" itemvalue="zipstream-ng" />
+            <item index="241" class="java.lang.String" itemvalue="google-auth-oauthlib" />
+            <item index="242" class="java.lang.String" itemvalue="amqp" />
+            <item index="243" class="java.lang.String" itemvalue="jsonpointer" />
+            <item index="244" class="java.lang.String" itemvalue="immutabledict" />
+            <item index="245" class="java.lang.String" itemvalue="hpack" />
+            <item index="246" class="java.lang.String" itemvalue="prometheus-client" />
+            <item index="247" class="java.lang.String" itemvalue="sortedcontainers" />
+            <item index="248" class="java.lang.String" itemvalue="flower" />
+            <item index="249" class="java.lang.String" itemvalue="pyzstd" />
+            <item index="250" class="java.lang.String" itemvalue="sshtunnel" />
+            <item index="251" class="java.lang.String" itemvalue="ruff" />
+            <item index="252" class="java.lang.String" itemvalue="babel" />
+            <item index="253" class="java.lang.String" itemvalue="click-repl" />
+            <item index="254" class="java.lang.String" itemvalue="pycryptodome" />
+            <item index="255" class="java.lang.String" itemvalue="click-plugins" />
+            <item index="256" class="java.lang.String" itemvalue="pydata-google-auth" />
+          </list>
+        </value>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyPep8Inspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <option name="ignoredErrors">
+        <list>
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="W29" />
+          <option value="E501" />
+          <option value="E722" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyPep8NamingInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <option name="ignoredErrors">
+        <list>
+          <option value="N803" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredIdentifiers">
+        <list>
+          <option value="customer_success.application.use_cases.UCHandleDocumentMail.current_app" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="SqlAddNotNullColumnInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlAggregatesInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlAmbiguousColumnInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlAutoIncrementDuplicateInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlCallNotationInspection" enabled="false" level="ERROR" enabled_by_default="false" />
+    <inspection_tool class="SqlCaseVsCoalesceInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlCaseVsIfInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlCheckUsingColumnsInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlConstantConditionInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlConstantExpressionInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlCurrentSchemaInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlDeprecateTypeInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlDerivedTableAliasInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlDialectInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlDropIndexedColumnInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlDtInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlDuplicateColumnInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlIdentifierInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlIllegalCursorStateInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlInsertIntoGeneratedColumnInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlInsertNullIntoNotNullInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlInsertValuesInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlJoinWithoutOnInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlMisleadingReferenceInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlMissingReturnInspection" enabled="false" level="ERROR" enabled_by_default="false" />
+    <inspection_tool class="SqlMultipleLimitClausesInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlNoDataSourceInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlNullComparisonInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlRedundantAliasInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlRedundantCodeInCoalesceInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlRedundantElseNullInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlRedundantLimitInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlRedundantOrderingDirectionInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlResolveInspection" enabled="false" level="ERROR" enabled_by_default="false" />
+    <inspection_tool class="SqlShadowingAliasInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlShouldBeInGroupByInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlSideEffectsInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlSignatureInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlStorageInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlStringLengthExceededInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlTransactionStatementInTriggerInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlTriggerTransitionInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlTypeInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlUnicodeStringLiteralInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlUnreachableCodeInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlUnusedCteInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlUnusedSubqueryItemInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlUnusedVariableInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="SqlWithoutWhereInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+  </profile>
+</component>
