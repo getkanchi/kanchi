@@ -12,7 +12,7 @@
 import { computed } from 'vue'
 
 const props = defineProps<{
-  status: 'online' | 'offline' | 'warning' | 'error' | 'info' | 'success'
+  status: 'online' | 'offline' | 'warning' | 'error' | 'info' | 'success' | 'muted'
   pulse?: boolean
 }>()
 
@@ -23,7 +23,8 @@ const dotClass = computed(() => {
     offline: 'bg-status-error',
     error: 'bg-status-error', 
     warning: 'bg-status-warning',
-    info: 'bg-status-info'
+    info: 'bg-status-info',
+    muted: 'bg-gray-400',
   }
   return colors[props.status] || 'bg-gray-500'
 })

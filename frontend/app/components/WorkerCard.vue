@@ -1,5 +1,7 @@
 <template>
-  <div class="bg-card-base border border-card-border rounded-lg overflow-hidden">
+  <div 
+    class="border border-card-border rounded-lg overflow-hidden transition-all duration-300"
+    :class="cardClasses">
     
     <!-- Compact View -->
     <div class="p-4 cursor-pointer hover:bg-background-primary/10 transition-colors" @click="toggleExpand">
@@ -8,7 +10,7 @@
       <div class="flex items-center justify-between mb-3">
         <div class="flex items-center gap-2">
           <StatusDot :status="getStatusType(worker.status)" :pulse="worker.status === 'online'" />
-          <span class="font-mono text-sm">{{ worker.hostname }}</span>
+          <span class="font-mono text-xs">{{ worker.hostname }}</span>
         </div>
         <div class="flex items-center gap-2">
           <span class="text-xs text-text-tertiary">{{ formatTimestamp(worker.timestamp) }}</span>
@@ -127,7 +129,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import StatusDot from '~/components/StatusDot.vue'
 
 interface WorkerInfo {
@@ -163,6 +165,22 @@ const isExpanded = ref(false)
 const toggleExpand = () => {
   isExpanded.value = !isExpanded.value
 }
+
+const cardClasses = computed(() => {
+  const classes = ['bg-card-base']
+  
+  if (props.worker.status === 'offline') {
+    classes.push('bg-gradient-to-br from-card-base to-status-error/5', 'border-status-error/20')
+  }
+  else if (props.worker.error_count && props.worker.error_count > 0) {
+    classes.push('bg-gradient-to-br from-card-base to-status-warning/5', 'border-status-warning/20')
+  }
+  else if (props.worker.loadavg && props.worker.loadavg[0] > 4) {
+    classes.push('bg-gradient-to-br from-card-base to-status-warning/3', 'border-status-warning/10')
+  }
+  
+  return classes.join(' ')
+})
 
 const getStatusType = (status: string): 'online' | 'offline' | 'warning' | 'error' | 'info' | 'success' => {
   switch (status.toLowerCase()) {
@@ -212,4 +230,10 @@ const formatDuration = (seconds: number): string => {
   return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`
 }
 
+const getResourceClass = (percent?: number): string => {
+  if (percent === undefined) return 'text-text-tertiary'
+  if (percent < 60) return ''
+  if (percent < 80) return 'text-yellow-500'
+  return 'text-red-500'
+}
 </script>

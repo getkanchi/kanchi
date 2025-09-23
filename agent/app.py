@@ -32,7 +32,6 @@ MAX_WORKER_EVENTS = 100
 
 
 class ConnectionManager:
-    """Manages WebSocket connections"""
     
     def __init__(self):
         self.active_connections: List[WebSocket] = []
@@ -43,7 +42,7 @@ class ConnectionManager:
         await websocket.accept()
         self.active_connections.append(websocket)
         self.client_filters[websocket] = {}
-        self.client_modes[websocket] = 'live'  # Default to live mode
+        self.client_modes[websocket] = 'live'
         logger.info(f"Client connected. Total connections: {len(self.active_connections)}")
     
     def disconnect(self, websocket: WebSocket):
@@ -63,7 +62,6 @@ class ConnectionManager:
             self.disconnect(websocket)
     
     async def broadcast(self, task_event: TaskEvent):
-        """Broadcast event to all connected clients with filtering"""
         if not self.active_connections:
             return
         
@@ -72,11 +70,9 @@ class ConnectionManager:
         
         for connection in self.active_connections:
             try:
-                # Only send to clients in live mode
                 if self.client_modes.get(connection, 'live') != 'live':
                     continue
                     
-                # Apply client-specific filters
                 filters = self.client_filters.get(connection, {})
                 if self._should_send_to_client(task_event, filters):
                     await connection.send_text(message)
@@ -84,12 +80,10 @@ class ConnectionManager:
                 logger.error(f"Error broadcasting to client: {e}")
                 disconnected.append(connection)
         
-        # Clean up disconnected clients
         for connection in disconnected:
             self.disconnect(connection)
     
     def _should_send_to_client(self, task_event: TaskEvent, filters: dict) -> bool:
-        """Check if event should be sent to client based on filters"""
         if not filters:
             return True
         
@@ -104,11 +98,9 @@ class ConnectionManager:
         return True
     
     def set_client_filters(self, websocket: WebSocket, filters: dict):
-        """Set filters for a specific client"""
         self.client_filters[websocket] = filters
     
     def set_client_mode(self, websocket: WebSocket, mode: str):
-        """Set mode for a specific client ('live' or 'static')"""
         if mode in ['live', 'static']:
             self.client_modes[websocket] = mode
             logger.info(f"Client mode set to: {mode}")
@@ -135,12 +127,10 @@ app.add_middleware(
 
 
 def get_config() -> Config:
-    """Dependency to get configuration"""
     return Config.from_env()
 
 
 def update_stats(task_event: TaskEvent):
-    """Update task statistics"""
     global task_stats, recent_events
     
     task_stats.total_tasks += 1
@@ -156,47 +146,39 @@ def update_stats(task_event: TaskEvent):
     elif task_event.event_type in ['task-succeeded', 'task-failed']:
         task_stats.active = max(0, task_stats.active - 1)
     
-    # Store recent events
     recent_events.append(task_event)
     if len(recent_events) > MAX_RECENT_EVENTS:
         recent_events.pop(0)
 
 
 async def broadcast_event(task_event: TaskEvent):
-    """Broadcast event to WebSocket clients and update stats"""
     update_stats(task_event)
     await manager.broadcast(task_event)
 
 
 async def broadcast_worker_event(worker_event: WorkerEvent):
-    """Broadcast worker event to WebSocket clients"""
     global recent_worker_events
     
-    # Store recent worker events
     recent_worker_events.append(worker_event)
     if len(recent_worker_events) > MAX_WORKER_EVENTS:
         recent_worker_events.pop(0)
     
-    # Convert to JSON and broadcast
     message = worker_event.model_dump_json()
     disconnected = []
     
     for connection in manager.active_connections:
         try:
-            # Only send to clients in live mode
             if manager.client_modes.get(connection, 'live') == 'live':
                 await connection.send_text(message)
         except Exception as e:
             logger.error(f"Error broadcasting worker event to client: {e}")
             disconnected.append(connection)
     
-    # Clean up disconnected clients
     for connection in disconnected:
         manager.disconnect(connection)
 
 
 def start_monitor(config: Config):
-    """Start the Celery monitor in a background thread"""
     global monitor_instance, monitor_thread
     
     if monitor_thread and monitor_thread.is_alive():
@@ -206,7 +188,6 @@ def start_monitor(config: Config):
     logger.info(f"Starting Celery monitor with broker: {config.broker_url}")
     monitor_instance = CeleryEventMonitor(config.broker_url)
     
-    # Set the broadcast callback to use asyncio
     def sync_broadcast(task_event: TaskEvent):
         try:
             loop = asyncio.new_event_loop()
@@ -218,7 +199,6 @@ def start_monitor(config: Config):
     
     monitor_instance.set_broadcast_callback(sync_broadcast)
     
-    # Set the worker broadcast callback
     def sync_worker_broadcast(worker_event: WorkerEvent):
         try:
             loop = asyncio.new_event_loop()
@@ -230,7 +210,6 @@ def start_monitor(config: Config):
     
     monitor_instance.set_worker_broadcast_callback(sync_worker_broadcast)
     
-    # Start monitoring in a separate thread
     monitor_thread = threading.Thread(target=monitor_instance.start_monitoring)
     monitor_thread.daemon = True
     monitor_thread.start()
@@ -238,22 +217,18 @@ def start_monitor(config: Config):
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize the application"""
     config = Config.from_env()
     
-    # Configure logging
     logging.basicConfig(
         level=getattr(logging, config.log_level),
         format=config.log_format
     )
     
-    # Start the Celery monitor
     start_monitor(config)
 
 
 @app.get("/", response_class=HTMLResponse)
 async def get_home():
-    """Serve a simple HTML page for testing"""
     html_content = """
     <!DOCTYPE html>
     <html>
@@ -322,10 +297,8 @@ async def get_home():
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket endpoint for real-time events"""
     await manager.connect(websocket)
     
-    # Send welcome message
     welcome = ConnectionInfo(
         status="connected",
         timestamp=datetime.now(),
@@ -336,7 +309,6 @@ async def websocket_endpoint(websocket: WebSocket):
     
     try:
         while True:
-            # Wait for client messages
             data = await websocket.receive_text()
             
             try:
@@ -347,7 +319,6 @@ async def websocket_endpoint(websocket: WebSocket):
                     await manager.send_personal_message(pong_response.model_dump_json(), websocket)
                 
                 elif message.get('type') == 'subscribe':
-                    # Handle subscription filtering
                     filters = message.get('filters', {})
                     manager.set_client_filters(websocket, filters)
                     
@@ -359,11 +330,9 @@ async def websocket_endpoint(websocket: WebSocket):
                     await manager.send_personal_message(response.model_dump_json(), websocket)
                 
                 elif message.get('type') == 'set_mode':
-                    # Handle mode switching between 'live' and 'static'
                     mode = message.get('mode', 'live')
                     manager.set_client_mode(websocket, mode)
                     
-                    # If switching to static mode, send all stored events
                     events_sent = 0
                     if mode == 'static':
                         for event in recent_events:
@@ -380,7 +349,6 @@ async def websocket_endpoint(websocket: WebSocket):
                     await manager.send_personal_message(mode_response.model_dump_json(), websocket)
                 
                 elif message.get('type') == 'get_stored':
-                    # Send stored events without changing mode
                     limit = message.get('limit', MAX_RECENT_EVENTS)
                     events_to_send = recent_events[-limit:] if limit < len(recent_events) else recent_events
                     
@@ -406,15 +374,11 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @app.get("/api/stats", response_model=TaskStats)
 async def get_task_stats():
-    """Get current task statistics"""
     return task_stats
 
 
 def aggregate_task_events(events: List[TaskEvent]) -> List[TaskEvent]:
-    """Aggregate task events by task_id, keeping the most recent status and combining information"""
     task_aggregation = {}
-    
-    # Group events by task_id
     for event in events:
         task_id = event.task_id
         if task_id not in task_aggregation:
@@ -424,13 +388,9 @@ def aggregate_task_events(events: List[TaskEvent]) -> List[TaskEvent]:
     aggregated_tasks = []
     
     for task_id, task_events in task_aggregation.items():
-        # Sort events by timestamp to get the progression
         task_events.sort(key=lambda e: e.timestamp)
         
-        # Find the most recent event (final status)
         latest_event = task_events[-1]
-        
-        # Build aggregated task with information from all events
         aggregated_task = TaskEvent(
             task_id=task_id,
             task_name=latest_event.task_name,
@@ -452,7 +412,6 @@ def aggregate_task_events(events: List[TaskEvent]) -> List[TaskEvent]:
             traceback=latest_event.traceback
         )
         
-        # Find start time from task-started or task-received event
         for event in task_events:
             if event.event_type == 'task-started' and hasattr(event, 'started_at'):
                 aggregated_task.started_at = event.timestamp
@@ -462,28 +421,121 @@ def aggregate_task_events(events: List[TaskEvent]) -> List[TaskEvent]:
         
         aggregated_tasks.append(aggregated_task)
     
-    # Sort by timestamp (newest first)
     aggregated_tasks.sort(key=lambda e: e.timestamp, reverse=True)
     return aggregated_tasks
 
 
 @app.get("/api/events/recent", response_model=Dict[str, Any])
-async def get_recent_events(limit: int = 100, page: int = 0, aggregate: bool = True):
-    """Get recent task events with pagination and optional aggregation by task_id"""
+async def get_recent_events(
+    limit: int = 100, 
+    page: int = 0, 
+    aggregate: bool = True,
+    sort_by: Optional[str] = None,
+    sort_order: str = "desc",
+    search: Optional[str] = None,
+    filter_state: Optional[str] = None,
+    filter_worker: Optional[str] = None,
+    filter_task: Optional[str] = None,
+    filter_queue: Optional[str] = None
+):
     
     if aggregate:
-        # Aggregate events by task_id first
         aggregated_events = aggregate_task_events(recent_events)
+        
+        if search:
+            search_lower = search.lower()
+            filtered_events = []
+            for e in aggregated_events:
+                if ((e.task_name and search_lower in e.task_name.lower()) or
+                    (e.event_type and search_lower in e.event_type.lower()) or
+                    (e.hostname and search_lower in e.hostname.lower()) or
+                    (e.args and search_lower in str(e.args).lower()) or
+                    (e.kwargs and search_lower in str(e.kwargs).lower()) or
+                    (e.task_id and search_lower in e.task_id.lower()) or
+                    (e.result and search_lower in str(e.result).lower())):
+                    filtered_events.append(e)
+            aggregated_events = filtered_events
+        
+        if filter_state:
+            state_to_event_type = {
+                'PENDING': 'task-sent',
+                'RECEIVED': 'task-received',
+                'RUNNING': 'task-started',
+                'SUCCESS': 'task-succeeded',
+                'FAILED': 'task-failed',
+                'RETRY': 'task-retried',
+                'REVOKED': 'task-revoked'
+            }
+            event_type_filter = state_to_event_type.get(filter_state.upper())
+            if event_type_filter:
+                aggregated_events = [e for e in aggregated_events if e.event_type == event_type_filter]
+        
+        if filter_worker:
+            aggregated_events = [e for e in aggregated_events if e.hostname and filter_worker.lower() in e.hostname.lower()]
+        
+        if filter_task:
+            aggregated_events = [e for e in aggregated_events if e.task_name and filter_task.lower() in e.task_name.lower()]
+        
+        if filter_queue:
+            aggregated_events = [e for e in aggregated_events if e.routing_key and filter_queue.lower() in e.routing_key.lower()]
+        
+        if sort_by:
+            reverse = (sort_order == "desc")
+            if sort_by == "task_name":
+                aggregated_events.sort(key=lambda e: e.task_name or "", reverse=reverse)
+            elif sort_by == "event_type":
+                aggregated_events.sort(key=lambda e: e.event_type or "", reverse=reverse)
+            elif sort_by == "timestamp":
+                aggregated_events.sort(key=lambda e: e.timestamp, reverse=reverse)
+            elif sort_by == "runtime":
+                aggregated_events.sort(key=lambda e: e.runtime or 0, reverse=reverse)
+            elif sort_by == "retries":
+                aggregated_events.sort(key=lambda e: e.retries or 0, reverse=reverse)
+            elif sort_by == "hostname":
+                aggregated_events.sort(key=lambda e: e.hostname or "", reverse=reverse)
+        else:
+            aggregated_events.sort(key=lambda e: e.timestamp, reverse=True)
+        
         total_events = len(aggregated_events)
         start_idx = page * limit
         end_idx = start_idx + limit
         paginated_events = aggregated_events[start_idx:end_idx]
     else:
-        # Return raw events (old behavior)
-        total_events = len(recent_events)
+        events = list(reversed(recent_events))
+        
+        if search:
+            search_lower = search.lower()
+            filtered_events = []
+            for e in events:
+                if ((e.task_name and search_lower in e.task_name.lower()) or
+                    (e.event_type and search_lower in e.event_type.lower()) or
+                    (e.hostname and search_lower in e.hostname.lower()) or
+                    (e.args and search_lower in str(e.args).lower()) or
+                    (e.kwargs and search_lower in str(e.kwargs).lower()) or
+                    (e.task_id and search_lower in e.task_id.lower()) or
+                    (e.result and search_lower in str(e.result).lower())):
+                    filtered_events.append(e)
+            events = filtered_events
+        
+        if sort_by:
+            reverse = (sort_order == "desc")
+            if sort_by == "task_name":
+                events.sort(key=lambda e: e.task_name or "", reverse=reverse)
+            elif sort_by == "event_type":
+                events.sort(key=lambda e: e.event_type or "", reverse=reverse)
+            elif sort_by == "timestamp":
+                events.sort(key=lambda e: e.timestamp, reverse=reverse)
+            elif sort_by == "runtime":
+                events.sort(key=lambda e: e.runtime or 0, reverse=reverse)
+            elif sort_by == "retries":
+                events.sort(key=lambda e: e.retries or 0, reverse=reverse)
+            elif sort_by == "hostname":
+                events.sort(key=lambda e: e.hostname or "", reverse=reverse)
+        
+        total_events = len(events)
         start_idx = page * limit
         end_idx = start_idx + limit
-        paginated_events = list(reversed(recent_events))[start_idx:end_idx]
+        paginated_events = events[start_idx:end_idx]
     
     total_pages = (total_events + limit - 1) // limit if limit > 0 else 1
     
@@ -502,7 +554,6 @@ async def get_recent_events(limit: int = 100, page: int = 0, aggregate: bool = T
 
 @app.get("/api/events/{task_id}", response_model=List[TaskEventResponse])
 async def get_task_events(task_id: str):
-    """Get events for a specific task"""
     task_events = [event for event in recent_events if event.task_id == task_id]
     if not task_events:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -511,8 +562,6 @@ async def get_task_events(task_id: str):
 
 @app.get("/api/tasks/active", response_model=List[TaskEventResponse])
 async def get_active_tasks():
-    """Get currently active tasks"""
-    # Find tasks that started but haven't finished
     active_task_ids = set()
     finished_task_ids = set()
     
@@ -531,7 +580,6 @@ async def get_active_tasks():
 
 @app.get("/api/workers", response_model=List[WorkerInfo])
 async def get_workers():
-    """Get current worker information"""
     if not monitor_instance:
         return []
     
@@ -558,7 +606,6 @@ async def get_workers():
 
 @app.get("/api/workers/{hostname}", response_model=WorkerInfo)
 async def get_worker(hostname: str):
-    """Get specific worker information"""
     if not monitor_instance:
         raise HTTPException(status_code=404, detail="Monitor not initialized")
     
@@ -583,14 +630,12 @@ async def get_worker(hostname: str):
 
 @app.get("/api/workers/events/recent")
 async def get_recent_worker_events(limit: int = 50):
-    """Get recent worker events"""
     limited_events = recent_worker_events[-limit:] if limit < len(recent_worker_events) else recent_worker_events
     return [event.model_dump() for event in limited_events]
 
 
 @app.get("/api/health")
 async def health_check():
-    """Health check endpoint"""
     workers_count = len(monitor_instance.get_workers_info()) if monitor_instance else 0
     return {
         "status": "healthy",
@@ -603,7 +648,6 @@ async def health_check():
 
 @app.get("/api/websocket/message-types")
 async def get_websocket_message_types():
-    """Get WebSocket message schemas for frontend type generation"""
     return {
         "incoming_messages": {
             "ping": PingMessage.model_json_schema(),
@@ -623,7 +667,6 @@ async def get_websocket_message_types():
 
 
 def start_server():
-    """Entry point for Poetry script"""
     config = Config.from_env()
     uvicorn.run(
         "app:app",

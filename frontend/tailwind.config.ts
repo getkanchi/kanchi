@@ -23,7 +23,7 @@ export default {
         },
         text: {
           primary: '#e9e9e2',
-          secondary: 'hsl(0, 0%, 70%)',
+          secondary: '#a3a3a3',
           tertiary: 'hsl(0, 0%, 50%)',
           quaternary: 'hsl(0, 0%, 35%)'
         },

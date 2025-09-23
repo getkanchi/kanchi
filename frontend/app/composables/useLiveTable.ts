@@ -9,6 +9,11 @@ interface PaginationInfo {
   has_prev: boolean
 }
 
+interface Filter {
+  key: string
+  value: string
+}
+
 export const useLiveTable = <TData>(
   initialData: TData[] = [],
   apiUrl?: string
@@ -19,6 +24,9 @@ export const useLiveTable = <TData>(
   const pageIndex = ref(0)
   const pageSize = ref(10)
   const isLoading = ref(false)
+  const sorting = ref<{ id: string; desc: boolean }[]>([])
+  const searchQuery = ref('')
+  const filters = ref<Filter[]>([])
   const pagination = ref<PaginationInfo>({
     page: 0,
     limit: 10,
@@ -28,19 +36,36 @@ export const useLiveTable = <TData>(
     has_prev: false
   })
 
-  // Calculate seconds since last update
   const secondsSinceUpdate = computed(() => {
     if (!lastUpdated.value) return 0
     return Math.floor((Date.now() - lastUpdated.value.getTime()) / 1000)
   })
 
-  // Fetch data from API
   const fetchData = async () => {
     if (!apiUrl) return
     
     isLoading.value = true
     try {
-      const response = await fetch(`${apiUrl}?page=${pageIndex.value}&limit=${pageSize.value}`)
+        const params = new URLSearchParams({
+        page: pageIndex.value.toString(),
+        limit: pageSize.value.toString()
+      })
+      
+      if (sorting.value.length > 0) {
+        const sort = sorting.value[0]
+        params.append('sort_by', sort.id)
+        params.append('sort_order', sort.desc ? 'desc' : 'asc')
+      }
+      
+      if (searchQuery.value) {
+        params.append('search', searchQuery.value)
+      }
+      
+      filters.value.forEach(filter => {
+        params.append(`filter_${filter.key}`, filter.value)
+      })
+      
+      const response = await fetch(`${apiUrl}?${params.toString()}`)
       const result = await response.json()
       
       if (result.data && result.pagination) {
@@ -59,37 +84,30 @@ export const useLiveTable = <TData>(
     isLiveMode.value = !isLiveMode.value
     if (isLiveMode.value) {
       lastUpdated.value = new Date()
-      // In live mode, go to first page to see newest data
       if (apiUrl) {
         pageIndex.value = 0
         fetchData()
       }
     } else {
-      // When switching to static mode, fetch current page data
       if (apiUrl) {
         fetchData()
       }
     }
   }
 
-  // Update data externally (e.g., from WebSocket in live mode)
   const updateData = (newData: TData[]) => {
     if (isLiveMode.value) {
-      // In live mode, only update if we're on the first page (to see newest data)
       if (pageIndex.value === 0) {
         data.value = newData
         lastUpdated.value = new Date()
       }
     } else {
-      // In static mode, don't update from websocket - user controls pagination
-      // data.value = newData
     }
   }
 
   const setPageIndex = (index: number) => {
     pageIndex.value = index
     pagination.value.page = index
-    // Fetch data for the new page if we have an API
     if (apiUrl) {
       fetchData()
     }
@@ -98,22 +116,46 @@ export const useLiveTable = <TData>(
   const setPageSize = (size: number) => {
     pageSize.value = size
     pagination.value.limit = size
-    pageIndex.value = 0 // Reset to first page when changing page size
+    pageIndex.value = 0
     pagination.value.page = 0
-    // Fetch data with new page size if we have an API
     if (apiUrl) {
       fetchData()
     }
   }
 
-  // Watch for changes in page/size and fetch data
+  const setSorting = (newSorting: { id: string; desc: boolean }[]) => {
+    sorting.value = newSorting
+    pageIndex.value = 0
+    pagination.value.page = 0
+    if (apiUrl) {
+      fetchData()
+    }
+  }
+
+  const setSearchQuery = (query: string) => {
+    searchQuery.value = query
+    pageIndex.value = 0
+    pagination.value.page = 0
+    if (apiUrl) {
+      fetchData()
+    }
+  }
+
+  const setFilters = (newFilters: Filter[]) => {
+    filters.value = newFilters
+    pageIndex.value = 0
+    pagination.value.page = 0
+    if (apiUrl) {
+      fetchData()
+    }
+  }
+
   watch([pageIndex, pageSize], () => {
     if (apiUrl && !isLiveMode.value) {
       fetchData()
     }
   })
 
-  // Initial data fetch if API is provided
   if (apiUrl) {
     fetchData()
   }
@@ -127,10 +169,16 @@ export const useLiveTable = <TData>(
     pageSize: computed(() => pageSize.value),
     pagination: computed(() => pagination.value),
     isLoading: computed(() => isLoading.value),
+    sorting: computed(() => sorting.value),
+    searchQuery: computed(() => searchQuery.value),
+    filters: computed(() => filters.value),
     toggleLiveMode,
     updateData,
     setPageIndex,
     setPageSize,
+    setSorting,
+    setSearchQuery,
+    setFilters,
     fetchData
   }
 }
