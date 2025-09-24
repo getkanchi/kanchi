@@ -5,14 +5,15 @@ from celery import Celery
 from kombu import Queue
 import os
 
+# Get environment variables - defaults work for localhost connections
 BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'amqp://guest:guest@localhost:5672//')
-BACKEND_URL = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
 
 app = Celery('test_celery_app')
 
 app.conf.update(
     broker_url=BROKER_URL,
-    result_backend=BACKEND_URL,
+    result_backend=REDIS_URL,
     task_serializer='json',
     accept_content=['json'],
     result_serializer='json',

@@ -7,8 +7,8 @@ from typing import Optional
 class Config:
     """Configuration for the Celery WebSocket Bridge"""
     
-    # Celery broker configuration
-    broker_url: str = os.getenv('CELERY_BROKER_URL', 'amqp://guest@localhost//')
+    # Celery broker configuration (RabbitMQ URL)
+    broker_url: str = os.getenv('RABBITMQ_URL')
     
     # WebSocket server configuration
     ws_host: str = os.getenv('WS_HOST', 'localhost')

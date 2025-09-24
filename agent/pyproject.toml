@@ -2,9 +2,8 @@
 name = "celery-websocket-monitor"
 version = "0.1.0"
 description = "A Python application that monitors Celery task events and broadcasts them over WebSocket"
-authors = ["Your Name <you@example.com>"]
-readme = "README.md"
-packages = [{include = "*", from = "."}]
+authors = ["czyber <czypka.github@gmail.com>"]
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.8"

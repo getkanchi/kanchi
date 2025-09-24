@@ -3,7 +3,6 @@ name = "test-celery-app"
 version = "0.1.0"
 description = "Test Celery application for Kanchi monitoring"
 authors = ["czyber <czypka.github@gmail.com>"]
-readme = "README.md"
 package-mode = false
 
 [tool.poetry.dependencies]

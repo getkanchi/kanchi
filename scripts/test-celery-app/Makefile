@@ -35,25 +35,25 @@ shell: ## Open shell in worker container
 	docker-compose run --rm worker1 /bin/bash
 
 test-simple: ## Generate simple test tasks
-	docker-compose run --rm worker1 python test_producer.py --mode simple --count 1
+	docker-compose run --rm -e REDIS_URL=redis://redis:6379/0 -e CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672// worker1 python test_producer.py --mode simple --count 1
 
 test-mixed: ## Generate mixed load for 60 seconds
-	docker-compose run --rm worker1 python test_producer.py --mode mixed --duration 60
+	docker-compose run --rm -e REDIS_URL=redis://redis:6379/0 -e CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672// worker1 python test_producer.py --mode mixed --duration 60
 
 test-stress: ## Run stress test with 1000 tasks
-	docker-compose run --rm worker1 python test_producer.py --mode stress --count 1000 --burst
+	docker-compose run --rm -e REDIS_URL=redis://redis:6379/0 -e CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672// worker1 python test_producer.py --mode stress --count 1000 --burst
 
 test-failing: ## Generate failing tasks
-	docker-compose run --rm worker1 python test_producer.py --mode failing --count 10
+	docker-compose run --rm -e REDIS_URL=redis://redis:6379/0 -e CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672// worker1 python test_producer.py --mode failing --count 10
 
 test-priority: ## Generate priority tasks
-	docker-compose run --rm worker1 python test_producer.py --mode priority --count 20
+	docker-compose run --rm -e REDIS_URL=redis://redis:6379/0 -e CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672// worker1 python test_producer.py --mode priority --count 20
 
 test-resource: ## Generate resource intensive tasks
-	docker-compose run --rm worker1 python test_producer.py --mode resource --count 10
+	docker-compose run --rm -e REDIS_URL=redis://redis:6379/0 -e CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672// worker1 python test_producer.py --mode resource --count 10
 
 test-workflow: ## Generate workflow tasks
-	docker-compose run --rm worker1 python test_producer.py --mode workflow --count 5
+	docker-compose run --rm -e REDIS_URL=redis://redis:6379/0 -e CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672// worker1 python test_producer.py --mode workflow --count 5
 
 monitor: ## Open monitoring UIs
 	@echo "Opening monitoring UIs..."
@@ -70,7 +70,6 @@ status: ## Check service status
 	@docker-compose ps
 	@echo "\nService Health:"
 	@docker-compose exec -T rabbitmq rabbitmq-diagnostics ping 2>/dev/null && echo "✓ RabbitMQ is healthy" || echo "✗ RabbitMQ is not responding"
-	@docker-compose exec -T redis redis-cli ping 2>/dev/null | grep -q PONG && echo "✓ Redis is healthy" || echo "✗ Redis is not responding"
 
 scale-workers: ## Scale workers up
 	docker-compose up -d --scale worker1=3 --scale worker2=2
