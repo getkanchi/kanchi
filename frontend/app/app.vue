@@ -37,75 +37,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, h } from 'vue'
-import { useWebSocketSingleton } from "~/composables/useWebsocketSingleton"
+import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { useAppWebSocket } from "~/composables/useAppWebSocket"
 import { useLiveTable } from "~/composables/useLiveTable"
+import { getTaskColumns } from "~/config/tableColumns"
 import DataTable from "~/components/data-table.vue"
-import { Badge } from "~/components/ui/badge"
 import WorkerStatusSummary from "~/components/WorkerStatusSummary.vue"
-import type { ColumnDef } from '@tanstack/vue-table'
+import type { WorkerInfo, WorkerEvent } from '~/types'
 
-interface Task {
-  task_id: string
-  task_name: string
-  event_type: string
-  timestamp: string
-  args?: string
-  kwargs?: string
-  retries: number
-  eta?: string
-  expires?: string
-  hostname?: string
-  exchange: string
-  routing_key: string
-  root_id?: string
-  parent_id?: string
-  result?: any
-  runtime?: number
-  exception?: string
-  traceback?: string
-}
 
-interface WorkerInfo {
-  hostname: string
-  status: string
-  timestamp: string
-  active_tasks: number
-  processed_tasks: number
-  sw_ident?: string
-  sw_ver?: string
-  sw_sys?: string
-  loadavg?: number[]
-  freq?: number
-  error_count?: number
-  tasks_per_minute?: number
-  queue_depth?: number
-  recent_errors?: Array<{time: string, task: string, error?: string}>
-  active_task_details?: Array<{
-    name: string
-    progress: number
-    duration: number
-    task_id?: string
-  }>
-  metrics_history?: {
-    tasks_per_minute: number[]
-    errors: number[]
-    latency: number[]
-  }
-}
-
-interface WorkerEvent {
-  hostname: string
-  event_type: string
-  timestamp: string
-  active?: number
-  processed?: number
-  pool?: any
-  loadavg?: number[]
-  freq?: number
-}
-
-const { isConnected, messages } = useWebSocketSingleton("ws://localhost:8765/ws")
+const { isConnected, messages } = useAppWebSocket("ws://localhost:8765/ws")
 
 const liveTable = useLiveTable([], "http://localhost:8765/api/events/recent")
 
@@ -127,26 +68,6 @@ const fetchWorkers = async () => {
   }
 }
 
-const eventTypeToStatus = (eventType: string): string => {
-  switch (eventType) {
-    case 'task-sent':
-      return 'PENDING'
-    case 'task-received':
-      return 'RECEIVED'
-    case 'task-started':
-      return 'RUNNING'
-    case 'task-succeeded':
-      return 'SUCCESS'
-    case 'task-failed':
-      return 'FAILED'
-    case 'task-retried':
-      return 'RETRY'
-    case 'task-revoked':
-      return 'REVOKED'
-    default:
-      return 'UNKNOWN'
-  }
-}
 
 watch(messages, (newMessages) => {
   if (liveTable.isLiveMode.value && newMessages.length > 0) {
@@ -200,124 +121,8 @@ watch(messages, (newMessages) => {
   }
 }, { deep: true })
 
-const calculateDuration = (started: string, completed: string): string => {
-  if (!started) return '-'
-  
-  const start = new Date(started).getTime()
-  const end = completed ? new Date(completed).getTime() : Date.now()
-  const duration = end - start
-  
-  if (duration < 1000) return `${duration}ms`
-  if (duration < 60000) return `${(duration / 1000).toFixed(1)}s`
-  if (duration < 3600000) return `${Math.floor(duration / 60000)}m ${Math.floor((duration % 60000) / 1000)}s`
-  return `${Math.floor(duration / 3600000)}h ${Math.floor((duration % 3600000) / 60000)}m`
-}
 
-const formatTime = (timestamp: string): string => {
-  if (!timestamp) return '-'
-  const date = new Date(timestamp)
-  return date.toLocaleTimeString('en-US', { 
-    hour: '2-digit', 
-    minute: '2-digit', 
-    second: '2-digit',
-    hour12: false 
-  })
-}
-
-const getStatusFromEventType = (eventType: string): string => {
-  switch (eventType) {
-    case 'task-sent':
-      return 'PENDING'
-    case 'task-received':
-      return 'RECEIVED'
-    case 'task-started':
-      return 'RUNNING'
-    case 'task-succeeded':
-      return 'SUCCESS'
-    case 'task-failed':
-      return 'FAILED'
-    case 'task-retried':
-      return 'RETRY'
-    case 'task-revoked':
-      return 'REVOKED'
-    default:
-      return 'UNKNOWN'
-  }
-}
-
-const columns: ColumnDef<Task>[] = [
-  {
-    accessorKey: 'task_name', 
-    header: 'Task Name',
-    cell: ({ row }) => h("div", { class: "font-medium" }, row.getValue("task_name")),
-    enableSorting: true
-  },
-  {
-    accessorKey: 'event_type',
-    header: 'Status',
-    cell: ({ row }) => {
-      const eventType = row.getValue('event_type') as string
-      const status = getStatusFromEventType(eventType)
-      const statusLower = status.toLowerCase()
-      
-      const statusVariants: Record<string, string> = {
-        'success': 'success',
-        'failed': 'failed',
-        'pending': 'pending',
-        'running': 'running',
-        'retry': 'retry',
-        'revoked': 'revoked',
-        'received': 'received'
-      }
-      
-      const variant = statusVariants[statusLower] || 'outline'
-      
-      return h(Badge, { 
-        variant,
-        class: 'text-xs'
-      }, () => status.charAt(0).toUpperCase() + status.slice(1).toLowerCase())
-    },
-    enableSorting: true
-  },
-  {
-    accessorKey: 'timestamp',
-    header: 'Time',
-    cell: ({ row }) => h("div", { class: "text-sm" }, formatTime(row.getValue("timestamp"))),
-    enableSorting: true,
-    sortDescFirst: true
-  },
-  {
-    accessorKey: 'runtime',
-    header: 'Runtime',
-    cell: ({ row }) => {
-      const runtime = row.original.runtime
-      if (!runtime) return h("div", { class: "text-gray-400" }, "-")
-      return h("div", { class: "text-sm font-mono" }, `${runtime.toFixed(2)}s`)
-    },
-    enableSorting: true
-  },
-  {
-    accessorKey: 'retries',
-    header: 'Retries',
-    cell: ({ row }) => {
-      const retries = row.original.retries || 0
-      return h("div", { 
-        class: retries > 0 ? "text-orange-500 font-medium" : "text-gray-400" 
-      }, retries.toString())
-    },
-    enableSorting: true
-  },
-  {
-    accessorKey: 'hostname',
-    header: 'Worker',
-    cell: ({ row }) => {
-      const hostname = row.original.hostname
-      if (!hostname) return h("div", { class: "text-gray-400" }, "-")
-      return h("div", { class: "text-xs font-mono" }, hostname)
-    },
-    enableSorting: true
-  }
-]
+const columns = getTaskColumns()
 
 
 const updateWorkerData = (hostname: string, updates: Partial<WorkerInfo>) => {

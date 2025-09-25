@@ -646,6 +646,77 @@ async def health_check():
     }
 
 
+@app.post("/api/tasks/{task_id}/retry")
+async def retry_task(task_id: str):
+    """Retry a failed task by creating a new task with the same parameters"""
+    try:
+        # Find the original task in recent_events
+        original_task = None
+        print(recent_events)
+        for event in reversed(recent_events):
+            if event.task_id == task_id:
+                original_task = event
+                break
+        
+        if not original_task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        
+        if not monitor_instance:
+            raise HTTPException(status_code=500, detail="Monitor not initialized")
+        
+        # Parse args and kwargs from stored strings back to Python objects
+        try:
+            import ast
+            args = ast.literal_eval(original_task.args) if original_task.args and original_task.args != "()" else ()
+            kwargs = ast.literal_eval(original_task.kwargs) if original_task.kwargs and original_task.kwargs != "{}" else {}
+        except (ValueError, SyntaxError) as e:
+            logger.error(f"Error parsing task arguments for retry: {e}")
+            # Fallback to empty args/kwargs if parsing fails
+            args = ()
+            kwargs = {}
+        
+        # Submit new task using Celery's send_task method
+        # For retry, always use the default queue unless specifically routed
+
+        # Determine the correct queue/routing for the retried task
+        # Use the original routing_key if it exists, otherwise default to 'default'
+        queue_name = original_task.routing_key if original_task.routing_key else 'default'
+        
+        logger.info(f"Retrying task {original_task.task_name} with args={args}, kwargs={kwargs}, queue={queue_name}")
+        
+        # Use send_task with queue parameter (not routing_key) for proper routing
+        result = monitor_instance.app.send_task(
+            original_task.task_name,
+            args=args,
+            kwargs=kwargs,
+            queue=queue_name
+        )
+        
+        # Also log if we have active workers
+        workers_info = monitor_instance.get_workers_info() if monitor_instance else {}
+        logger.info(f"Active workers: {list(workers_info.keys())}")
+        
+        logger.info(f"Retried task {task_id} as new task {result.id}")
+        logger.info(f"Task signature: routing_key={result.routing_key if hasattr(result, 'routing_key') else 'N/A'}")
+
+        return {
+            "status": "success",
+            "message": f"Task retried successfully",
+            "original_task_id": task_id,
+            "new_task_id": str(result.id),
+            "task_name": original_task.task_name,
+            "args": original_task.args,
+            "kwargs": original_task.kwargs,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrying task {task_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to retry task: {str(e)}")
+
+
 @app.get("/api/websocket/message-types")
 async def get_websocket_message_types():
     return {

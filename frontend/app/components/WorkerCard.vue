@@ -102,7 +102,7 @@
                  class="text-xs p-2 bg-background-primary rounded border border-status-error/20">
               <div class="flex justify-between mb-1">
                 <span class="font-mono text-status-error">{{ error.task }}</span>
-                <span class="text-text-tertiary">{{ formatErrorTime(error.time) }}</span>
+                <span class="text-text-tertiary">{{ formatTimestamp(error.time) }}</span>
               </div>
               <div v-if="error.error" class="text-text-secondary">
                 {{ error.error }}
@@ -131,30 +131,9 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import StatusDot from '~/components/StatusDot.vue'
-
-interface WorkerInfo {
-  hostname: string
-  status: string
-  timestamp: string
-  active_tasks: number
-  processed_tasks: number
-  sw_ident?: string
-  sw_ver?: string
-  sw_sys?: string
-  loadavg?: number[]
-  freq?: number
-  error_count?: number
-  tasks_per_minute?: number
-  queue_depth?: number
-  queue?: string
-  recent_errors?: Array<{time: string, task: string, error?: string}>
-  active_task_details?: Array<{
-    name: string
-    progress: number
-    duration: number
-    task_id?: string
-  }>
-}
+import { formatTimestamp, formatDuration } from '~/composables/useDateTimeFormatters'
+import { getStatusVariant } from '~/utils/taskStatusMappers'
+import type { WorkerInfo } from '~/types/workers'
 
 const props = defineProps<{
   worker: WorkerInfo
@@ -199,36 +178,11 @@ const getStatusType = (status: string): 'online' | 'offline' | 'warning' | 'erro
   }
 }
 
-const formatTimestamp = (timestamp: string): string => {
-  const date = new Date(timestamp)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  
-  if (diff < 60000) return `${Math.floor(diff / 1000)}s ago`
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
-  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
-}
-
-const formatErrorTime = (timestamp: string): string => {
-  const date = new Date(timestamp)
-  return date.toLocaleTimeString('en-US', { 
-    hour: '2-digit', 
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false 
-  })
-}
-
 const formatLoadAvg = (loadavg?: number[]): string => {
   if (!loadavg || loadavg.length === 0) return 'N/A'
   return loadavg.map(l => l.toFixed(2)).join(', ')
 }
 
-const formatDuration = (seconds: number): string => {
-  if (seconds < 60) return `${seconds.toFixed(0)}s`
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${(seconds % 60).toFixed(0)}s`
-  return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`
-}
 
 const getResourceClass = (percent?: number): string => {
   if (percent === undefined) return 'text-text-tertiary'

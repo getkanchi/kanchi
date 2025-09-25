@@ -17,22 +17,22 @@
                 <Popover>
                   <PopoverTrigger as-child>
                     <Badge
-                      :variant="isConnected ? 'online' : 'offline'"
+                      :variant="displayConnected ? 'online' : 'offline'"
                       class="cursor-pointer"
                     >
                       <StatusDot
-                        :status="isConnected ? 'online' : 'offline'"
-                        :pulse="isConnected"
+                        :status="displayConnected ? 'online' : 'offline'"
+                        :pulse="displayConnected"
                         class="mr-2"
                       />
-                      {{ isConnected ? "Agent Connected" : "Agent Disconnected" }}
+                      {{ displayConnected ? "Agent Connected" : "Agent Disconnected" }}
                     </Badge>
                   </PopoverTrigger>
                   <PopoverContent class="w-80 bg-card-base border-card-border text-text-primary">
                     <div class="space-y-2">
                       <h4 class="font-medium text-text-primary">Agent Connection Details</h4>
                       <div class="text-sm text-text-secondary space-y-1.5">
-                        <p><strong class="text-text-primary">Status:</strong> <span class="font-bold">{{ isConnected ? "Connected" : "Disconnected" }}</span></p>
+                        <p><strong class="text-text-primary">Status:</strong> <span class="font-bold">{{ displayConnected ? "Connected" : "Disconnected" }}</span></p>
                         <p><strong class="text-text-primary">WebSocket URL:</strong> <code class="text-xs bg-background-primary px-1 py-0.5 rounded">ws://localhost:8765/ws</code></p>
                         <p><strong class="text-text-primary">Last Update:</strong> <code class="text-xs bg-background-primary px-1 py-0.5 rounded">{{ new Date().toLocaleTimeString() }}</code></p>
                       </div>
@@ -51,6 +51,7 @@
 </template>
 
 <script setup lang="ts">
+import { ref, onMounted, computed } from 'vue'
 import {
   NavigationMenu,
   NavigationMenuItem,
@@ -60,10 +61,18 @@ import {
 import { Badge } from "~/components/ui/badge"
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover"
 import StatusDot from "~/components/StatusDot.vue"
-import { useWebSocketSingleton } from "~/composables/useWebsocketSingleton"
+import { useAppWebSocket } from "~/composables/useAppWebSocket"
 
-// Use the singleton websocket composable to get connection status
-const { isConnected } = useWebSocketSingleton("ws://localhost:8765/ws")
+// Use the app websocket composable to get connection status
+const { isConnected } = useAppWebSocket("ws://localhost:8765/ws")
+
+// Force client-side only rendering to avoid hydration mismatch
+const isClientSide = ref(false)
+onMounted(() => {
+  isClientSide.value = true
+})
+
+const displayConnected = computed(() => isClientSide.value && isConnected.value)
 </script>
 
 <style>

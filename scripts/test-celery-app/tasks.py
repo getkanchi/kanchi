@@ -24,6 +24,9 @@ class CallbackTask(Task):
 
 @app.task(name='tasks.simple_task')
 def simple_task(x, y):
+    # Faile 50/50
+    if random.choice([True, False]):
+        raise ValueError("Random failure for testing")
     return x + y
 
 

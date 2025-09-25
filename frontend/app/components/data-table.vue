@@ -18,11 +18,12 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ChevronRight, ChevronDown, Clock, Hash, Database, Cpu, AlertTriangle, ChevronLeft, ChevronsLeft, ChevronsRight, ArrowUpDown, ArrowUp, ArrowDown, Search } from 'lucide-vue-next'
+import { ChevronRight, ChevronDown, Clock, Hash, Database, Cpu, AlertTriangle, ChevronLeft, ChevronsLeft, ChevronsRight, ArrowUpDown, ArrowUp, ArrowDown, Search, RefreshCw } from 'lucide-vue-next'
 import {Badge} from "~/components/ui/badge";
 import StatusDot from "~/components/StatusDot.vue";
 import CopyButton from "~/components/CopyButton.vue";
 import SearchInput from "~/components/SearchInput.vue";
+import { useTaskApi } from '~/composables/useTaskApi';
 
 interface Filter {
   key: string
@@ -56,6 +57,8 @@ const expandedRows = ref(new Set<string>())
 
 const searchInput = ref(props.searchQuery?.value || '')
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
+
+const { retryTask, isLoading: isRetrying, error: retryError } = useTaskApi()
 
 const handleSearch = (value: string) => {
   searchInput.value = value
@@ -110,6 +113,17 @@ const toggleRowExpansion = (rowId: string) => {
     expandedRows.value.delete(rowId)
   } else {
     expandedRows.value.add(rowId)
+  }
+}
+
+const handleRetry = async (taskId: string) => {
+  try {
+    const result = await retryTask(taskId)
+    console.log('Task retried successfully:', result)
+    // You can add a toast notification here if you have a notification system
+  } catch (error) {
+    console.error('Failed to retry task:', error)
+    // You can add error notification here
   }
 }
 
@@ -199,6 +213,25 @@ const toggleRowExpansion = (rowId: string) => {
             <TableRow v-if="expandedRows.has(row.id)" class="bg-muted/30 border-card-border">
               <TableCell :colspan="columns.length + 1" class="p-0">
                 <div class="px-8 py-6">
+                  
+                  <!-- Retry Button Section -->
+                  <div class="flex items-center justify-between mb-6 pb-4 border-b border-card-border">
+                    <div class="flex items-center gap-2">
+                      <h3 class="text-base font-medium text-gray-300">Task Actions</h3>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <Button 
+                        @click="handleRetry(row.original.task_id)"
+                        :disabled="isRetrying"
+                        size="sm"
+                        variant="outline"
+                        class="flex items-center gap-2 hover:bg-blue-950/30 hover:border-blue-800/60 transition-colors"
+                      >
+                        <RefreshCw :class="{'animate-spin': isRetrying}" class="h-4 w-4" />
+                        {{ isRetrying ? 'Retrying...' : 'Retry Task' }}
+                      </Button>
+                    </div>
+                  </div>
                   
                   <div class="grid grid-cols-2 md:grid-cols-4 gap-6 text-sm mb-2">
                     
