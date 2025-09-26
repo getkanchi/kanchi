@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ChevronRight, ChevronDown, Clock, Hash, Database, Cpu, AlertTriangle, ChevronLeft, ChevronsLeft, ChevronsRight, ArrowUpDown, ArrowUp, ArrowDown, Search, RefreshCw } from 'lucide-vue-next'
+import { ChevronRight, ChevronDown, Clock, Hash, Database, Cpu, AlertTriangle, ChevronLeft, ChevronsLeft, ChevronsRight, ArrowUpDown, ArrowUp, ArrowDown, Search, RefreshCw, CornerDownRight } from 'lucide-vue-next'
 import {Badge} from "~/components/ui/badge";
 import StatusDot from "~/components/StatusDot.vue";
 import CopyButton from "~/components/CopyButton.vue";
@@ -269,6 +269,41 @@ const handleRetry = async (taskId: string) => {
                     </div>
                   </div>
                   
+                  <!-- Retry Chain Section -->
+                  <div v-if="row.original.is_retry || row.original.has_retries" 
+                       class="mb-6 p-4 border border-card-border rounded-md bg-card-base">
+                    <div class="flex items-center gap-2 mb-3">
+                      <RefreshCw class="h-4 w-4 text-blue-400" />
+                      <h4 class="text-sm font-medium text-gray-300">Retry Chain</h4>
+                    </div>
+                    
+                    <!-- Chain visualization -->
+                    <div class="space-y-2 text-sm">
+                      <div v-if="row.original.retry_of" class="flex items-center gap-2 text-gray-400">
+                        <ArrowUp class="h-3 w-3" />
+                        <span>Parent:</span>
+                        <code class="text-xs bg-background-primary px-1 py-0.5 rounded">
+                          {{ row.original.retry_of.substring(0, 12) }}...
+                        </code>
+                        <CopyButton :text="row.original.retry_of" :show-text="false" />
+                      </div>
+                      
+                      <div v-if="row.original.has_retries" class="space-y-1">
+                        <div class="flex items-center gap-2 text-gray-400 mb-1">
+                          <ArrowDown class="h-3 w-3" />
+                          <span>{{ row.original.retry_count }} Retries:</span>
+                        </div>
+                        <div v-for="retryId in row.original.retried_by" :key="retryId" 
+                             class="ml-5 flex items-center gap-2 text-xs text-gray-500">
+                          <CornerDownRight class="h-3 w-3" />
+                          <code class="bg-background-primary px-1 py-0.5 rounded">
+                            {{ retryId.substring(0, 12) }}...
+                          </code>
+                          <CopyButton :text="retryId" :show-text="false" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                   
                   <div class="space-y-2">
                     

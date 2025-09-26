@@ -1,5 +1,5 @@
 from typing import Any, Dict, Optional, List, Union, Literal
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from datetime import datetime
 import json
 from pydantic import BaseModel, Field
@@ -26,6 +26,11 @@ class TaskEvent:
     runtime: Optional[float] = None
     exception: Optional[str] = None
     traceback: Optional[str] = None
+    retry_of: Optional[str] = None
+    retried_by: List[str] = field(default_factory=list)
+    is_retry: bool = False
+    has_retries: bool = False
+    retry_count: int = 0
     
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization"""
@@ -142,6 +147,11 @@ class TaskEventResponse(BaseModel):
     runtime: Optional[float] = None
     exception: Optional[str] = None
     traceback: Optional[str] = None
+    retry_of: Optional[str] = None
+    retried_by: List[str] = Field(default_factory=list)
+    is_retry: bool = False
+    has_retries: bool = False
+    retry_count: int = 0
 
     class Config:
         from_attributes = True

@@ -30,6 +30,9 @@ recent_worker_events: List[WorkerEvent] = []
 MAX_RECENT_EVENTS = 1000
 MAX_WORKER_EVENTS = 100
 
+# In-memory retry relationships
+retry_relationships: Dict[str, Dict[str, Any]] = {}
+
 
 class ConnectionManager:
     
@@ -130,8 +133,22 @@ def get_config() -> Config:
     return Config.from_env()
 
 
+def enrich_task_with_retry_info(task_event: TaskEvent):
+    """Enrich task event with retry relationship information"""
+    if task_event.task_id in retry_relationships:
+        rel = retry_relationships[task_event.task_id]
+        task_event.retry_of = rel.get('retry_of')
+        task_event.retried_by = rel.get('retried_by', [])
+        task_event.is_retry = rel.get('retry_of') is not None
+        task_event.has_retries = len(rel.get('retried_by', [])) > 0
+        task_event.retry_count = rel.get('retry_count', 0)
+
+
 def update_stats(task_event: TaskEvent):
     global task_stats, recent_events
+    
+    # Enrich task event with retry information before processing
+    enrich_task_with_retry_info(task_event)
     
     task_stats.total_tasks += 1
     
@@ -336,6 +353,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     events_sent = 0
                     if mode == 'static':
                         for event in recent_events:
+                            enrich_task_with_retry_info(event)
                             filters = manager.client_filters.get(websocket, {})
                             if manager._should_send_to_client(event, filters):
                                 await manager.send_personal_message(event.to_json(), websocket)
@@ -354,6 +372,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     
                     events_sent = 0
                     for event in events_to_send:
+                        enrich_task_with_retry_info(event)
                         filters = manager.client_filters.get(websocket, {})
                         if manager._should_send_to_client(event, filters):
                             await manager.send_personal_message(event.to_json(), websocket)
@@ -409,7 +428,12 @@ def aggregate_task_events(events: List[TaskEvent]) -> List[TaskEvent]:
             result=latest_event.result,
             runtime=latest_event.runtime,
             exception=latest_event.exception,
-            traceback=latest_event.traceback
+            traceback=latest_event.traceback,
+            retry_of=latest_event.retry_of,
+            retried_by=latest_event.retried_by,
+            is_retry=latest_event.is_retry,
+            has_retries=latest_event.has_retries,
+            retry_count=latest_event.retry_count
         )
         
         for event in task_events:
@@ -440,7 +464,13 @@ async def get_recent_events(
 ):
     
     if aggregate:
-        aggregated_events = aggregate_task_events(recent_events)
+        # Enrich all events with retry information before aggregating
+        enriched_events = []
+        for event in recent_events:
+            enrich_task_with_retry_info(event)
+            enriched_events.append(event)
+        
+        aggregated_events = aggregate_task_events(enriched_events)
         
         if search:
             search_lower = search.lower()
@@ -501,7 +531,13 @@ async def get_recent_events(
         end_idx = start_idx + limit
         paginated_events = aggregated_events[start_idx:end_idx]
     else:
-        events = list(reversed(recent_events))
+        # Enrich events with retry information  
+        enriched_events = []
+        for event in recent_events:
+            enrich_task_with_retry_info(event)
+            enriched_events.append(event)
+        
+        events = list(reversed(enriched_events))
         
         if search:
             search_lower = search.lower()
@@ -557,6 +593,11 @@ async def get_task_events(task_id: str):
     task_events = [event for event in recent_events if event.task_id == task_id]
     if not task_events:
         raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Enrich events with retry information
+    for event in task_events:
+        enrich_task_with_retry_info(event)
+    
     return [TaskEventResponse.from_task_event(event) for event in task_events]
 
 
@@ -574,6 +615,10 @@ async def get_active_tasks():
     active_ids = active_task_ids - finished_task_ids
     active_events = [event for event in recent_events 
                     if event.task_id in active_ids and event.event_type == 'task-started']
+    
+    # Enrich events with retry information
+    for event in active_events:
+        enrich_task_with_retry_info(event)
     
     return [TaskEventResponse.from_task_event(event) for event in active_events]
 
@@ -699,11 +744,29 @@ async def retry_task(task_id: str):
         logger.info(f"Retried task {task_id} as new task {result.id}")
         logger.info(f"Task signature: routing_key={result.routing_key if hasattr(result, 'routing_key') else 'N/A'}")
 
+        # Store retry relationship
+        new_task_id = str(result.id)
+        retry_relationships[new_task_id] = {
+            'retry_of': task_id,
+            'retried_by': [],
+            'retry_count': 0
+        }
+        
+        # Update parent task to include this retry
+        if task_id not in retry_relationships:
+            retry_relationships[task_id] = {
+                'retry_of': None,
+                'retried_by': [],
+                'retry_count': 0
+            }
+        retry_relationships[task_id]['retried_by'].append(new_task_id)
+        retry_relationships[task_id]['retry_count'] += 1
+
         return {
             "status": "success",
             "message": f"Task retried successfully",
             "original_task_id": task_id,
-            "new_task_id": str(result.id),
+            "new_task_id": new_task_id,
             "task_name": original_task.task_name,
             "args": original_task.args,
             "kwargs": original_task.kwargs,
