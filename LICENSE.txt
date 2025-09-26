@@ -1,0 +1,35 @@
+Copyright 2024 Kanchi Project
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software for non-commercial purposes only, including the rights to use,
+copy, modify, merge, publish, and/or distribute copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to the
+following conditions:
+
+1. The above copyright notice and this permission notice shall be included in all
+   copies or substantial portions of the Software.
+
+2. The Software may not be used for commercial purposes. For the purposes of this
+   license, "commercial purposes" means the use of the Software in any way that is
+   primarily intended for or directed toward commercial advantage or monetary
+   compensation.
+
+3. Two (2) years from the date the Software is first made publicly available, the
+   Software will automatically convert to being licensed under the Apache License,
+   Version 2.0, without any additional action required by the licensor or any
+   licensee.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+This license is based on the Functional Source License (FSL) Version 1.1,
+originally created for the benefit of the software development community.
+For more information about FSL licensing, visit https://fsl.software/
