@@ -108,11 +108,11 @@ const table = useVueTable({
   pageCount: props.pagination?.value?.total_pages || 1,
 })
 
-const toggleRowExpansion = (rowId: string) => {
-  if (expandedRows.value.has(rowId)) {
-    expandedRows.value.delete(rowId)
+const toggleRowExpansion = (taskId: string) => {
+  if (expandedRows.value.has(taskId)) {
+    expandedRows.value.delete(taskId)
   } else {
-    expandedRows.value.add(rowId)
+    expandedRows.value.add(taskId)
   }
 }
 
@@ -198,10 +198,10 @@ const handleRetry = async (taskId: string) => {
           <template v-for="row in table.getRowModel().rows" :key="row.id">
             <TableRow
               class="border-card-border cursor-pointer hover:bg-background-primary/10"
-              @click="toggleRowExpansion(row.id)"
+              @click="toggleRowExpansion(row.original.task_id)"
             >
               <TableCell class="w-12">
-                <ChevronRight v-if="!expandedRows.has(row.id)" class="h-4 w-4 text-gray-400" />
+                <ChevronRight v-if="!expandedRows.has(row.original.task_id)" class="h-4 w-4 text-gray-400" />
                 <ChevronDown v-else class="h-4 w-4 text-gray-400" />
               </TableCell>
               <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
@@ -210,7 +210,7 @@ const handleRetry = async (taskId: string) => {
             </TableRow>
             
             
-            <TableRow v-if="expandedRows.has(row.id)" class="bg-muted/30 border-card-border">
+            <TableRow v-if="expandedRows.has(row.original.task_id)" class="bg-muted/30 border-card-border">
               <TableCell :colspan="columns.length + 1" class="p-0">
                 <div class="px-8 py-6">
                   
