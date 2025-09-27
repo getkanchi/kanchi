@@ -2,8 +2,15 @@
   <NuxtLayout>
     <div class="p-6">
 
+      <!-- Command Palette -->
+      <CommandPalette 
+        :is-live-mode="liveTable.isLiveMode.value"
+        @toggle-live-mode="liveTable.toggleLiveMode"
+        @rerun-task="handleRerunTask"
+      />
+
       <!-- Workers Overview -->
-      <div class="mb-6">
+      <div class="mb-6 workers-section">
         <WorkerStatusSummary
           :workers="workers"
           @update="updateWorkerData"
@@ -43,6 +50,7 @@ import { useLiveTable } from "~/composables/useLiveTable"
 import { getTaskColumns } from "~/config/tableColumns"
 import DataTable from "~/components/data-table.vue"
 import WorkerStatusSummary from "~/components/WorkerStatusSummary.vue"
+import CommandPalette from "~/components/CommandPalette.vue"
 import type { WorkerInfo, WorkerEvent } from '~/types'
 
 
@@ -144,6 +152,11 @@ const handleMouseMove = (e: MouseEvent) => {
     ;(element as HTMLElement).style.setProperty('--mouse-x', `${x}px`)
     ;(element as HTMLElement).style.setProperty('--mouse-y', `${y}px`)
   })
+}
+
+const handleRerunTask = (taskId: string) => {
+  // TODO: Implement rerun task functionality
+  console.log('Rerun task triggered for:', taskId)
 }
 
 onMounted(() => {
