@@ -23,6 +23,7 @@ import {Badge} from "~/components/ui/badge";
 import StatusDot from "~/components/StatusDot.vue";
 import CopyButton from "~/components/CopyButton.vue";
 import SearchInput from "~/components/SearchInput.vue";
+import RetryChain from "~/components/RetryChain.vue";
 import { useTaskApi } from '~/composables/useTaskApi';
 
 interface Filter {
@@ -272,37 +273,21 @@ const handleRetry = async (taskId: string) => {
                   <!-- Retry Chain Section -->
                   <div v-if="row.original.is_retry || row.original.has_retries" 
                        class="mb-6 p-4 border border-card-border rounded-md bg-card-base">
-                    <div class="flex items-center gap-2 mb-3">
-                      <RefreshCw class="h-4 w-4 text-blue-400" />
-                      <h4 class="text-sm font-medium text-gray-300">Retry Chain</h4>
-                    </div>
-                    
-                    <!-- Chain visualization -->
-                    <div class="space-y-2 text-sm">
-                      <div v-if="row.original.retry_of" class="flex items-center gap-2 text-gray-400">
-                        <ArrowUp class="h-3 w-3" />
-                        <span>Parent:</span>
-                        <code class="text-xs bg-background-primary px-1 py-0.5 rounded">
-                          {{ row.original.retry_of.substring(0, 12) }}...
-                        </code>
-                        <CopyButton :text="row.original.retry_of" :show-text="false" />
-                      </div>
-                      
-                      <div v-if="row.original.has_retries" class="space-y-1">
-                        <div class="flex items-center gap-2 text-gray-400 mb-1">
-                          <ArrowDown class="h-3 w-3" />
-                          <span>{{ row.original.retry_count }} Retries:</span>
-                        </div>
-                        <div v-for="retryId in row.original.retried_by" :key="retryId" 
-                             class="ml-5 flex items-center gap-2 text-xs text-gray-500">
-                          <CornerDownRight class="h-3 w-3" />
-                          <code class="bg-background-primary px-1 py-0.5 rounded">
-                            {{ retryId.substring(0, 12) }}...
-                          </code>
-                          <CopyButton :text="retryId" :show-text="false" />
-                        </div>
-                      </div>
-                    </div>
+                    <RetryChain
+                      :current-task="row.original"
+                      :parent-task="row.original.retry_of ? { 
+                        task_id: row.original.retry_of, 
+                        status: row.original.parent_status || 'unknown',
+                        timestamp: row.original.parent_timestamp
+                      } : undefined"
+                      :retries="row.original.retried_by ? row.original.retried_by.map((id, index) => ({
+                        task_id: id,
+                        status: row.original.retry_statuses?.[index] || 'unknown',
+                        timestamp: row.original.retry_timestamps?.[index],
+                        retry_number: index + 2
+                      })) : []"
+                      :show-details="false"
+                    />
                   </div>
                   
                   <div class="space-y-2">

@@ -50,7 +50,7 @@ test-priority: ## Generate priority tasks
 	docker-compose run --rm -e REDIS_URL=redis://redis:6379/0 -e CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672// worker1 python test_producer.py --mode priority --count 20
 
 test-resource: ## Generate resource intensive tasks
-	docker-compose run --rm -e REDIS_URL=redis://redis:6379/0 -e CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672// worker1 python test_producer.py --mode resource --count 10
+	docker-compose run --rm -e REDIS_URL=redis://redis:6379/0 -e CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672// worker1 python test_producer.py --mode resource --count 1
 
 test-workflow: ## Generate workflow tasks
 	docker-compose run --rm -e REDIS_URL=redis://redis:6379/0 -e CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672// worker1 python test_producer.py --mode workflow --count 5
