@@ -33,7 +33,7 @@
                       <h4 class="font-medium text-text-primary">Agent Connection Details</h4>
                       <div class="text-sm text-text-secondary space-y-1.5">
                         <p><strong class="text-text-primary">Status:</strong> <span class="font-bold">{{ displayConnected ? "Connected" : "Disconnected" }}</span></p>
-                        <p><strong class="text-text-primary">WebSocket URL:</strong> <code class="text-xs bg-background-primary px-1 py-0.5 rounded">ws://localhost:8765/ws</code></p>
+                        <p><strong class="text-text-primary">WebSocket URL:</strong> <code class="text-xs bg-background-primary px-1 py-0.5 rounded">{{ wsUrl }}</code></p>
                         <p><strong class="text-text-primary">Last Update:</strong> <code class="text-xs bg-background-primary px-1 py-0.5 rounded">{{ new Date().toLocaleTimeString() }}</code></p>
                       </div>
                     </div>
@@ -64,7 +64,9 @@ import StatusDot from "~/components/StatusDot.vue"
 import { useAppWebSocket } from "~/composables/useAppWebSocket"
 
 // Use the app websocket composable to get connection status
-const { isConnected } = useAppWebSocket("ws://localhost:8765/ws")
+const { isConnected } = useAppWebSocket()
+const config = useRuntimeConfig()
+const wsUrl = config.public.wsUrl
 
 // Force client-side only rendering to avoid hydration mismatch
 const isClientSide = ref(false)

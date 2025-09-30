@@ -150,18 +150,6 @@ const handleKeydown = (e: KeyboardEvent) => {
       e.preventDefault()
       emit('toggle-live-mode')
     }
-    
-    if ((e.metaKey || e.ctrlKey) && e.key === 'r') {
-      e.preventDefault()
-      open.value = true
-      justOpened.value = true
-      nextTick(() => {
-        enterRerunMode()
-        setTimeout(() => {
-          justOpened.value = false
-        }, 300)
-      })
-    }
   }
 }
 
@@ -311,7 +299,6 @@ onUnmounted(() => {
                   >
                     <RotateCcw class="w-4 h-4 text-text-secondary" />
                     <span class="text-text-primary">Rerun Task...</span>
-                    <Pill variant="shortcut" size="sm">⌘R</Pill>
                   </div>
                 </CommandGroup>
               </template>

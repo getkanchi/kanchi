@@ -54,16 +54,20 @@ import CommandPalette from "~/components/CommandPalette.vue"
 import type { WorkerInfo, WorkerEvent } from '~/types'
 
 
-const { isConnected, messages } = useAppWebSocket("ws://localhost:8765/ws")
+const config = useRuntimeConfig()
+const wsUrl = config.public.wsUrl
+const apiBaseUrl = wsUrl.replace('ws://', 'http://').replace('/ws', '')
 
-const liveTable = useLiveTable([], "http://localhost:8765/api/events/recent")
+const { isConnected, messages } = useAppWebSocket()
+
+const liveTable = useLiveTable([], `${apiBaseUrl}/api/events/recent`)
 
 const workers = ref<WorkerInfo[]>([])
 const workerMap = ref<Map<string, WorkerInfo>>(new Map())
 
 const fetchWorkers = async () => {
   try {
-    const response = await fetch('http://localhost:8765/api/workers')
+    const response = await fetch(`${apiBaseUrl}/api/workers`)
     if (response.ok) {
       const data = await response.json()
       data.forEach((worker: WorkerInfo) => {

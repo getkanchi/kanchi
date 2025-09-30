@@ -55,10 +55,13 @@ const handleMessage = (data: TaskEventResponse) => {
   }
 }
 
-export const useAppWebSocket = (url: string = 'ws://localhost:8765/ws') => {
+export const useAppWebSocket = (url?: string) => {
+  const config = useRuntimeConfig()
+  const wsUrl = url || config.public.wsUrl
+  
   connectionCount++
   
-  const ws = createConnection(url)
+  const ws = createConnection(wsUrl)
   
   const sendMessage = (message: any) => {
     if (socket && socket.status.value === 'OPEN') {
