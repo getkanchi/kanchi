@@ -55,8 +55,7 @@ import type { WorkerInfo, WorkerEvent } from '~/types'
 
 
 const config = useRuntimeConfig()
-const wsUrl = config.public.wsUrl
-const apiBaseUrl = wsUrl.replace('ws://', 'http://').replace('/ws', '')
+const apiBaseUrl = config.public.apiUrl
 
 const { isConnected, messages } = useAppWebSocket()
 

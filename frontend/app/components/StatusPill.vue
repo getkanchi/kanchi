@@ -49,6 +49,8 @@
 import { computed, ref } from 'vue'
 import { Copy, Check } from 'lucide-vue-next'
 
+const { isAnimatedStatus, getStatusColor } = useTaskStatus()
+
 const props = defineProps<{
   status: string
   taskId: string
@@ -64,118 +66,17 @@ const displayId = computed(() => {
 })
 
 const isRunning = computed(() => {
-  return ['running', 'processing', 'pending'].includes((props.status || '').toLowerCase())
+  return isAnimatedStatus(props.status || '')
 })
 
-const statusColorMap: Record<string, { pill: string, dot: string, ring?: string }> = {
-  // Success states
-  success: {
-    pill: 'bg-status-success-bg border-status-success-border text-status-success',
-    dot: 'bg-status-success',
-    ring: 'ring-status-success/40'
-  },
-  completed: {
-    pill: 'bg-status-success-bg border-status-success-border text-status-success',
-    dot: 'bg-status-success',
-    ring: 'ring-status-success/40'
-  },
-  
-  // Error states
-  error: {
-    pill: 'bg-status-error-bg border-status-error-border text-status-error',
-    dot: 'bg-status-error',
-    ring: 'ring-status-error/40'
-  },
-  failed: {
-    pill: 'bg-status-error-bg border-status-error-border text-status-error',
-    dot: 'bg-status-error',
-    ring: 'ring-status-error/40'
-  },
-  failure: {
-    pill: 'bg-status-error-bg border-status-error-border text-status-error',
-    dot: 'bg-status-error',
-    ring: 'ring-status-error/40'
-  },
-  
-  // Running states
-  running: {
-    pill: 'bg-status-info-bg border-status-info-border text-status-info',
-    dot: 'bg-status-info',
-    ring: 'ring-status-info/40'
-  },
-  processing: {
-    pill: 'bg-status-info-bg border-status-info-border text-status-info',
-    dot: 'bg-status-info',
-    ring: 'ring-status-info/40'
-  },
-  started: {
-    pill: 'bg-status-info-bg border-status-info-border text-status-info',
-    dot: 'bg-status-info',
-    ring: 'ring-status-info/40'
-  },
-  
-  // Pending states
-  pending: {
-    pill: 'bg-status-warning-bg border-status-warning-border text-status-warning',
-    dot: 'bg-status-warning',
-    ring: 'ring-status-warning/40'
-  },
-  waiting: {
-    pill: 'bg-status-warning-bg border-status-warning-border text-status-warning',
-    dot: 'bg-status-warning',
-    ring: 'ring-status-warning/40'
-  },
-  received: {
-    pill: 'bg-status-special-bg border-status-special-border text-status-special',
-    dot: 'bg-status-special',
-    ring: 'ring-status-special/40'
-  },
-  
-  // Retry states
-  retry: {
-    pill: 'bg-status-retry-bg border-status-retry-border text-status-retry',
-    dot: 'bg-status-retry',
-    ring: 'ring-status-retry/40'
-  },
-  retrying: {
-    pill: 'bg-status-retry-bg border-status-retry-border text-status-retry',
-    dot: 'bg-status-retry',
-    ring: 'ring-status-retry/40'
-  },
-  
-  // Neutral states
-  cancelled: {
-    pill: 'bg-status-neutral-bg border-status-neutral-border text-status-neutral',
-    dot: 'bg-status-neutral',
-    ring: 'ring-status-neutral/40'
-  },
-  revoked: {
-    pill: 'bg-status-neutral-bg border-status-neutral-border text-status-neutral',
-    dot: 'bg-status-neutral',
-    ring: 'ring-status-neutral/40'
-  },
-  ignored: {
-    pill: 'bg-status-neutral-bg border-status-neutral-border text-status-neutral',
-    dot: 'bg-status-neutral',
-    ring: 'ring-status-neutral/40'
-  },
-  rejected: {
-    pill: 'bg-status-neutral-bg border-status-neutral-border text-status-neutral',
-    dot: 'bg-status-neutral',
-    ring: 'ring-status-neutral/40'
-  }
-}
-
 const pillClass = computed(() => {
-  const statusLower = (props.status || 'pending').toLowerCase()
-  const config = statusColorMap[statusLower] || statusColorMap.pending
+  const config = getStatusColor(props.status || 'pending')
   const base = `border ${config.pill}`
   return props.isCurrent && config.ring ? `${base} ${config.ring}` : base
 })
 
 const dotClass = computed(() => {
-  const statusLower = (props.status || 'pending').toLowerCase()
-  const config = statusColorMap[statusLower] || statusColorMap.pending
+  const config = getStatusColor(props.status || 'pending')
   return config.dot
 })
 

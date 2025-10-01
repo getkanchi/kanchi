@@ -9,7 +9,7 @@
       <!-- Header Row -->
       <div class="flex items-center justify-between mb-3">
         <div class="flex items-center gap-2">
-          <StatusDot :status="getStatusType(worker.status)" :pulse="worker.status === 'online'" />
+          <StatusDot :status="getWorkerStatusType(worker.status)" :pulse="worker.status === 'online'" />
           <span class="font-mono text-xs">{{ worker.hostname }}</span>
         </div>
         <div class="flex items-center gap-2">
@@ -132,8 +132,9 @@
 import { ref, computed } from 'vue'
 import StatusDot from '~/components/StatusDot.vue'
 import { formatTimestamp, formatDuration } from '~/composables/useDateTimeFormatters'
-import { getStatusVariant } from '~/utils/taskStatusMappers'
 import type { WorkerInfo } from '~/types/workers'
+
+const { getWorkerStatusType } = useWorkerStatus()
 
 const props = defineProps<{
   worker: WorkerInfo
@@ -161,22 +162,6 @@ const cardClasses = computed(() => {
   return classes.join(' ')
 })
 
-const getStatusType = (status: string): 'online' | 'offline' | 'warning' | 'error' | 'info' | 'success' => {
-  switch (status.toLowerCase()) {
-    case 'online':
-      return 'online'
-    case 'offline':
-      return 'offline'
-    case 'heartbeat':
-      return 'info'
-    case 'warning':
-      return 'warning'
-    case 'error':
-      return 'error'
-    default:
-      return 'offline'
-  }
-}
 
 const formatLoadAvg = (loadavg?: number[]): string => {
   if (!loadavg || loadavg.length === 0) return 'N/A'

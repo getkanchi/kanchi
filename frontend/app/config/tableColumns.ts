@@ -1,7 +1,6 @@
 import { h } from 'vue'
 import type { ColumnDef } from '@tanstack/vue-table'
 import { formatTime, calculateDuration } from '~/composables/useDateTimeFormatters'
-import { eventTypeToStatus, getStatusVariant } from '~/utils/taskStatusMappers'
 import { Badge } from '~/components/ui/badge'
 import type { Task } from '~/types'
 
@@ -17,6 +16,7 @@ export function getTaskColumns(): ColumnDef<Task>[] {
       accessorKey: 'event_type',
       header: 'Status',
       cell: ({ row }) => {
+        const { eventTypeToStatus, getStatusVariant, formatStatus } = useTaskStatus()
         const eventType = row.getValue('event_type') as string
         const status = eventTypeToStatus(eventType)
         const variant = getStatusVariant(status)
@@ -24,7 +24,7 @@ export function getTaskColumns(): ColumnDef<Task>[] {
         return h(Badge, { 
           variant,
           class: 'text-xs'
-        }, () => status.charAt(0).toUpperCase() + status.slice(1).toLowerCase())
+        }, () => formatStatus(status))
       },
       enableSorting: true
     },

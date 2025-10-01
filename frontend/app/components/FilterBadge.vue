@@ -6,10 +6,10 @@
     <span class="text-gray-400">{{ filter.key }}:</span>
     <Badge
       v-if="filter.key === 'state'"
-      :variant="getStateVariant(filter.value)"
+      :variant="getStatusVariant(filter.value)"
       class="text-xs px-1 py-0 h-4 normal-case"
     >
-      {{ formatStateValue(filter.value) }}
+      {{ formatStatus(filter.value) }}
     </Badge>
     <span v-else class="text-white">
       {{ filter.value }}
@@ -41,20 +41,5 @@ defineEmits<{
   remove: []
 }>()
 
-const getStateVariant = (state: string): BadgeVariants['variant'] => {
-  const variants: Record<string, BadgeVariants['variant']> = {
-    'SUCCESS': 'success',
-    'RUNNING': 'running', 
-    'PENDING': 'pending',
-    'RECEIVED': 'received',
-    'FAILED': 'failed',
-    'RETRY': 'retry',
-    'REVOKED': 'revoked'
-  }
-  return variants[state] || 'outline'
-}
-
-const formatStateValue = (state: string): string => {
-  return state.charAt(0).toUpperCase() + state.slice(1).toLowerCase()
-}
+const { getStatusVariant, formatStatus } = useTaskStatus()
 </script>

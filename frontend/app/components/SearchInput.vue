@@ -66,10 +66,10 @@
         >
           <Badge
             v-if="currentFilter.key === 'state'"
-            :variant="getStateVariant(value)"
+            :variant="getStatusVariant(value)"
             class="text-xs normal-case"
           >
-            {{ formatStateValue(value) }}
+            {{ formatStatus(value) }}
           </Badge>
           <span v-else>{{ value }}</span>
         </button>
@@ -112,32 +112,8 @@ const filterKeys = [
 ]
 
 // State values for autocomplete
-const stateValues = [
-  'PENDING',
-  'RECEIVED', 
-  'RUNNING',
-  'SUCCESS',
-  'FAILED',
-  'RETRY',
-  'REVOKED'
-]
-
-const getStateVariant = (state: string): BadgeVariants['variant'] => {
-  const variants: Record<string, BadgeVariants['variant']> = {
-    'SUCCESS': 'success',
-    'RUNNING': 'running',
-    'PENDING': 'pending',
-    'RECEIVED': 'received',
-    'FAILED': 'failed',
-    'RETRY': 'retry',
-    'REVOKED': 'revoked'
-  }
-  return variants[state] || 'outline'
-}
-
-const formatStateValue = (state: string): string => {
-  return state.charAt(0).toUpperCase() + state.slice(1).toLowerCase()
-}
+const { getStatusVariant, formatStatus, getAllStatuses } = useTaskStatus()
+const stateValues = getAllStatuses()
 
 // Get suggestions based on current filter being typed
 const currentSuggestions = computed(() => {

@@ -20,6 +20,8 @@ import { Pill } from "~/components/ui/pill"
 import StatusPill from "~/components/StatusPill.vue"
 import {Badge} from "~/components/ui/badge";
 
+const { eventTypeToStatus, getStatusVariant, formatStatus } = useTaskStatus()
+
 const props = defineProps<{
   isLiveMode?: boolean
 }>()
@@ -311,7 +313,7 @@ onUnmounted(() => {
                       <Badge
                         :variant="getStatusVariant(eventTypeToStatus(selectedTask.event_type))"
                         class="text-xs"
-                      >{{getStatusVariant(eventTypeToStatus(selectedTask.event_type))}}</Badge>
+                      >{{ formatStatus(eventTypeToStatus(selectedTask.event_type)) }}</Badge>
                     </div>
                   </div>
                   <div class="text-xs text-text-secondary space-y-1">

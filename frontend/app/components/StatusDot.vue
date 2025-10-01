@@ -11,21 +11,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+const { getDotColorClass } = useTaskStatus()
+
 const props = defineProps<{
   status: 'online' | 'offline' | 'warning' | 'error' | 'info' | 'success' | 'muted'
   pulse?: boolean
 }>()
 
 const dotClass = computed(() => {
-  const colors = {
-    online: 'bg-status-success',
-    success: 'bg-status-success',
-    offline: 'bg-status-error',
-    error: 'bg-status-error', 
-    warning: 'bg-status-warning',
-    info: 'bg-status-info',
-    muted: 'bg-gray-400',
-  }
-  return colors[props.status] || 'bg-gray-500'
+  return getDotColorClass(props.status)
 })
 </script>
