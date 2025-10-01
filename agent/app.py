@@ -1,814 +1,159 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, BackgroundTasks
-from fastapi.responses import HTMLResponse
-from fastapi.middleware.cors import CORSMiddleware
-import asyncio
-import json
+"""Main FastAPI application for Celery Event Monitor."""
+
 import logging
 import threading
-from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import Optional
 import uvicorn
+from contextlib import asynccontextmanager
 
-from models import (
-    TaskEvent, TaskEventResponse, TaskStats, ConnectionInfo, 
-    SubscriptionRequest, SubscriptionResponse, WebSocketMessage, WebSocketResponse,
-    PongResponse, ModeChangedResponse, StoredEventsResponse,
-    PingMessage, SubscribeMessage, SetModeMessage, GetStoredMessage,
-    WorkerEvent, WorkerInfo
-)
-from monitor import CeleryEventMonitor
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
 from config import Config
+from database import DatabaseManager
+from connection_manager import ConnectionManager
+from event_handler import EventHandler
+from monitor import CeleryEventMonitor
 
 logger = logging.getLogger(__name__)
 
-# Global state
-monitor_instance: Optional[CeleryEventMonitor] = None
-monitor_thread: Optional[threading.Thread] = None
-task_stats = TaskStats()
-recent_events: List[TaskEvent] = []
-recent_worker_events: List[WorkerEvent] = []
-MAX_RECENT_EVENTS = 1000
-MAX_WORKER_EVENTS = 100
 
-# In-memory retry relationships
-retry_relationships: Dict[str, Dict[str, Any]] = {}
-
-
-class ConnectionManager:
-    
+class ApplicationState:
+    """Container for application state and dependencies."""
     def __init__(self):
-        self.active_connections: List[WebSocket] = []
-        self.client_filters: Dict[WebSocket, dict] = {}
-        self.client_modes: Dict[WebSocket, str] = {}  # 'live' or 'static'
-    
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.append(websocket)
-        self.client_filters[websocket] = {}
-        self.client_modes[websocket] = 'live'
-        logger.info(f"Client connected. Total connections: {len(self.active_connections)}")
-    
-    def disconnect(self, websocket: WebSocket):
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
-        if websocket in self.client_filters:
-            del self.client_filters[websocket]
-        if websocket in self.client_modes:
-            del self.client_modes[websocket]
-        logger.info(f"Client disconnected. Total connections: {len(self.active_connections)}")
-    
-    async def send_personal_message(self, message: str, websocket: WebSocket):
-        try:
-            await websocket.send_text(message)
-        except Exception as e:
-            logger.error(f"Error sending message to client: {e}")
-            self.disconnect(websocket)
-    
-    async def broadcast(self, task_event: TaskEvent):
-        if not self.active_connections:
-            return
-        
-        message = task_event.to_json()
-        disconnected = []
-        
-        for connection in self.active_connections:
-            try:
-                if self.client_modes.get(connection, 'live') != 'live':
-                    continue
-                    
-                filters = self.client_filters.get(connection, {})
-                if self._should_send_to_client(task_event, filters):
-                    await connection.send_text(message)
-            except Exception as e:
-                logger.error(f"Error broadcasting to client: {e}")
-                disconnected.append(connection)
-        
-        for connection in disconnected:
-            self.disconnect(connection)
-    
-    def _should_send_to_client(self, task_event: TaskEvent, filters: dict) -> bool:
-        if not filters:
-            return True
-        
-        event_types = filters.get('event_types', [])
-        if event_types and task_event.event_type not in event_types:
-            return False
-        
-        task_names = filters.get('task_names', [])
-        if task_names and task_event.task_name not in task_names:
-            return False
-        
-        return True
-    
-    def set_client_filters(self, websocket: WebSocket, filters: dict):
-        self.client_filters[websocket] = filters
-    
-    def set_client_mode(self, websocket: WebSocket, mode: str):
-        if mode in ['live', 'static']:
-            self.client_modes[websocket] = mode
-            logger.info(f"Client mode set to: {mode}")
+        self.db_manager: Optional[DatabaseManager] = None
+        self.connection_manager: Optional[ConnectionManager] = None
+        self.event_handler: Optional[EventHandler] = None
+        self.monitor_instance: Optional[CeleryEventMonitor] = None
+        self.monitor_thread: Optional[threading.Thread] = None
 
 
-# Global connection manager
-manager = ConnectionManager()
-
-# Create FastAPI app
-app = FastAPI(
-    title="Celery Event Monitor",
-    description="Real-time monitoring of Celery task events with WebSocket broadcasting",
-    version="0.1.0"
-)
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Application state instance
+app_state = ApplicationState()
 
 
-def get_config() -> Config:
-    return Config.from_env()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager."""
+    # Startup
+    await initialize_application()
+    yield
+    # Shutdown
+    if app_state.monitor_thread and app_state.monitor_thread.is_alive():
+        logger.info("Shutting down monitor thread")
 
 
-def enrich_task_with_retry_info(task_event: TaskEvent):
-    """Enrich task event with retry relationship information"""
-    if task_event.task_id in retry_relationships:
-        rel = retry_relationships[task_event.task_id]
-        task_event.retry_of = rel.get('retry_of')
-        task_event.retried_by = rel.get('retried_by', [])
-        task_event.is_retry = rel.get('retry_of') is not None
-        task_event.has_retries = len(rel.get('retried_by', [])) > 0
-        task_event.retry_count = rel.get('retry_count', 0)
+def create_app() -> FastAPI:
+    """Create and configure the FastAPI application."""
+    app = FastAPI(
+        title="Celery Event Monitor",
+        description="Real-time monitoring of Celery task events with WebSocket broadcasting",
+        version="0.1.0",
+        lifespan=lifespan
+    )
 
+    # Add CORS middleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-def update_stats(task_event: TaskEvent):
-    global task_stats, recent_events
+    # Import and include routers with dependencies
+    from api.task_routes import create_router as create_task_router
+    from api.worker_routes import create_router as create_worker_router
+    from api.websocket_routes import create_router as create_websocket_router
     
-    # Enrich task event with retry information before processing
-    enrich_task_with_retry_info(task_event)
-    
-    task_stats.total_tasks += 1
-    
-    if task_event.event_type == 'task-succeeded':
-        task_stats.succeeded += 1
-    elif task_event.event_type == 'task-failed':
-        task_stats.failed += 1
-    elif task_event.event_type == 'task-retried':
-        task_stats.retried += 1
-    elif task_event.event_type == 'task-started':
-        task_stats.active += 1
-    elif task_event.event_type in ['task-succeeded', 'task-failed']:
-        task_stats.active = max(0, task_stats.active - 1)
-    
-    recent_events.append(task_event)
-    if len(recent_events) > MAX_RECENT_EVENTS:
-        recent_events.pop(0)
+    app.include_router(create_task_router(app_state))
+    app.include_router(create_worker_router(app_state))
+    app.include_router(create_websocket_router(app_state))
+
+    @app.get("/api/health")
+    async def health_check():
+        """Health check endpoint."""
+        workers_count = len(app_state.monitor_instance.get_workers_info()) if app_state.monitor_instance else 0
+        return {
+            "status": "healthy",
+            "monitor_running": app_state.monitor_thread.is_alive() if app_state.monitor_thread else False,
+            "connections": len(app_state.connection_manager.active_connections) if app_state.connection_manager else 0,
+            "workers": workers_count,
+            "database_url": app_state.db_manager.engine.url.render_as_string(hide_password=True) if app_state.db_manager else None
+        }
+
+    return app
 
 
-async def broadcast_event(task_event: TaskEvent):
-    update_stats(task_event)
-    await manager.broadcast(task_event)
-
-
-async def broadcast_worker_event(worker_event: WorkerEvent):
-    global recent_worker_events
-    
-    recent_worker_events.append(worker_event)
-    if len(recent_worker_events) > MAX_WORKER_EVENTS:
-        recent_worker_events.pop(0)
-    
-    message = worker_event.model_dump_json()
-    disconnected = []
-    
-    for connection in manager.active_connections:
-        try:
-            if manager.client_modes.get(connection, 'live') == 'live':
-                await connection.send_text(message)
-        except Exception as e:
-            logger.error(f"Error broadcasting worker event to client: {e}")
-            disconnected.append(connection)
-    
-    for connection in disconnected:
-        manager.disconnect(connection)
-
-
-def start_monitor(config: Config):
-    global monitor_instance, monitor_thread
-    
-    if monitor_thread and monitor_thread.is_alive():
-        logger.warning("Monitor already running")
-        return
-    
-    logger.info(f"Starting Celery monitor with broker: {config.broker_url}")
-    monitor_instance = CeleryEventMonitor(config.broker_url)
-    
-    def sync_broadcast(task_event: TaskEvent):
-        try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(broadcast_event(task_event))
-            loop.close()
-        except Exception as e:
-            logger.error(f"Error in sync broadcast: {e}")
-    
-    monitor_instance.set_broadcast_callback(sync_broadcast)
-    
-    def sync_worker_broadcast(worker_event: WorkerEvent):
-        try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(broadcast_worker_event(worker_event))
-            loop.close()
-        except Exception as e:
-            logger.error(f"Error in sync worker broadcast: {e}")
-    
-    monitor_instance.set_worker_broadcast_callback(sync_worker_broadcast)
-    
-    monitor_thread = threading.Thread(target=monitor_instance.start_monitoring)
-    monitor_thread.daemon = True
-    monitor_thread.start()
-
-
-@app.on_event("startup")
-async def startup_event():
+async def initialize_application():
+    """Initialize all application components."""
     config = Config.from_env()
     
+    # Setup logging
     logging.basicConfig(
         level=getattr(logging, config.log_level),
         format=config.log_format
     )
     
+    # Initialize database
+    app_state.db_manager = DatabaseManager(config.database_url)
+    app_state.db_manager.create_tables()
+    logger.info(f"Database initialized with URL: {config.database_url}")
+    
+    # Initialize stats if not exists
+    with app_state.db_manager.get_session() as session:
+        from database import TaskStatsDB
+        stats = session.query(TaskStatsDB).filter_by(id=1).first()
+        if not stats:
+            stats = TaskStatsDB(id=1)
+            session.add(stats)
+            session.commit()
+    
+    # Initialize connection manager
+    app_state.connection_manager = ConnectionManager()
+    
+    # Initialize event handler
+    app_state.event_handler = EventHandler(app_state.db_manager, app_state.connection_manager)
+    
+    # Start Celery monitor
     start_monitor(config)
 
 
-@app.get("/", response_class=HTMLResponse)
-async def get_home():
-    html_content = """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Celery Event Monitor</title>
-        <style>
-            body { font-family: Arial, sans-serif; margin: 40px; }
-            .event { margin: 10px 0; padding: 10px; border-left: 3px solid #007acc; background: #f5f5f5; }
-            .succeeded { border-left-color: #28a745; }
-            .failed { border-left-color: #dc3545; }
-            .started { border-left-color: #ffc107; }
-            #status { margin: 20px 0; font-weight: bold; }
-            #events { max-height: 500px; overflow-y: auto; }
-        </style>
-    </head>
-    <body>
-        <h1>Celery Event Monitor</h1>
-        <div id="status">Connecting...</div>
-        <div id="events"></div>
-        
-        <script>
-            const ws = new WebSocket(`ws://${window.location.host}/ws`);
-            const status = document.getElementById('status');
-            const events = document.getElementById('events');
-            
-            ws.onopen = function(event) {
-                status.textContent = 'Connected to Celery Event Monitor';
-                status.style.color = 'green';
-            };
-            
-            ws.onmessage = function(event) {
-                const data = JSON.parse(event.data);
-                
-                if (data.type === 'connection') {
-                    return;
-                }
-                
-                if (data.task_id) {
-                    const eventDiv = document.createElement('div');
-                    eventDiv.className = `event ${data.event_type.replace('task-', '')}`;
-                    eventDiv.innerHTML = `
-                        <strong>${data.event_type}</strong>: ${data.task_name}[${data.task_id.substring(0, 8)}...]<br>
-                        <small>Time: ${new Date(data.timestamp).toLocaleString()}</small>
-                        ${data.runtime ? `<br><small>Runtime: ${data.runtime.toFixed(2)}s</small>` : ''}
-                        ${data.result ? `<br><small>Result: ${JSON.stringify(data.result).substring(0, 100)}...</small>` : ''}
-                    `;
-                    events.insertBefore(eventDiv, events.firstChild);
-                    
-                    // Keep only last 50 events
-                    while (events.children.length > 50) {
-                        events.removeChild(events.lastChild);
-                    }
-                }
-            };
-            
-            ws.onclose = function(event) {
-                status.textContent = 'Disconnected';
-                status.style.color = 'red';
-            };
-        </script>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=html_content)
-
-
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
+def start_monitor(config: Config):
+    """Start the Celery event monitor."""
+    if app_state.monitor_thread and app_state.monitor_thread.is_alive():
+        logger.warning("Monitor already running")
+        return
     
-    welcome = ConnectionInfo(
-        status="connected",
-        timestamp=datetime.now(),
-        message="Connected to Celery Event Monitor",
-        total_connections=len(manager.active_connections)
-    )
-    await manager.send_personal_message(welcome.model_dump_json(), websocket)
+    logger.info(f"Starting Celery monitor with broker: {config.broker_url}")
+    app_state.monitor_instance = CeleryEventMonitor(config.broker_url)
     
-    try:
-        while True:
-            data = await websocket.receive_text()
-            
-            try:
-                message = json.loads(data)
-                
-                if message.get('type') == 'ping':
-                    pong_response = PongResponse(timestamp=datetime.now())
-                    await manager.send_personal_message(pong_response.model_dump_json(), websocket)
-                
-                elif message.get('type') == 'subscribe':
-                    filters = message.get('filters', {})
-                    manager.set_client_filters(websocket, filters)
-                    
-                    response = SubscriptionResponse(
-                        status="acknowledged",
-                        filters=filters,
-                        timestamp=datetime.now()
-                    )
-                    await manager.send_personal_message(response.model_dump_json(), websocket)
-                
-                elif message.get('type') == 'set_mode':
-                    mode = message.get('mode', 'live')
-                    manager.set_client_mode(websocket, mode)
-                    
-                    events_sent = 0
-                    if mode == 'static':
-                        for event in recent_events:
-                            enrich_task_with_retry_info(event)
-                            filters = manager.client_filters.get(websocket, {})
-                            if manager._should_send_to_client(event, filters):
-                                await manager.send_personal_message(event.to_json(), websocket)
-                                events_sent += 1
-                    
-                    mode_response = ModeChangedResponse(
-                        mode=mode,
-                        timestamp=datetime.now(),
-                        events_count=events_sent if mode == 'static' else None
-                    )
-                    await manager.send_personal_message(mode_response.model_dump_json(), websocket)
-                
-                elif message.get('type') == 'get_stored':
-                    limit = message.get('limit', MAX_RECENT_EVENTS)
-                    events_to_send = recent_events[-limit:] if limit < len(recent_events) else recent_events
-                    
-                    events_sent = 0
-                    for event in events_to_send:
-                        enrich_task_with_retry_info(event)
-                        filters = manager.client_filters.get(websocket, {})
-                        if manager._should_send_to_client(event, filters):
-                            await manager.send_personal_message(event.to_json(), websocket)
-                            events_sent += 1
-                    
-                    stored_response = StoredEventsResponse(
-                        count=events_sent,
-                        timestamp=datetime.now()
-                    )
-                    await manager.send_personal_message(stored_response.model_dump_json(), websocket)
-                
-            except json.JSONDecodeError:
-                logger.error(f"Invalid JSON received: {data}")
+    # Set event callbacks
+    app_state.monitor_instance.set_broadcast_callback(app_state.event_handler.sync_handle_task_event)
+    app_state.monitor_instance.set_worker_broadcast_callback(app_state.event_handler.sync_handle_worker_event)
     
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
-
-
-@app.get("/api/stats", response_model=TaskStats)
-async def get_task_stats():
-    return task_stats
-
-
-def aggregate_task_events(events: List[TaskEvent]) -> List[TaskEvent]:
-    task_aggregation = {}
-    for event in events:
-        task_id = event.task_id
-        if task_id not in task_aggregation:
-            task_aggregation[task_id] = []
-        task_aggregation[task_id].append(event)
-    
-    aggregated_tasks = []
-    
-    for task_id, task_events in task_aggregation.items():
-        task_events.sort(key=lambda e: e.timestamp)
-        
-        latest_event = task_events[-1]
-        aggregated_task = TaskEvent(
-            task_id=task_id,
-            task_name=latest_event.task_name,
-            event_type=latest_event.event_type,  # Use latest status
-            timestamp=latest_event.timestamp,    # Use latest timestamp
-            args=latest_event.args,
-            kwargs=latest_event.kwargs,
-            retries=latest_event.retries,
-            eta=latest_event.eta,
-            expires=latest_event.expires,
-            hostname=latest_event.hostname,
-            exchange=latest_event.exchange,
-            routing_key=latest_event.routing_key,
-            root_id=latest_event.root_id,
-            parent_id=latest_event.parent_id,
-            result=latest_event.result,
-            runtime=latest_event.runtime,
-            exception=latest_event.exception,
-            traceback=latest_event.traceback,
-            retry_of=latest_event.retry_of,
-            retried_by=latest_event.retried_by,
-            is_retry=latest_event.is_retry,
-            has_retries=latest_event.has_retries,
-            retry_count=latest_event.retry_count
-        )
-        
-        for event in task_events:
-            if event.event_type == 'task-started' and hasattr(event, 'started_at'):
-                aggregated_task.started_at = event.timestamp
-                break
-            elif event.event_type == 'task-received' and not hasattr(aggregated_task, 'started_at'):
-                aggregated_task.started_at = event.timestamp
-        
-        aggregated_tasks.append(aggregated_task)
-    
-    aggregated_tasks.sort(key=lambda e: e.timestamp, reverse=True)
-    return aggregated_tasks
-
-
-@app.get("/api/events/recent", response_model=Dict[str, Any])
-async def get_recent_events(
-    limit: int = 100, 
-    page: int = 0, 
-    aggregate: bool = True,
-    sort_by: Optional[str] = None,
-    sort_order: str = "desc",
-    search: Optional[str] = None,
-    filter_state: Optional[str] = None,
-    filter_worker: Optional[str] = None,
-    filter_task: Optional[str] = None,
-    filter_queue: Optional[str] = None
-):
-    
-    if aggregate:
-        # Enrich all events with retry information before aggregating
-        enriched_events = []
-        for event in recent_events:
-            enrich_task_with_retry_info(event)
-            enriched_events.append(event)
-        
-        aggregated_events = aggregate_task_events(enriched_events)
-        
-        if search:
-            search_lower = search.lower()
-            filtered_events = []
-            for e in aggregated_events:
-                if ((e.task_name and search_lower in e.task_name.lower()) or
-                    (e.event_type and search_lower in e.event_type.lower()) or
-                    (e.hostname and search_lower in e.hostname.lower()) or
-                    (e.args and search_lower in str(e.args).lower()) or
-                    (e.kwargs and search_lower in str(e.kwargs).lower()) or
-                    (e.task_id and search_lower in e.task_id.lower()) or
-                    (e.result and search_lower in str(e.result).lower())):
-                    filtered_events.append(e)
-            aggregated_events = filtered_events
-        
-        if filter_state:
-            state_to_event_type = {
-                'PENDING': 'task-sent',
-                'RECEIVED': 'task-received',
-                'RUNNING': 'task-started',
-                'SUCCESS': 'task-succeeded',
-                'FAILED': 'task-failed',
-                'RETRY': 'task-retried',
-                'REVOKED': 'task-revoked'
-            }
-            event_type_filter = state_to_event_type.get(filter_state.upper())
-            if event_type_filter:
-                aggregated_events = [e for e in aggregated_events if e.event_type == event_type_filter]
-        
-        if filter_worker:
-            aggregated_events = [e for e in aggregated_events if e.hostname and filter_worker.lower() in e.hostname.lower()]
-        
-        if filter_task:
-            aggregated_events = [e for e in aggregated_events if e.task_name and filter_task.lower() in e.task_name.lower()]
-        
-        if filter_queue:
-            aggregated_events = [e for e in aggregated_events if e.routing_key and filter_queue.lower() in e.routing_key.lower()]
-        
-        if sort_by:
-            reverse = (sort_order == "desc")
-            if sort_by == "task_name":
-                aggregated_events.sort(key=lambda e: e.task_name or "", reverse=reverse)
-            elif sort_by == "event_type":
-                aggregated_events.sort(key=lambda e: e.event_type or "", reverse=reverse)
-            elif sort_by == "timestamp":
-                aggregated_events.sort(key=lambda e: e.timestamp, reverse=reverse)
-            elif sort_by == "runtime":
-                aggregated_events.sort(key=lambda e: e.runtime or 0, reverse=reverse)
-            elif sort_by == "retries":
-                aggregated_events.sort(key=lambda e: e.retries or 0, reverse=reverse)
-            elif sort_by == "hostname":
-                aggregated_events.sort(key=lambda e: e.hostname or "", reverse=reverse)
-        else:
-            aggregated_events.sort(key=lambda e: e.timestamp, reverse=True)
-        
-        total_events = len(aggregated_events)
-        start_idx = page * limit
-        end_idx = start_idx + limit
-        paginated_events = aggregated_events[start_idx:end_idx]
-    else:
-        # Enrich events with retry information  
-        enriched_events = []
-        for event in recent_events:
-            enrich_task_with_retry_info(event)
-            enriched_events.append(event)
-        
-        events = list(reversed(enriched_events))
-        
-        if search:
-            search_lower = search.lower()
-            filtered_events = []
-            for e in events:
-                if ((e.task_name and search_lower in e.task_name.lower()) or
-                    (e.event_type and search_lower in e.event_type.lower()) or
-                    (e.hostname and search_lower in e.hostname.lower()) or
-                    (e.args and search_lower in str(e.args).lower()) or
-                    (e.kwargs and search_lower in str(e.kwargs).lower()) or
-                    (e.task_id and search_lower in e.task_id.lower()) or
-                    (e.result and search_lower in str(e.result).lower())):
-                    filtered_events.append(e)
-            events = filtered_events
-        
-        if sort_by:
-            reverse = (sort_order == "desc")
-            if sort_by == "task_name":
-                events.sort(key=lambda e: e.task_name or "", reverse=reverse)
-            elif sort_by == "event_type":
-                events.sort(key=lambda e: e.event_type or "", reverse=reverse)
-            elif sort_by == "timestamp":
-                events.sort(key=lambda e: e.timestamp, reverse=reverse)
-            elif sort_by == "runtime":
-                events.sort(key=lambda e: e.runtime or 0, reverse=reverse)
-            elif sort_by == "retries":
-                events.sort(key=lambda e: e.retries or 0, reverse=reverse)
-            elif sort_by == "hostname":
-                events.sort(key=lambda e: e.hostname or "", reverse=reverse)
-        
-        total_events = len(events)
-        start_idx = page * limit
-        end_idx = start_idx + limit
-        paginated_events = events[start_idx:end_idx]
-    
-    total_pages = (total_events + limit - 1) // limit if limit > 0 else 1
-    
-    return {
-        "data": [TaskEventResponse.from_task_event(event) for event in paginated_events],
-        "pagination": {
-            "page": page,
-            "limit": limit,
-            "total": total_events,
-            "total_pages": total_pages,
-            "has_next": page < total_pages - 1,
-            "has_prev": page > 0
-        }
-    }
-
-
-@app.get("/api/events/{task_id}", response_model=List[TaskEventResponse])
-async def get_task_events(task_id: str):
-    task_events = [event for event in recent_events if event.task_id == task_id]
-    if not task_events:
-        raise HTTPException(status_code=404, detail="Task not found")
-    
-    # Enrich events with retry information
-    for event in task_events:
-        enrich_task_with_retry_info(event)
-    
-    return [TaskEventResponse.from_task_event(event) for event in task_events]
-
-
-@app.get("/api/tasks/active", response_model=List[TaskEventResponse])
-async def get_active_tasks():
-    active_task_ids = set()
-    finished_task_ids = set()
-    
-    for event in recent_events:
-        if event.event_type == 'task-started':
-            active_task_ids.add(event.task_id)
-        elif event.event_type in ['task-succeeded', 'task-failed']:
-            finished_task_ids.add(event.task_id)
-    
-    active_ids = active_task_ids - finished_task_ids
-    active_events = [event for event in recent_events 
-                    if event.task_id in active_ids and event.event_type == 'task-started']
-    
-    # Enrich events with retry information
-    for event in active_events:
-        enrich_task_with_retry_info(event)
-    
-    return [TaskEventResponse.from_task_event(event) for event in active_events]
-
-
-@app.get("/api/workers", response_model=List[WorkerInfo])
-async def get_workers():
-    if not monitor_instance:
-        return []
-    
-    workers_data = monitor_instance.get_workers_info()
-    worker_list = []
-    
-    for hostname, data in workers_data.items():
-        worker_info = WorkerInfo(
-            hostname=hostname,
-            status=data.get('status', 'unknown'),
-            timestamp=data.get('timestamp', datetime.now()),
-            active_tasks=data.get('active', 0),
-            processed_tasks=data.get('processed', 0),
-            sw_ident=data.get('sw_ident'),
-            sw_ver=data.get('sw_ver'),
-            sw_sys=data.get('sw_sys'),
-            loadavg=data.get('loadavg'),
-            freq=data.get('freq')
-        )
-        worker_list.append(worker_info)
-    
-    return worker_list
-
-
-@app.get("/api/workers/{hostname}", response_model=WorkerInfo)
-async def get_worker(hostname: str):
-    if not monitor_instance:
-        raise HTTPException(status_code=404, detail="Monitor not initialized")
-    
-    workers_data = monitor_instance.get_workers_info()
-    if hostname not in workers_data:
-        raise HTTPException(status_code=404, detail="Worker not found")
-    
-    data = workers_data[hostname]
-    return WorkerInfo(
-        hostname=hostname,
-        status=data.get('status', 'unknown'),
-        timestamp=data.get('timestamp', datetime.now()),
-        active_tasks=data.get('active', 0),
-        processed_tasks=data.get('processed', 0),
-        sw_ident=data.get('sw_ident'),
-        sw_ver=data.get('sw_ver'),
-        sw_sys=data.get('sw_sys'),
-        loadavg=data.get('loadavg'),
-        freq=data.get('freq')
-    )
-
-
-@app.get("/api/workers/events/recent")
-async def get_recent_worker_events(limit: int = 50):
-    limited_events = recent_worker_events[-limit:] if limit < len(recent_worker_events) else recent_worker_events
-    return [event.model_dump() for event in limited_events]
-
-
-@app.get("/api/health")
-async def health_check():
-    workers_count = len(monitor_instance.get_workers_info()) if monitor_instance else 0
-    return {
-        "status": "healthy",
-        "monitor_running": monitor_thread.is_alive() if monitor_thread else False,
-        "connections": len(manager.active_connections),
-        "workers": workers_count,
-        "timestamp": datetime.now().isoformat()
-    }
-
-
-@app.post("/api/tasks/{task_id}/retry")
-async def retry_task(task_id: str):
-    """Retry a failed task by creating a new task with the same parameters"""
-    try:
-        # Find the original task in recent_events
-        original_task = None
-        print(recent_events)
-        for event in reversed(recent_events):
-            if event.task_id == task_id:
-                original_task = event
-                break
-        
-        if not original_task:
-            raise HTTPException(status_code=404, detail="Task not found")
-        
-        if not monitor_instance:
-            raise HTTPException(status_code=500, detail="Monitor not initialized")
-        
-        # Parse args and kwargs from stored strings back to Python objects
-        try:
-            import ast
-            args = ast.literal_eval(original_task.args) if original_task.args and original_task.args != "()" else ()
-            kwargs = ast.literal_eval(original_task.kwargs) if original_task.kwargs and original_task.kwargs != "{}" else {}
-        except (ValueError, SyntaxError) as e:
-            logger.error(f"Error parsing task arguments for retry: {e}")
-            # Fallback to empty args/kwargs if parsing fails
-            args = ()
-            kwargs = {}
-        
-        # Submit new task using Celery's send_task method
-        # For retry, always use the default queue unless specifically routed
-
-        # Determine the correct queue/routing for the retried task
-        # Use the original routing_key if it exists, otherwise default to 'default'
-        queue_name = original_task.routing_key if original_task.routing_key else 'default'
-        
-        logger.info(f"Retrying task {original_task.task_name} with args={args}, kwargs={kwargs}, queue={queue_name}")
-        
-        # Use send_task with queue parameter (not routing_key) for proper routing
-        result = monitor_instance.app.send_task(
-            original_task.task_name,
-            args=args,
-            kwargs=kwargs,
-            queue=queue_name
-        )
-        
-        # Also log if we have active workers
-        workers_info = monitor_instance.get_workers_info() if monitor_instance else {}
-        logger.info(f"Active workers: {list(workers_info.keys())}")
-        
-        logger.info(f"Retried task {task_id} as new task {result.id}")
-        logger.info(f"Task signature: routing_key={result.routing_key if hasattr(result, 'routing_key') else 'N/A'}")
-
-        # Store retry relationship
-        new_task_id = str(result.id)
-        retry_relationships[new_task_id] = {
-            'retry_of': task_id,
-            'retried_by': [],
-            'retry_count': 0
-        }
-        
-        # Update parent task to include this retry
-        if task_id not in retry_relationships:
-            retry_relationships[task_id] = {
-                'retry_of': None,
-                'retried_by': [],
-                'retry_count': 0
-            }
-        retry_relationships[task_id]['retried_by'].append(new_task_id)
-        retry_relationships[task_id]['retry_count'] += 1
-
-        return {
-            "status": "success",
-            "message": f"Task retried successfully",
-            "original_task_id": task_id,
-            "new_task_id": new_task_id,
-            "task_name": original_task.task_name,
-            "args": original_task.args,
-            "kwargs": original_task.kwargs,
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error retrying task {task_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to retry task: {str(e)}")
-
-
-@app.get("/api/websocket/message-types")
-async def get_websocket_message_types():
-    return {
-        "incoming_messages": {
-            "ping": PingMessage.model_json_schema(),
-            "subscribe": SubscribeMessage.model_json_schema(),
-            "set_mode": SetModeMessage.model_json_schema(),
-            "get_stored": GetStoredMessage.model_json_schema()
-        },
-        "outgoing_messages": {
-            "pong": PongResponse.model_json_schema(),
-            "subscription_response": SubscriptionResponse.model_json_schema(),
-            "mode_changed": ModeChangedResponse.model_json_schema(),
-            "stored_events_sent": StoredEventsResponse.model_json_schema(),
-            "connection_info": ConnectionInfo.model_json_schema(),
-            "task_event": TaskEventResponse.model_json_schema()
-        }
-    }
+    # Start monitoring in a separate thread
+    app_state.monitor_thread = threading.Thread(target=app_state.monitor_instance.start_monitoring)
+    app_state.monitor_thread.daemon = True
+    app_state.monitor_thread.start()
 
 
 def start_server():
+    """Start the FastAPI server."""
     config = Config.from_env()
+    app = create_app()
+    
     uvicorn.run(
-        "app:app",
+        app,
         host=config.ws_host,
         port=config.ws_port,
         log_level=config.log_level.lower(),
         reload=False
     )
+
+
+# Create the app instance for external use
+app = create_app()
 
 
 if __name__ == "__main__":

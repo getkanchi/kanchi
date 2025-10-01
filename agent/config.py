@@ -10,6 +10,9 @@ class Config:
     # Celery broker configuration (RabbitMQ URL)
     broker_url: str = os.getenv('RABBITMQ_URL')
     
+    # Database configuration
+    database_url: str = os.getenv('DATABASE_URL', 'sqlite:///kanchi.db')  # Default to SQLite
+    
     # WebSocket server configuration
     ws_host: str = os.getenv('WS_HOST', 'localhost')
     ws_port: int = int(os.getenv('WS_PORT', 8765))

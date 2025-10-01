@@ -18,6 +18,8 @@ class TaskEvent:
     eta: Optional[str] = None
     expires: Optional[str] = None
     hostname: Optional[str] = None
+    worker_name: Optional[str] = None
+    queue: Optional[str] = None
     exchange: str = ""
     routing_key: str = ""
     root_id: Optional[str] = None
