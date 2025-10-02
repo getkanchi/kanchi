@@ -15,6 +15,36 @@ from models import (
 logger = logging.getLogger(__name__)
 
 
+def _matches_filters(event_data: Any, filters: Dict[str, Any]) -> bool:
+    """Check if event data matches the given filters."""
+    if not filters:
+        return True
+    
+    # Convert event data to dict if it's a Pydantic model
+    if hasattr(event_data, 'model_dump'):
+        event_dict = event_data.model_dump()
+    elif hasattr(event_data, 'dict'):
+        event_dict = event_data.dict()
+    else:
+        event_dict = event_data if isinstance(event_data, dict) else {}
+    
+    # Apply filters
+    for filter_key, filter_value in filters.items():
+        if filter_key in event_dict:
+            event_value = event_dict[filter_key]
+            # Support both exact match and contains for string fields
+            if isinstance(filter_value, str) and isinstance(event_value, str):
+                if filter_value.lower() not in event_value.lower():
+                    return False
+            elif event_value != filter_value:
+                return False
+        else:
+            # If filter key doesn't exist in event, filter doesn't match
+            return False
+    
+    return True
+
+
 def create_router(app_state) -> APIRouter:
     """Create websocket router with dependency injection."""
     router = APIRouter(tags=["websocket"])
@@ -86,10 +116,10 @@ def create_router(app_state) -> APIRouter:
                 recent_data = task_service.get_recent_events(limit=100, page=0)
                 for event_data in recent_data["data"]:
                     filters = app_state.connection_manager.client_filters.get(websocket, {})
-                    # Convert back to TaskEvent for filtering (simplified)
-                    if True:  # Simplified - would need proper filtering logic
+                    # Apply client filters
+                    if _matches_filters(event_data, filters):
                         await app_state.connection_manager.send_personal_message(
-                            json.dumps(event_data.model_dump()), 
+                            event_data.model_dump_json(), 
                             websocket
                         )
                         events_sent += 1
@@ -114,10 +144,10 @@ def create_router(app_state) -> APIRouter:
                 recent_data = task_service.get_recent_events(limit=limit, page=0)
                 for event_data in recent_data["data"]:
                     filters = app_state.connection_manager.client_filters.get(websocket, {})
-                    # Simplified filtering
-                    if True:
+                    # Apply client filters
+                    if _matches_filters(event_data, filters):
                         await app_state.connection_manager.send_personal_message(
-                            json.dumps(event_data.model_dump()), 
+                            event_data.model_dump_json(), 
                             websocket
                         )
                         events_sent += 1

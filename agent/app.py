@@ -39,6 +39,8 @@ async def lifespan(app: FastAPI):
     await initialize_application()
     yield
     # Shutdown
+    if app_state.connection_manager:
+        await app_state.connection_manager.stop_background_broadcaster()
     if app_state.monitor_thread and app_state.monitor_thread.is_alive():
         logger.info("Shutting down monitor thread")
 
@@ -128,9 +130,9 @@ def start_monitor(config: Config):
     logger.info(f"Starting Celery monitor with broker: {config.broker_url}")
     app_state.monitor_instance = CeleryEventMonitor(config.broker_url)
     
-    # Set event callbacks
-    app_state.monitor_instance.set_broadcast_callback(app_state.event_handler.sync_handle_task_event)
-    app_state.monitor_instance.set_worker_broadcast_callback(app_state.event_handler.sync_handle_worker_event)
+    # Set simplified callbacks
+    app_state.monitor_instance.set_task_callback(app_state.event_handler.handle_task_event)
+    app_state.monitor_instance.set_worker_callback(app_state.event_handler.handle_worker_event)
     
     # Start monitoring in a separate thread
     app_state.monitor_thread = threading.Thread(target=app_state.monitor_instance.start_monitoring)

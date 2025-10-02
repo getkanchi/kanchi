@@ -4,39 +4,39 @@
 
       <!-- Command Palette -->
       <CommandPalette 
-        :is-live-mode="liveTable.isLiveMode.value"
-        @toggle-live-mode="liveTable.toggleLiveMode"
+        :is-live-mode="wsStore.clientMode === 'live'"
+        @toggle-live-mode="handleToggleLiveMode"
         @rerun-task="handleRerunTask"
       />
 
       <!-- Workers Overview -->
       <div class="mb-6 workers-section">
         <WorkerStatusSummary
-          :workers="workers"
-          @update="updateWorkerData"
+          :workers="workersStore.workers"
+          @update="workersStore.updateWorker"
         />
       </div>
 
       <div class="mb-6">
         <DataTable
           :columns="columns" 
-          :data="liveTable.data" 
-          :is-live-mode="liveTable.isLiveMode"
-          :seconds-since-update="liveTable.secondsSinceUpdate"
-          :page-index="liveTable.pageIndex"
-          :page-size="liveTable.pageSize"
-          :pagination="liveTable.pagination"
-          :is-loading="liveTable.isLoading"
-          :sorting="liveTable.sorting"
-          :search-query="liveTable.searchQuery"
-          :filters="liveTable.filters"
+          :data="tasksStore.recentEvents" 
+          :is-live-mode="wsStore.clientMode === 'live'"
+          :seconds-since-update="secondsSinceUpdate"
+          :page-index="tasksStore.currentPage"
+          :page-size="tasksStore.paginationParams.limit"
+          :pagination="tasksStore.pagination"
+          :is-loading="tasksStore.isLoading"
+          :sorting="currentSorting"
+          :search-query="tasksStore.filters.search || ''"
+          :filters="currentFilters"
           class="relative backdrop-blur-sm bg-card-base border-card-border glow-border"
-          @toggle-live-mode="liveTable.toggleLiveMode"
-          @set-page-index="liveTable.setPageIndex"
-          @set-page-size="liveTable.setPageSize"
-          @set-sorting="liveTable.setSorting"
-          @set-search-query="liveTable.setSearchQuery"
-          @set-filters="liveTable.setFilters"
+          @toggle-live-mode="handleToggleLiveMode"
+          @set-page-index="tasksStore.setPage"
+          @set-page-size="tasksStore.setPageSize"
+          @set-sorting="handleSetSorting"
+          @set-search-query="tasksStore.setSearchQuery"
+          @set-filters="handleSetFilters"
         />
       </div>
     </div>
@@ -44,106 +44,96 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from 'vue'
-import { useAppWebSocket } from "~/composables/useAppWebSocket"
-import { useLiveTable } from "~/composables/useLiveTable"
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { getTaskColumns } from "~/config/tableColumns"
 import DataTable from "~/components/data-table.vue"
 import WorkerStatusSummary from "~/components/WorkerStatusSummary.vue"
 import CommandPalette from "~/components/CommandPalette.vue"
-import type { WorkerInfo, WorkerEvent } from '~/types'
 
+// Stores
+const tasksStore = useTasksStore()
+const workersStore = useWorkersStore()
+const wsStore = useWebSocketStore()
 
-const config = useRuntimeConfig()
-const apiBaseUrl = config.public.apiUrl
+// State
+const lastUpdated = ref<Date | null>(null)
 
-const { isConnected, messages } = useAppWebSocket()
+// Computed
+const secondsSinceUpdate = computed(() => {
+  if (!lastUpdated.value) return 0
+  return Math.floor((Date.now() - lastUpdated.value.getTime()) / 1000)
+})
 
-const liveTable = useLiveTable([], `${apiBaseUrl}/api/events/recent`)
+const currentSorting = computed(() => {
+  const { sort_by, sort_order } = tasksStore.paginationParams
+  if (!sort_by) return []
+  return [{ id: sort_by, desc: sort_order === 'desc' }]
+})
 
-const workers = ref<WorkerInfo[]>([])
-const workerMap = ref<Map<string, WorkerInfo>>(new Map())
-
-const fetchWorkers = async () => {
-  try {
-    const response = await fetch(`${apiBaseUrl}/api/workers`)
-    if (response.ok) {
-      const data = await response.json()
-      data.forEach((worker: WorkerInfo) => {
-        workerMap.value.set(worker.hostname, worker)
-      })
-      workers.value = Array.from(workerMap.value.values())
+const currentFilters = computed(() => {
+  const filters = tasksStore.filters
+  const result: { key: string; value: string }[] = []
+  
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value && key !== 'search') {
+      // Remove 'filter_' prefix if present
+      const cleanKey = key.startsWith('filter_') ? key.slice(7) : key
+      result.push({ key: cleanKey, value })
     }
-  } catch (error) {
-    console.error('Failed to fetch workers:', error)
-  }
-}
+  })
+  
+  return result
+})
 
-
-watch(messages, (newMessages) => {
-  if (liveTable.isLiveMode.value && newMessages.length > 0) {
-    const latestMessage = newMessages[newMessages.length - 1]
-    
-    if (typeof latestMessage === 'object' && 'task_id' in latestMessage && 'event_type' in latestMessage) {
-      if (liveTable.pageIndex.value === 0) {
-        liveTable.fetchData()
-      }
-    }
-    
-    if (typeof latestMessage === 'object' && 'event_type' in latestMessage && 
-        latestMessage.event_type?.startsWith('worker-')) {
-      const workerEvent = latestMessage as WorkerEvent
-      
-      const hostname = workerEvent.hostname
-      let workerInfo = workerMap.value.get(hostname)
-      
-      if (!workerInfo) {
-        workerInfo = {
-          hostname,
-          status: 'unknown',
-          timestamp: workerEvent.timestamp,
-          active_tasks: 0,
-          processed_tasks: 0
-        }
-        workerMap.value.set(hostname, workerInfo)
-      }
-      
-      if (workerEvent.event_type === 'worker-online') {
-        workerInfo.status = 'online'
-      } else if (workerEvent.event_type === 'worker-offline') {
-        workerInfo.status = 'offline'
-      } else if (workerEvent.event_type === 'worker-heartbeat') {
-        workerInfo.status = 'online'
-        if (workerEvent.active !== undefined) {
-          workerInfo.active_tasks = workerEvent.active
-        }
-        if (workerEvent.processed !== undefined) {
-          workerInfo.processed_tasks = workerEvent.processed
-        }
-        if (workerEvent.loadavg) {
-          workerInfo.loadavg = workerEvent.loadavg
-        }
-      }
-      
-      workerInfo.timestamp = workerEvent.timestamp
-      
-      workers.value = Array.from(workerMap.value.values())
-    }
-  }
-}, { deep: true })
-
-
+// Table columns
 const columns = getTaskColumns()
 
-
-const updateWorkerData = (hostname: string, updates: Partial<WorkerInfo>) => {
-  const worker = workerMap.value.get(hostname)
-  if (worker) {
-    Object.assign(worker, updates)
-    workers.value = Array.from(workerMap.value.values())
+// Actions
+function handleToggleLiveMode() {
+  const newMode = wsStore.clientMode === 'live' ? 'static' : 'live'
+  wsStore.setMode(newMode)
+  
+  if (newMode === 'live') {
+    // Reset to first page for live mode
+    tasksStore.setPage(0)
+    lastUpdated.value = new Date()
+  } else {
+    // Fetch current data for static mode
+    tasksStore.fetchRecentEvents()
   }
 }
 
+function handleSetSorting(sorting: { id: string; desc: boolean }[]) {
+  if (sorting.length > 0) {
+    const sort = sorting[0]
+    tasksStore.setSorting(sort.id, sort.desc ? 'desc' : 'asc')
+  } else {
+    tasksStore.setSorting(null)
+  }
+}
+
+function handleSetFilters(filters: { key: string; value: string }[]) {
+  const filterObj: Record<string, string | null> = {}
+  
+  filters.forEach(filter => {
+    // Add 'filter_' prefix for API compatibility
+    filterObj[`filter_${filter.key}`] = filter.value
+  })
+  
+  tasksStore.setFilters(filterObj)
+}
+
+async function handleRerunTask(taskId: string) {
+  try {
+    await tasksStore.retryTask(taskId)
+    // Task list will be refreshed automatically by the store
+  } catch (error) {
+    console.error('Failed to retry task:', error)
+    // You might want to show a toast notification here
+  }
+}
+
+// Mouse glow effect
 const handleMouseMove = (e: MouseEvent) => {
   const glowElements = document.querySelectorAll('.glow-border')
   glowElements.forEach(element => {
@@ -157,26 +147,78 @@ const handleMouseMove = (e: MouseEvent) => {
   })
 }
 
-const handleRerunTask = (taskId: string) => {
-  // TODO: Implement rerun task functionality
-  console.log('Rerun task triggered for:', taskId)
-}
-
-onMounted(() => {
+// Lifecycle
+onMounted(async () => {
   document.addEventListener('mousemove', handleMouseMove)
   
-  fetchWorkers()
+  // Initial data fetch
+  await Promise.all([
+    tasksStore.fetchRecentEvents(),
+    tasksStore.fetchStats(),
+    workersStore.fetchWorkers()
+  ])
   
-  const workerInterval = setInterval(fetchWorkers, 30000)
+  lastUpdated.value = new Date()
+  
+  // Set up conditional workers refresh - only poll when WebSocket is not connected
+  let workerInterval: ReturnType<typeof setInterval> | null = null
+  
+  const startPolling = () => {
+    if (workerInterval) return
+    workerInterval = setInterval(() => {
+      // Only fetch if WebSocket is not connected
+      if (!wsStore.isConnected) {
+        workersStore.fetchWorkers()
+      }
+    }, 30000)
+  }
+  
+  const stopPolling = () => {
+    if (workerInterval) {
+      clearInterval(workerInterval)
+      workerInterval = null
+    }
+  }
+  
+  // Start polling initially and manage based on WebSocket connection
+  startPolling()
+  
+  // Watch WebSocket connection status to optimize polling
+  watch(() => wsStore.isConnected, (connected) => {
+    if (connected) {
+      // WebSocket connected: reduce polling frequency or stop
+      stopPolling()
+      // Refresh workers once when WebSocket connects to get current state
+      workersStore.fetchWorkers()
+    } else {
+      // WebSocket disconnected: start/resume polling
+      startPolling()
+    }
+  })
   
   onUnmounted(() => {
-    clearInterval(workerInterval)
+    stopPolling()
   })
 })
 
 onUnmounted(() => {
   document.removeEventListener('mousemove', handleMouseMove)
 })
+
+// The WebSocket connection watcher for polling is handled above in onMounted
+// This separate watcher is just for updating the lastUpdated timestamp
+watch(() => wsStore.isConnected, (connected) => {
+  if (connected && wsStore.clientMode === 'live') {
+    lastUpdated.value = new Date()
+  }
+})
+
+// Update last updated time when data changes in live mode
+watch(() => tasksStore.recentEvents, () => {
+  if (wsStore.clientMode === 'live') {
+    lastUpdated.value = new Date()
+  }
+}, { deep: true })
 </script>
 
 <style scoped>
