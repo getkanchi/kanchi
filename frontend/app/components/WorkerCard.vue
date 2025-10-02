@@ -132,7 +132,7 @@
 import { ref, computed } from 'vue'
 import StatusDot from '~/components/StatusDot.vue'
 import { formatTimestamp, formatDuration } from '~/composables/useDateTimeFormatters'
-import type { WorkerInfo } from '~/types/workers'
+import type { WorkerInfo } from '~/services/api'
 
 const { getWorkerStatusType } = useWorkerStatus()
 

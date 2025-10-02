@@ -5,7 +5,6 @@ import {
   FlexRender,
   getCoreRowModel,
   getExpandedRowModel,
-  getPaginationRowModel,
   useVueTable,
 } from '@tanstack/vue-table'
 import {
@@ -24,7 +23,7 @@ import StatusDot from "~/components/StatusDot.vue";
 import CopyButton from "~/components/CopyButton.vue";
 import SearchInput from "~/components/SearchInput.vue";
 import RetryChain from "~/components/RetryChain.vue";
-import { useTaskApi } from '~/composables/useTaskApi';
+// Task API is now handled via stores (auto-imported)
 
 interface Filter {
   key: string
@@ -34,15 +33,15 @@ interface Filter {
 const props = defineProps<{
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
-  isLiveMode: ComputedRef<boolean>
+  isLiveMode: boolean
   secondsSinceUpdate?: number
-  pageIndex: ComputedRef<number>
-  pageSize: ComputedRef<number>
-  pagination?: ComputedRef<any>
-  isLoading?: ComputedRef<boolean>
-  sorting?: ComputedRef<{ id: string; desc: boolean }[]>
-  searchQuery?: ComputedRef<string>
-  filters?: ComputedRef<Filter[]>
+  pageIndex: number
+  pageSize: number
+  pagination?: any
+  isLoading?: boolean
+  sorting?: { id: string; desc: boolean }[]
+  searchQuery?: string
+  filters?: Filter[]
 }>()
 
 const emit = defineEmits<{
@@ -56,10 +55,12 @@ const emit = defineEmits<{
 
 const expandedRows = ref(new Set<string>())
 
-const searchInput = ref(props.searchQuery?.value || '')
+const searchInput = ref(props.searchQuery || '')
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
 
-const { retryTask, isLoading: isRetrying, error: retryError } = useTaskApi()
+// Use tasks store for retry functionality
+const tasksStore = useTasksStore()
+const isRetrying = computed(() => tasksStore.isLoading)
 
 const handleSearch = (value: string) => {
   searchInput.value = value
@@ -76,37 +77,18 @@ const table = useVueTable({
   get columns() { return props.columns },
   getCoreRowModel: getCoreRowModel(),
   getExpandedRowModel: getExpandedRowModel(),
-  getPaginationRowModel: getPaginationRowModel(),
   state: {
-    get pagination() {
-      return {
-        pageIndex: props.pageIndex.value,
-        pageSize: props.pageSize.value,
-      }
-    },
     get sorting() {
-      return props.sorting?.value || []
+      return props.sorting || []
     }
   },
   onSortingChange: (updater) => {
     const newSorting = typeof updater === 'function' 
-      ? updater(props.sorting?.value || [])
+      ? updater(props.sorting || [])
       : updater
     emit('setSorting', newSorting)
   },
-  onPaginationChange: (updater) => {
-    if (typeof updater === 'function') {
-      const newState = updater({
-        pageIndex: props.pageIndex.value,
-        pageSize: props.pageSize.value,
-      })
-      emit('setPageIndex', newState.pageIndex)
-      emit('setPageSize', newState.pageSize)
-    }
-  },
-  manualPagination: true,
   manualSorting: true,
-  pageCount: props.pagination?.value?.total_pages || 1,
 })
 
 const toggleRowExpansion = (taskId: string) => {
@@ -119,7 +101,7 @@ const toggleRowExpansion = (taskId: string) => {
 
 const handleRetry = async (taskId: string) => {
   try {
-    const result = await retryTask(taskId)
+    const result = await tasksStore.retryTask(taskId)
     console.log('Task retried successfully:', result)
     // You can add a toast notification here if you have a notification system
   } catch (error) {
@@ -138,7 +120,7 @@ const handleRetry = async (taskId: string) => {
         <!-- Search input with filters -->
         <SearchInput
           :model-value="searchInput"
-          :filters="filters?.value || []"
+          :filters="filters || []"
           @update:model-value="handleSearch"
           @update:filters="emit('setFilters', $event)"
         />
@@ -148,7 +130,7 @@ const handleRetry = async (taskId: string) => {
       
       <!-- Live mode indicator badge -->
       <Badge
-        v-if="isLiveMode.value"
+        v-if="isLiveMode"
         @click="emit('toggleLiveMode')"
         class="bg-green-950/30 text-green-400 border-green-800/40 px-2 py-0.5
          hover:bg-green-950/50 hover:border-green-700/60 transition-colors cursor-pointer"
@@ -369,13 +351,13 @@ const handleRetry = async (taskId: string) => {
     
     <div class="flex items-center justify-between p-4 border-t border-card-border">
       <div class="flex items-center space-x-2">
-        <span v-if="isLoading?.value" class="text-sm text-gray-500">
+        <span v-if="isLoading" class="text-sm text-gray-500">
           Loading...
         </span>
         <span v-else class="text-sm text-gray-500">
-          Showing {{ (pagination?.value?.page || 0) * (pagination?.value?.limit || 10) + 1 }} to 
-          {{ Math.min(((pagination?.value?.page || 0) + 1) * (pagination?.value?.limit || 10), pagination?.value?.total || 0) }} 
-          of {{ pagination?.value?.total || 0 }} entries
+          Showing {{ pageIndex * pageSize + 1 }} to 
+          {{ Math.min((pageIndex + 1) * pageSize, pagination?.total || 0) }} 
+          of {{ pagination?.total || 0 }} entries
         </span>
       </div>
       
@@ -384,7 +366,7 @@ const handleRetry = async (taskId: string) => {
         <div class="flex items-center space-x-2">
           <span class="text-sm text-gray-500">Show</span>
           <select 
-            :value="table.getState().pagination.pageSize"
+            :value="pageSize"
             @change="(e) => emit('setPageSize', parseInt((e.target as HTMLSelectElement).value))"
             class="px-2 py-1 text-sm border border-card-border rounded bg-background-primary"
           >
@@ -403,42 +385,46 @@ const handleRetry = async (taskId: string) => {
             variant="outline"
             size="sm"
             @click="emit('setPageIndex', 0)"
-            :disabled="!pagination?.value?.has_prev || isLoading?.value"
+            :disabled="!tasksStore.hasPrevPage"
             class="h-8 w-8 p-0"
+            :class="tasksStore.hasPrevPage ? 'hover:cursor-pointer' : 'cursor-not-allowed opacity-50'"
           >
-            <ChevronsLeft class="h-4 w-4" />
+            <ChevronsLeft class="h-4 w-4" :class="tasksStore.hasPrevPage ? 'text-gray-400' : 'text-gray-600'" />
           </Button>
           <Button
             variant="outline"
             size="sm"
-            @click="emit('setPageIndex', (pagination?.value?.page || 0) - 1)"
-            :disabled="!pagination?.value?.has_prev || isLoading?.value"
+            @click="emit('setPageIndex', pageIndex - 1)"
+            :disabled="!tasksStore.hasPrevPage"
             class="h-8 w-8 p-0"
+            :class="tasksStore.hasPrevPage ? 'hover:cursor-pointer' : 'cursor-not-allowed opacity-50'"
           >
-            <ChevronLeft class="h-4 w-4" />
+            <ChevronLeft class="h-4 w-4" :class="tasksStore.hasPrevPage ? 'text-gray-400' : 'text-gray-600'" />
           </Button>
           
           <span class="px-2 text-sm text-gray-500">
-            Page {{ (pagination?.value?.page || 0) + 1 }} of {{ pagination?.value?.total_pages || 1 }}
+            Page {{ pageIndex + 1 }} of {{ pagination?.total_pages || 1 }}
           </span>
           
           <Button
             variant="outline"
             size="sm"
-            @click="emit('setPageIndex', (pagination?.value?.page || 0) + 1)"
-            :disabled="!pagination?.value?.has_next || isLoading?.value"
+            @click="emit('setPageIndex', pageIndex + 1)"
+            :disabled="!tasksStore.hasNextPage"
             class="h-8 w-8 p-0"
+            :class="tasksStore.hasNextPage ? 'hover:cursor-pointer' : 'cursor-not-allowed opacity-50'"
           >
-            <ChevronRight class="h-4 w-4" />
+            <ChevronRight class="h-4 w-4" :class="tasksStore.hasNextPage ? 'text-gray-400' : 'text-gray-600'" />
           </Button>
           <Button
             variant="outline"
             size="sm"
-            @click="emit('setPageIndex', (pagination?.value?.total_pages || 1) - 1)"
-            :disabled="!pagination?.value?.has_next || isLoading?.value"
+            @click="emit('setPageIndex', (pagination?.total_pages || 1) - 1)"
+            :disabled="!tasksStore.hasNextPage"
             class="h-8 w-8 p-0"
+            :class="tasksStore.hasNextPage ? 'hover:cursor-pointer' : 'cursor-not-allowed opacity-50'"
           >
-            <ChevronsRight class="h-4 w-4" />
+            <ChevronsRight class="h-4 w-4" :class="tasksStore.hasNextPage ? 'text-gray-400' : 'text-gray-600'" />
           </Button>
         </div>
       </div>

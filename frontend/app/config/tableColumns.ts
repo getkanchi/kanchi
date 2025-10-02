@@ -2,9 +2,9 @@ import { h } from 'vue'
 import type { ColumnDef } from '@tanstack/vue-table'
 import { formatTime, calculateDuration } from '~/composables/useDateTimeFormatters'
 import { Badge } from '~/components/ui/badge'
-import type { Task } from '~/types'
+import type { TaskEventResponse } from '~/services/apiClient'
 
-export function getTaskColumns(): ColumnDef<Task>[] {
+export function getTaskColumns(): ColumnDef<TaskEventResponse>[] {
   return [
     {
       accessorKey: 'task_name', 

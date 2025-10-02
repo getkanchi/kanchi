@@ -1,5 +1,8 @@
-import type { TaskStatus, TaskEventType } from '~/types/tasks'
 import type { BadgeVariants } from '~/components/ui/badge'
+
+// Type aliases for task status and event types
+export type TaskStatus = 'PENDING' | 'RECEIVED' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'RETRY' | 'REVOKED' | 'UNKNOWN'
+export type TaskEventType = 'task-sent' | 'task-received' | 'task-started' | 'task-succeeded' | 'task-failed' | 'task-retried' | 'task-revoked'
 
 export const useTaskStatus = () => {
   const eventTypeToStatus = (eventType: string): TaskStatus => {

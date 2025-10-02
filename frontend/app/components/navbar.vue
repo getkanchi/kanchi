@@ -61,10 +61,9 @@ import {
 import { Badge } from "~/components/ui/badge"
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover"
 import StatusDot from "~/components/StatusDot.vue"
-import { useAppWebSocket } from "~/composables/useAppWebSocket"
 
-// Use the app websocket composable to get connection status
-const { isConnected } = useAppWebSocket()
+// Use the WebSocket store instead of the composable
+const wsStore = useWebSocketStore()
 const config = useRuntimeConfig()
 const wsUrl = config.public.wsUrl
 
@@ -74,7 +73,7 @@ onMounted(() => {
   isClientSide.value = true
 })
 
-const displayConnected = computed(() => isClientSide.value && isConnected.value)
+const displayConnected = computed(() => isClientSide.value && wsStore.isConnected)
 </script>
 
 <style>
