@@ -5,6 +5,7 @@ import { defineStore } from 'pinia'
 import { ref, computed, readonly } from 'vue'
 import { useTasksStore } from './tasks'
 import { useWorkersStore } from './workers'
+import { useOrphanTasksStore } from './orphanTasks'
 
 export interface WebSocketMessage {
   type: string
@@ -21,6 +22,7 @@ export interface ConnectionInfo {
 export const useWebSocketStore = defineStore('websocket', () => {
   const tasksStore = useTasksStore()
   const workersStore = useWorkersStore()
+  const orphanTasksStore = useOrphanTasksStore()
 
   // State
   const ws = ref<WebSocket | null>(null)
@@ -156,7 +158,8 @@ export const useWebSocketStore = defineStore('websocket', () => {
       if (clientMode.value === 'live') {
         // Handle task events
         if (eventType.startsWith('task-')) {
-          tasksStore.addLiveEvent(message)
+          tasksStore.handleLiveEvent(message)
+          orphanTasksStore.updateFromLiveEvent(message)
         }
         // Handle worker events  
         else if (eventType.startsWith('worker-')) {

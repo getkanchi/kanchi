@@ -17,6 +17,21 @@ export interface HTTPValidationError {
 }
 
 /**
+ * RegisteredTask
+ * Model for registered Celery tasks.
+ */
+export interface RegisteredTask {
+  /** Name */
+  name: string;
+  /** Doc */
+  doc?: string | null;
+  /** Full Name */
+  full_name?: string | null;
+  /** Module */
+  module?: string | null;
+}
+
+/**
  * TaskEventResponse
  * Pydantic model for API responses
  */
@@ -94,6 +109,16 @@ export interface TaskEventResponse {
    * @default 0
    */
   retry_count?: number;
+  /**
+   * Is Orphan
+   * @default false
+   */
+  is_orphan?: boolean;
+  /**
+   * Orphaned At
+   * @format date-time
+   */
+  orphaned_at?: string | null;
 }
 
 /**
@@ -360,13 +385,9 @@ export class HttpClient<SecurityDataType = unknown> {
  *
  * Real-time monitoring of Celery task events with WebSocket broadcasting
  */
-export class Api<SecurityDataType extends unknown> {
-  http: HttpClient<SecurityDataType>;
-
-  constructor(http: HttpClient<SecurityDataType>) {
-    this.http = http;
-  }
-
+export class Api<
+  SecurityDataType extends unknown,
+> extends HttpClient<SecurityDataType> {
   api = {
     /**
      * @description Get current task statistics.
@@ -377,7 +398,7 @@ export class Api<SecurityDataType extends unknown> {
      * @request GET:/api/stats
      */
     getTaskStatsApiStatsGet: (params: RequestParams = {}) =>
-      this.http.request<TaskStats, any>({
+      this.request<TaskStats, any>({
         path: `/api/stats`,
         method: "GET",
         format: "json",
@@ -429,7 +450,7 @@ export class Api<SecurityDataType extends unknown> {
       },
       params: RequestParams = {},
     ) =>
-      this.http.request<object, HTTPValidationError>({
+      this.request<object, HTTPValidationError>({
         path: `/api/events/recent`,
         method: "GET",
         query: query,
@@ -449,7 +470,7 @@ export class Api<SecurityDataType extends unknown> {
       taskId: string,
       params: RequestParams = {},
     ) =>
-      this.http.request<TaskEventResponse[], HTTPValidationError>({
+      this.request<TaskEventResponse[], HTTPValidationError>({
         path: `/api/events/${taskId}`,
         method: "GET",
         format: "json",
@@ -465,7 +486,7 @@ export class Api<SecurityDataType extends unknown> {
      * @request GET:/api/tasks/active
      */
     getActiveTasksApiTasksActiveGet: (params: RequestParams = {}) =>
-      this.http.request<TaskEventResponse[], any>({
+      this.request<TaskEventResponse[], any>({
         path: `/api/tasks/active`,
         method: "GET",
         format: "json",
@@ -484,9 +505,25 @@ export class Api<SecurityDataType extends unknown> {
       taskId: string,
       params: RequestParams = {},
     ) =>
-      this.http.request<any, HTTPValidationError>({
+      this.request<any, HTTPValidationError>({
         path: `/api/tasks/${taskId}/retry`,
         method: "POST",
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Get tasks that have been marked as orphaned.
+     *
+     * @tags tasks
+     * @name GetOrphanedTasksApiTasksOrphanedGet
+     * @summary Get Orphaned Tasks
+     * @request GET:/api/tasks/orphaned
+     */
+    getOrphanedTasksApiTasksOrphanedGet: (params: RequestParams = {}) =>
+      this.request<TaskEventResponse[], any>({
+        path: `/api/tasks/orphaned`,
+        method: "GET",
         format: "json",
         ...params,
       }),
@@ -500,7 +537,7 @@ export class Api<SecurityDataType extends unknown> {
      * @request GET:/api/workers
      */
     getWorkersApiWorkersGet: (params: RequestParams = {}) =>
-      this.http.request<WorkerInfo[], any>({
+      this.request<WorkerInfo[], any>({
         path: `/api/workers`,
         method: "GET",
         format: "json",
@@ -519,7 +556,7 @@ export class Api<SecurityDataType extends unknown> {
       hostname: string,
       params: RequestParams = {},
     ) =>
-      this.http.request<WorkerInfo, HTTPValidationError>({
+      this.request<WorkerInfo, HTTPValidationError>({
         path: `/api/workers/${hostname}`,
         method: "GET",
         format: "json",
@@ -544,7 +581,7 @@ export class Api<SecurityDataType extends unknown> {
       },
       params: RequestParams = {},
     ) =>
-      this.http.request<any, HTTPValidationError>({
+      this.request<any, HTTPValidationError>({
         path: `/api/workers/events/recent`,
         method: "GET",
         query: query,
@@ -563,8 +600,43 @@ export class Api<SecurityDataType extends unknown> {
     getWebsocketMessageTypesApiWebsocketMessageTypesGet: (
       params: RequestParams = {},
     ) =>
-      this.http.request<any, any>({
+      this.request<any, any>({
         path: `/api/websocket/message-types`,
+        method: "GET",
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Get all registered Celery tasks with their documentation.
+     *
+     * @tags registry
+     * @name GetRegisteredTasksApiRegistryTasksGet
+     * @summary Get Registered Tasks
+     * @request GET:/api/registry/tasks
+     */
+    getRegisteredTasksApiRegistryTasksGet: (params: RequestParams = {}) =>
+      this.request<RegisteredTask[], any>({
+        path: `/api/registry/tasks`,
+        method: "GET",
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Get detailed information about a specific registered task.
+     *
+     * @tags registry
+     * @name GetTaskDetailsApiRegistryTasksTaskNameGet
+     * @summary Get Task Details
+     * @request GET:/api/registry/tasks/{task_name}
+     */
+    getTaskDetailsApiRegistryTasksTaskNameGet: (
+      taskName: string,
+      params: RequestParams = {},
+    ) =>
+      this.request<object, HTTPValidationError>({
+        path: `/api/registry/tasks/${taskName}`,
         method: "GET",
         format: "json",
         ...params,
@@ -578,7 +650,7 @@ export class Api<SecurityDataType extends unknown> {
      * @request GET:/api/health
      */
     healthCheckApiHealthGet: (params: RequestParams = {}) =>
-      this.http.request<any, any>({
+      this.request<any, any>({
         path: `/api/health`,
         method: "GET",
         format: "json",

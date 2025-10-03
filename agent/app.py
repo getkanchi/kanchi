@@ -14,6 +14,7 @@ from database import DatabaseManager
 from connection_manager import ConnectionManager
 from event_handler import EventHandler
 from monitor import CeleryEventMonitor
+from worker_health_monitor import WorkerHealthMonitor
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ class ApplicationState:
         self.event_handler: Optional[EventHandler] = None
         self.monitor_instance: Optional[CeleryEventMonitor] = None
         self.monitor_thread: Optional[threading.Thread] = None
+        self.health_monitor: Optional[WorkerHealthMonitor] = None
 
 
 # Application state instance
@@ -39,6 +41,8 @@ async def lifespan(app: FastAPI):
     await initialize_application()
     yield
     # Shutdown
+    if app_state.health_monitor:
+        app_state.health_monitor.stop()
     if app_state.connection_manager:
         await app_state.connection_manager.stop_background_broadcaster()
     if app_state.monitor_thread and app_state.monitor_thread.is_alive():
@@ -119,6 +123,9 @@ async def initialize_application():
     
     # Start Celery monitor
     start_monitor(config)
+    
+    # Start worker health monitor
+    start_health_monitor()
 
 
 def start_monitor(config: Config):
@@ -138,6 +145,20 @@ def start_monitor(config: Config):
     app_state.monitor_thread = threading.Thread(target=app_state.monitor_instance.start_monitoring)
     app_state.monitor_thread.daemon = True
     app_state.monitor_thread.start()
+
+
+def start_health_monitor():
+    """Start the worker health monitor."""
+    if app_state.health_monitor:
+        logger.warning("Health monitor already running")
+        return
+        
+    app_state.health_monitor = WorkerHealthMonitor(
+        app_state.monitor_instance,
+        app_state.db_manager,
+        app_state.event_handler
+    )
+    app_state.health_monitor.start()
 
 
 def start_server():

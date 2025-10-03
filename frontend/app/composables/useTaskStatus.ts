@@ -1,8 +1,8 @@
 import type { BadgeVariants } from '~/components/ui/badge'
 
 // Type aliases for task status and event types
-export type TaskStatus = 'PENDING' | 'RECEIVED' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'RETRY' | 'REVOKED' | 'UNKNOWN'
-export type TaskEventType = 'task-sent' | 'task-received' | 'task-started' | 'task-succeeded' | 'task-failed' | 'task-retried' | 'task-revoked'
+export type TaskStatus = 'PENDING' | 'RECEIVED' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'RETRY' | 'REVOKED' | 'ORPHANED' | 'UNKNOWN'
+export type TaskEventType = 'task-sent' | 'task-received' | 'task-started' | 'task-succeeded' | 'task-failed' | 'task-retried' | 'task-revoked' | 'task-orphaned'
 
 export const useTaskStatus = () => {
   const eventTypeToStatus = (eventType: string): TaskStatus => {
@@ -21,6 +21,8 @@ export const useTaskStatus = () => {
         return 'RETRY'
       case 'task-revoked':
         return 'REVOKED'
+      case 'task-orphaned':
+        return 'ORPHANED'
       default:
         return 'UNKNOWN'
     }
@@ -34,6 +36,7 @@ export const useTaskStatus = () => {
     'retry': 'retry',
     'revoked': 'revoked',
     'received': 'received',
+    'orphaned': 'orphaned',
   }
 
   const getStatusVariant = (status: string): BadgeVariants['variant'] => {
@@ -46,7 +49,7 @@ export const useTaskStatus = () => {
   }
 
   const getAllStatuses = (): TaskStatus[] => {
-    return ['PENDING', 'RECEIVED', 'RUNNING', 'SUCCESS', 'FAILED', 'RETRY', 'REVOKED']
+    return ['PENDING', 'RECEIVED', 'RUNNING', 'SUCCESS', 'FAILED', 'RETRY', 'REVOKED', 'ORPHANED']
   }
 
   const getStatusColor = (status: string) => {
@@ -59,7 +62,7 @@ export const useTaskStatus = () => {
         dot: 'bg-status-success', 
         ring: 'ring-status-success/40' 
       },
-      completed: { 
+      completed: {
         pill: 'bg-status-success-bg border-status-success-border text-status-success', 
         dot: 'bg-status-success', 
         ring: 'ring-status-success/40' 
@@ -150,6 +153,11 @@ export const useTaskStatus = () => {
         pill: 'bg-status-neutral-bg border-status-neutral-border text-status-neutral', 
         dot: 'bg-status-neutral', 
         ring: 'ring-status-neutral/40' 
+      },
+      orphaned: {
+        pill: 'bg-status-neutral-bg border-status-neutral-border text-status-neutral',
+        dot: 'bg-status-neutral',
+        ring: 'ring-status-neutral/40'
       },
       
       // Default

@@ -46,6 +46,9 @@ test-stress: ## Run stress test with 1000 tasks
 test-failing: ## Generate failing tasks
 	docker-compose run --rm -e REDIS_URL=redis://redis:6379/0 -e CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672// worker1 python test_producer.py --mode failing --count 10
 
+test-longrunning: ## Generate long-running tasks for orphan testing
+	docker-compose run --rm -e REDIS_URL=redis://redis:6379/0 -e CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672// worker1 python test_producer.py --mode long --count 5
+
 test-priority: ## Generate priority tasks
 	docker-compose run --rm -e REDIS_URL=redis://redis:6379/0 -e CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672// worker1 python test_producer.py --mode priority --count 20
 

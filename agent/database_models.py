@@ -57,6 +57,10 @@ class TaskEvent(Base):
     has_retries = Column(Boolean, default=False, index=True)
     retry_count = Column(Integer, default=0)
     
+    # Orphan task tracking
+    is_orphan = Column(Boolean, default=False, index=True)
+    orphaned_at = Column(DateTime)
+    
     # Composite indexes for common query patterns
     __table_args__ = (
         Index('idx_task_timestamp', 'task_id', 'timestamp'),
@@ -66,6 +70,7 @@ class TaskEvent(Base):
         Index('idx_retry_tracking', 'task_id', 'is_retry', 'retry_of'),
         Index('idx_active_tasks', 'event_type', 'timestamp'),
         Index('idx_routing_key_timestamp', 'routing_key', 'timestamp'),
+        Index('idx_orphan_tasks', 'is_orphan', 'orphaned_at'),
     )
     
     def to_dict(self) -> Dict[str, Any]:
@@ -93,6 +98,8 @@ class TaskEvent(Base):
             'is_retry': self.is_retry,
             'has_retries': self.has_retries,
             'retry_count': self.retry_count,
+            'is_orphan': self.is_orphan,
+            'orphaned_at': self.orphaned_at.isoformat() if self.orphaned_at else None,
         }
     
     @classmethod
@@ -119,7 +126,7 @@ class TaskEvent(Base):
             expires=event.get('expires'),
             hostname=event.get('hostname'),
             exchange=event.get('exchange', ''),
-            routing_key=event.get('routing_key', ''),
+            routing_key=event.get('routing_key') or event.get('queue') or 'default',
             root_id=event.get('root_id', task_id),
             parent_id=event.get('parent_id'),
             result=str(event.get('result')) if event.get('result') is not None else None,
@@ -225,6 +232,10 @@ class TaskAggregation(Base):
     is_retry = Column(Boolean, default=False, index=True)
     original_task_id = Column(String(36), index=True)
     
+    # Orphan tracking
+    is_orphan = Column(Boolean, default=False, index=True)
+    orphaned_at = Column(DateTime)
+    
     # Computed fields
     total_runtime = Column(Float)
     queue_time = Column(Float)
@@ -256,6 +267,8 @@ class TaskAggregation(Base):
             'retry_count': self.retry_count,
             'is_retry': self.is_retry,
             'original_task_id': self.original_task_id,
+            'is_orphan': self.is_orphan,
+            'orphaned_at': self.orphaned_at.isoformat() if self.orphaned_at else None,
             'total_runtime': self.total_runtime,
             'queue_time': self.queue_time,
         }
@@ -435,6 +448,40 @@ class OptimizedQueries:
         return session.query(RetryChain).filter(
             RetryChain.original_task_id == original_task_id
         ).order_by(RetryChain.retry_number).all()
+    
+    @staticmethod
+    def get_orphaned_tasks(session):
+        """Get tasks that are marked as orphaned"""
+        return session.query(TaskEvent).filter(
+            TaskEvent.is_orphan == True
+        ).order_by(TaskEvent.orphaned_at.desc()).all()
+    
+    @staticmethod
+    def mark_tasks_as_orphaned(session, hostname: str, orphaned_at: datetime):
+        """Mark all running tasks on a worker as orphaned"""
+        # Find tasks that are running on this worker
+        running_task_ids = session.query(TaskEvent.task_id).filter(
+            TaskEvent.hostname == hostname,
+            TaskEvent.event_type == 'task-started'
+        ).subquery()
+        
+        # Check which of these don't have completion events
+        completed_task_ids = session.query(TaskEvent.task_id).filter(
+            TaskEvent.task_id.in_(running_task_ids),
+            TaskEvent.event_type.in_(['task-succeeded', 'task-failed', 'task-revoked'])
+        ).subquery()
+        
+        # Mark uncompleted tasks as orphaned
+        session.query(TaskEvent).filter(
+            TaskEvent.hostname == hostname,
+            TaskEvent.task_id.in_(running_task_ids),
+            ~TaskEvent.task_id.in_(completed_task_ids)
+        ).update({
+            'is_orphan': True,
+            'orphaned_at': orphaned_at
+        }, synchronize_session=False)
+        
+        session.commit()
     
     @staticmethod
     def get_current_stats(session):

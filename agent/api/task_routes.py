@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from services import TaskService, StatsService
+from database import TaskEventDB
 from models import TaskEventResponse, TaskStats
 
 
@@ -77,6 +78,15 @@ def create_router(app_state) -> APIRouter:
         task_service = TaskService(session)
         active_events = task_service.get_active_tasks()
         return [TaskEventResponse.from_task_event(event) for event in active_events]
+
+
+    @router.get("/tasks/orphaned", response_model=List[TaskEventResponse])
+    async def get_orphaned_tasks(session: Session = Depends(get_db)):
+        """Get tasks that have been marked as orphaned."""
+        orphaned_events = session.query(TaskEventDB).filter(
+            TaskEventDB.is_orphan == True
+        ).order_by(TaskEventDB.orphaned_at.desc()).all()
+        return [TaskEventResponse.from_task_event(event) for event in orphaned_events]
 
 
     @router.post("/tasks/{task_id}/retry")

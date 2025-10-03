@@ -81,7 +81,7 @@ class TaskEvent:
             expires=event.get('expires'),
             hostname=event.get('hostname'),
             exchange=event.get('exchange', ''),
-            routing_key=event.get('routing_key', ''),
+            routing_key=event.get('routing_key') or event.get('queue') or 'default',
             root_id=event.get('root_id', task_id),
             parent_id=event.get('parent_id'),
             result=event.get('result'),
@@ -154,6 +154,8 @@ class TaskEventResponse(BaseModel):
     is_retry: bool = False
     has_retries: bool = False
     retry_count: int = 0
+    is_orphan: bool = False
+    orphaned_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

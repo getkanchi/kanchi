@@ -50,10 +50,20 @@ class TaskEventDB(Base):
     has_retries = Column(Boolean, default=False)
     retry_count = Column(Integer, default=0)
     
+    # Orphan task tracking
+    is_orphan = Column(Boolean, default=False, index=True)
+    orphaned_at = Column(DateTime)
+    
     # Composite index for common queries
     __table_args__ = (
         Index('idx_task_timestamp', 'task_id', 'timestamp'),
         Index('idx_event_type_timestamp', 'event_type', 'timestamp'),
+        # Performance optimization indexes for /recent endpoint
+        Index('idx_recent_events_optimized', 'timestamp', 'event_type', 'task_id'),
+        Index('idx_aggregation_optimized', 'task_id', 'timestamp', 'event_type'),
+        Index('idx_orphan_lookup', 'is_orphan', 'orphaned_at'),
+        Index('idx_hostname_routing', 'hostname', 'routing_key', 'timestamp'),
+        Index('idx_task_name_search', 'task_name', 'timestamp'),
     )
     
     def to_dict(self) -> Dict[str, Any]:
@@ -80,10 +90,12 @@ class TaskEventDB(Base):
             'exception': self.exception,
             'traceback': self.traceback,
             'retry_of': self.retry_of,
-            'retried_by': self.retried_by,
+            'retried_by': json.loads(self.retried_by) if self.retried_by else [],
             'is_retry': self.is_retry,
             'has_retries': self.has_retries,
             'retry_count': self.retry_count,
+            'is_orphan': self.is_orphan,
+            'orphaned_at': self.orphaned_at.isoformat() if self.orphaned_at else None,
         }
 
 
@@ -150,6 +162,26 @@ class RetryRelationshipDB(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+"""
+SQL STATEMENTS FOR ALEMBIC MIGRATION:
+
+-- Performance optimization indexes for task_events table
+-- Add these to your Alembic migration file:
+
+CREATE INDEX idx_recent_events_optimized ON task_events (timestamp DESC, event_type, task_id);
+CREATE INDEX idx_aggregation_optimized ON task_events (task_id, timestamp DESC, event_type);
+CREATE INDEX idx_orphan_lookup ON task_events (is_orphan, orphaned_at DESC);
+CREATE INDEX idx_hostname_routing ON task_events (hostname, routing_key, timestamp DESC);
+CREATE INDEX idx_task_name_search ON task_events (task_name, timestamp DESC);
+
+-- Retry relationships table optimization
+CREATE INDEX idx_retry_bulk_lookup ON retry_relationships (task_id, original_id);
+
+-- Worker events optimization
+CREATE INDEX idx_worker_recent ON worker_events (hostname, timestamp DESC, event_type);
+"""
+
+
 class DatabaseManager:
     """Manage database connections and sessions."""
     
@@ -162,6 +194,10 @@ class DatabaseManager:
         self.engine = create_engine(
             database_url,
             pool_pre_ping=True,  # Verify connections before using
+            pool_size=20,        # Increase pool size for concurrent requests
+            max_overflow=30,     # Allow overflow connections
+            pool_recycle=3600,   # Recycle connections hourly
+            pool_timeout=30,     # Timeout for getting connection from pool
             echo=False  # Set to True for SQL debugging
         )
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)

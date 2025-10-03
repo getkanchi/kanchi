@@ -1,3 +1,88 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Glow Border Effects - Reusable utility classes */
+@layer utilities {
+  .glow-border {
+    --mouse-x: 0px;
+    --mouse-y: 0px;
+    position: relative;
+    background: linear-gradient(theme(colors.card.base), theme(colors.card.base)) padding-box,
+                radial-gradient(300px at var(--mouse-x) var(--mouse-y),
+                  rgba(156, 163, 175, 0.4), 
+                  rgba(156, 163, 175, 0.2) 20%,
+                  transparent 100%) border-box;
+    border: 1px solid rgba(156, 163, 175, 0.1);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+  }
+
+  .glow-border-animate {
+    --mouse-x: 50%;
+    --mouse-y: 50%;
+    position: relative;
+    background: linear-gradient(theme(colors.card.base), theme(colors.card.base)) padding-box,
+                radial-gradient(400px at var(--mouse-x) var(--mouse-y),
+                  rgba(156, 163, 175, 0.6),
+                  rgba(156, 163, 175, 0.3) 30%,
+                  transparent 100%) border-box;
+    border: 1px solid rgba(156, 163, 175, 0.2);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    animation: border-pulse 300ms ease-out;
+  }
+
+  @keyframes border-pulse {
+    0% {
+      background: linear-gradient(theme(colors.card.base), theme(colors.card.base)) padding-box,
+                  radial-gradient(200px at 50% 50%,
+                    rgba(156, 163, 175, 0.3), 
+                    rgba(156, 163, 175, 0.1) 20%,
+                    transparent 100%) border-box;
+    }
+    50% {
+      background: linear-gradient(theme(colors.card.base), theme(colors.card.base)) padding-box,
+                  radial-gradient(500px at 50% 50%,
+                    rgba(156, 163, 175, 0.8), 
+                    rgba(156, 163, 175, 0.4) 40%,
+                    transparent 100%) border-box;
+    }
+    100% {
+      background: linear-gradient(theme(colors.card.base), theme(colors.card.base)) padding-box,
+                  radial-gradient(400px at 50% 50%,
+                    rgba(156, 163, 175, 0.6), 
+                    rgba(156, 163, 175, 0.3) 30%,
+                    transparent 100%) border-box;
+    }
+  }
+
+  /* Glow border variants with ONLY colored border glow */
+  .glow-border-warning {
+    --mouse-x: 0px;
+    --mouse-y: 0px;
+    position: relative;
+    background: linear-gradient(theme(colors.card.base), theme(colors.card.base)) padding-box,
+                radial-gradient(300px at var(--mouse-x) var(--mouse-y),
+                  theme(colors.status.warning.DEFAULT / 0.4), 
+                  theme(colors.status.warning.DEFAULT / 0.2) 20%,
+                  transparent 100%) border-box;
+    border: 1px solid theme(colors.status.warning.DEFAULT / 0.2);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+  }
+
+  .glow-border-error {
+    --mouse-x: 0px;
+    --mouse-y: 0px;
+    position: relative;
+    background: linear-gradient(theme(colors.card.base), theme(colors.card.base)) padding-box,
+                radial-gradient(300px at var(--mouse-x) var(--mouse-y),
+                  theme(colors.status.error.DEFAULT / 0.4), 
+                  theme(colors.status.error.DEFAULT / 0.2) 20%,
+                  transparent 100%) border-box;
+    border: 1px solid theme(colors.status.error.DEFAULT / 0.2);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+  }
+}

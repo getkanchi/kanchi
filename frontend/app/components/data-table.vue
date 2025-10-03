@@ -18,12 +18,15 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ChevronRight, ChevronDown, Clock, Hash, Database, Cpu, AlertTriangle, ChevronLeft, ChevronsLeft, ChevronsRight, ArrowUpDown, ArrowUp, ArrowDown, Search, RefreshCw, CornerDownRight } from 'lucide-vue-next'
+import { formatTime } from '~/composables/useDateTimeFormatters'
+
+const { eventTypeToStatus, getStatusVariant, formatStatus } = useTaskStatus()
 import {Badge} from "~/components/ui/badge";
 import StatusDot from "~/components/StatusDot.vue";
 import CopyButton from "~/components/CopyButton.vue";
 import SearchInput from "~/components/SearchInput.vue";
 import RetryChain from "~/components/RetryChain.vue";
-// Task API is now handled via stores (auto-imported)
+import RetryTaskConfirmDialog from "~/components/RetryTaskConfirmDialog.vue";
 
 interface Filter {
   key: string
@@ -54,13 +57,14 @@ const emit = defineEmits<{
 }>()
 
 const expandedRows = ref(new Set<string>())
-
 const searchInput = ref(props.searchQuery || '')
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
 
 // Use tasks store for retry functionality
 const tasksStore = useTasksStore()
 const isRetrying = computed(() => tasksStore.isLoading)
+const currentRetryTaskId = ref<string | null>(null)
+const retryDialogRef = ref<InstanceType<typeof RetryTaskConfirmDialog> | null>(null)
 
 const handleSearch = (value: string) => {
   searchInput.value = value
@@ -91,7 +95,8 @@ const table = useVueTable({
   manualSorting: true,
 })
 
-const toggleRowExpansion = (taskId: string) => {
+const toggleRowExpansion = (taskId: string | undefined) => {
+  if (!taskId) return
   if (expandedRows.value.has(taskId)) {
     expandedRows.value.delete(taskId)
   } else {
@@ -99,21 +104,29 @@ const toggleRowExpansion = (taskId: string) => {
   }
 }
 
-const handleRetry = async (taskId: string) => {
+const handleRetryConfirm = async () => {
+  if (!currentRetryTaskId.value) return
+  
   try {
-    const result = await tasksStore.retryTask(taskId)
+    const result = await tasksStore.retryTask(currentRetryTaskId.value)
     console.log('Task retried successfully:', result)
-    // You can add a toast notification here if you have a notification system
+    // Reset current retry task ID
+    currentRetryTaskId.value = null
   } catch (error) {
     console.error('Failed to retry task:', error)
-    // You can add error notification here
+    // Reset current retry task ID on error too
+    currentRetryTaskId.value = null
   }
+}
+
+const handleRetryCancel = () => {
+  currentRetryTaskId.value = null
 }
 
 </script>
 
 <template>
-  <div class="border rounded-md">
+  <div class="border border-card-border rounded-md bg-card-base">
     <!-- Header with search and live mode controls -->
     <div class="flex items-center border-card-border justify-between p-4 border-b">
       <div class="flex items-center gap-3 flex-1">
@@ -204,14 +217,13 @@ const handleRetry = async (taskId: string) => {
                     </div>
                     <div class="flex items-center gap-2">
                       <Button 
-                        @click="handleRetry(row.original.task_id)"
+                        @click="() => { currentRetryTaskId = row.original.task_id; retryDialogRef?.open() }"
                         :disabled="isRetrying"
                         size="sm"
                         variant="outline"
                         class="flex items-center gap-2 hover:bg-blue-950/30 hover:border-blue-800/60 transition-colors"
                       >
-                        <RefreshCw :class="{'animate-spin': isRetrying}" class="h-4 w-4" />
-                        {{ isRetrying ? 'Retrying...' : 'Retry Task' }}
+                        <RefreshCw :class="{'animate-spin': isRetrying && currentRetryTaskId === row.original.task_id}" class="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
@@ -430,4 +442,13 @@ const handleRetry = async (taskId: string) => {
       </div>
     </div>
   </div>
+
+  <!-- Retry Confirmation Dialog -->
+  <RetryTaskConfirmDialog
+    ref="retryDialogRef"
+    :task="currentRetryTaskId ? data.find(task => task.task_id === currentRetryTaskId) || null : null"
+    :is-loading="isRetrying && !!currentRetryTaskId"
+    @confirm="handleRetryConfirm"
+    @cancel="handleRetryCancel"
+  />
 </template>

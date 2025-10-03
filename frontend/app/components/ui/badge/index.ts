@@ -23,6 +23,7 @@ export const badgeVariants = cva(
         retry: "border-status-retry-border bg-status-retry-bg text-status-retry hover:bg-status-retry-hover",
         revoked: "border-status-neutral-border bg-status-neutral-bg text-status-neutral hover:bg-status-neutral-hover",
         received: "border-status-special-border bg-status-special-bg text-status-special hover:bg-status-special-hover",
+        orphaned: "border-status-error-border bg-status-error-bg text-status-error hover:bg-status-error-hover",
         // Worker status variants
         online: "border-status-success-border bg-status-success-bg text-status-success hover:bg-status-success-hover",
         offline: "border-status-neutral-border bg-status-neutral-bg text-status-neutral hover:bg-status-neutral-hover",

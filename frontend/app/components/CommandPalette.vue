@@ -341,57 +341,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* Glow border system matching the app's design */
-.glow-border {
-  --mouse-x: 0px;
-  --mouse-y: 0px;
-  position: relative;
-  background: linear-gradient(theme(colors.card.base), theme(colors.card.base)) padding-box,
-              radial-gradient(300px at var(--mouse-x) var(--mouse-y),
-                rgba(156, 163, 175, 0.4), 
-                rgba(156, 163, 175, 0.2) 20%,
-                transparent 100%) border-box;
-  background-origin: border-box;
-  background-clip: padding-box, border-box;
-}
-
-.glow-border-animate {
-  --mouse-x: 50%;
-  --mouse-y: 50%;
-  position: relative;
-  background: linear-gradient(theme(colors.card.base), theme(colors.card.base)) padding-box,
-              radial-gradient(400px at var(--mouse-x) var(--mouse-y),
-                rgba(156, 163, 175, 0.6), 
-                rgba(156, 163, 175, 0.3) 30%,
-                transparent 100%) border-box;
-  background-origin: border-box;
-  background-clip: padding-box, border-box;
-  animation: border-pulse 300ms ease-out;
-}
-
-@keyframes border-pulse {
-  0% {
-    background: linear-gradient(theme(colors.card.base), theme(colors.card.base)) padding-box,
-                radial-gradient(200px at 50% 50%,
-                  rgba(156, 163, 175, 0.3), 
-                  rgba(156, 163, 175, 0.1) 20%,
-                  transparent 100%) border-box;
-  }
-  50% {
-    background: linear-gradient(theme(colors.card.base), theme(colors.card.base)) padding-box,
-                radial-gradient(500px at 50% 50%,
-                  rgba(156, 163, 175, 0.8), 
-                  rgba(156, 163, 175, 0.4) 40%,
-                  transparent 100%) border-box;
-  }
-  100% {
-    background: linear-gradient(theme(colors.card.base), theme(colors.card.base)) padding-box,
-                radial-gradient(400px at 50% 50%,
-                  rgba(156, 163, 175, 0.6), 
-                  rgba(156, 163, 175, 0.3) 30%,
-                  transparent 100%) border-box;
-  }
-}
+/* Glow effects are now handled by global CSS utilities */
 
 /* Command palette transitions */
 .command-palette-enter-active,

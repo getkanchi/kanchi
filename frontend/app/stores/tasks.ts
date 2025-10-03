@@ -1,5 +1,7 @@
 /**
  * Pinia store for task management
+ * Live mode: Real-time updates via WebSocket
+ * Static mode: Manual refresh with server-side pagination
  */
 import { defineStore } from 'pinia'
 import { ref, computed, readonly } from 'vue'
@@ -33,9 +35,9 @@ export interface PaginationInfo {
 export const useTasksStore = defineStore('tasks', () => {
   const apiService = useApiService()
 
-  // State
+  // State - Single source of truth
   const stats = ref<TaskStats | null>(null)
-  const recentEvents = ref<TaskEventResponse[]>([])
+  const events = ref<TaskEventResponse[]>([])  // Current page data
   const activeTasks = ref<TaskEventResponse[]>([])
   const pagination = ref<PaginationInfo>({
     page: 0,
@@ -48,6 +50,10 @@ export const useTasksStore = defineStore('tasks', () => {
   
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+  const isLiveMode = ref(false)
+  
+  // Live mode specific state
+  const lastRefreshTime = ref<Date | null>(null)
 
   // Current filter and pagination state
   const filters = ref<TaskFilters>({})
@@ -57,11 +63,14 @@ export const useTasksStore = defineStore('tasks', () => {
     sort_order: 'desc'
   })
 
-  // Computed
+  // Computed - Simplified pagination
   const hasNextPage = computed(() => pagination.value.has_next)
   const hasPrevPage = computed(() => pagination.value.has_prev)
   const totalPages = computed(() => pagination.value.total_pages)
   const currentPage = computed(() => pagination.value.page)
+  
+  // Single computed property for paginated events
+  const paginatedEvents = computed(() => events.value)
 
   // Actions
   async function fetchStats() {
@@ -77,9 +86,11 @@ export const useTasksStore = defineStore('tasks', () => {
     }
   }
 
-  async function fetchRecentEvents() {
+  async function fetchRecentEvents(silent = false) {
     try {
-      isLoading.value = true
+      if (!silent) {
+        isLoading.value = true
+      }
       error.value = null
       
       const response = await apiService.getRecentEvents({
@@ -88,19 +99,22 @@ export const useTasksStore = defineStore('tasks', () => {
         aggregate: true
       })
 
-      // Type assertion since the API returns a complex object structure
       const data = response as any
       if (data.data && Array.isArray(data.data)) {
-        recentEvents.value = data.data
+        events.value = data.data
       }
       if (data.pagination) {
         pagination.value = data.pagination
       }
+      
+      lastRefreshTime.value = new Date()
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch recent events'
-      throw err
+      if (!silent) throw err
     } finally {
-      isLoading.value = false
+      if (!silent) {
+        isLoading.value = false
+      }
     }
   }
 
@@ -142,7 +156,6 @@ export const useTasksStore = defineStore('tasks', () => {
 
   // Pagination actions
   function setPage(page: number) {
-    // Ensure page is within valid bounds
     const maxPage = Math.max(0, (pagination.value.total_pages || 1) - 1)
     const validPage = Math.max(0, Math.min(page, maxPage))
     
@@ -152,7 +165,7 @@ export const useTasksStore = defineStore('tasks', () => {
 
   function setPageSize(limit: number) {
     paginationParams.value.limit = limit
-    paginationParams.value.page = 0 // Reset to first page
+    paginationParams.value.page = 0
     fetchRecentEvents()
   }
 
@@ -171,57 +184,86 @@ export const useTasksStore = defineStore('tasks', () => {
   // Filter actions
   function setFilters(newFilters: TaskFilters) {
     filters.value = { ...newFilters }
-    paginationParams.value.page = 0 // Reset to first page
+    paginationParams.value.page = 0
     fetchRecentEvents()
   }
 
   function setSorting(sortBy: string | null, sortOrder: 'asc' | 'desc' = 'desc') {
     paginationParams.value.sort_by = sortBy
     paginationParams.value.sort_order = sortOrder
-    paginationParams.value.page = 0 // Reset to first page
+    paginationParams.value.page = 0
     fetchRecentEvents()
   }
 
   function setSearchQuery(search: string) {
     filters.value.search = search || null
-    paginationParams.value.page = 0 // Reset to first page
+    paginationParams.value.page = 0
     fetchRecentEvents()
   }
 
-
-  function addLiveEvent(event: any) {
-    if (paginationParams.value.page === 0) {
-      const currentEvents = [...recentEvents.value]
-      const existingIndex = currentEvents.findIndex(e => e.task_id === event.task_id)
-      
-      if (existingIndex !== -1) {
-        currentEvents[existingIndex] = event
-      } else {
-        currentEvents.unshift(event)
+  // Live mode management
+  function setLiveMode(enabled: boolean) {
+    isLiveMode.value = enabled
+    
+    if (enabled) {
+      // In live mode, we'll receive updates via WebSocket
+      // Reset to first page to see newest events
+      if (paginationParams.value.page !== 0) {
+        paginationParams.value.page = 0
+        fetchRecentEvents()
       }
-      
-      recentEvents.value = currentEvents
-        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-        .slice(0, 100)
     }
+  }
+
+  // Handle live events from WebSocket - SIMPLE SOLUTION
+  function handleLiveEvent(event: TaskEventResponse) {
+    if (!isLiveMode.value) return
+    
+    // Find if we have any event for this task_id
+    const existingTaskIndex = events.value.findIndex(e => e.task_id === event.task_id)
+    
+    if (existingTaskIndex !== -1) {
+      // Create a completely new array with the updated task
+      // This guarantees Vue detects the change
+      const newEvents = [...events.value]
+      newEvents[existingTaskIndex] = event
+      events.value = newEvents
+    } else if (paginationParams.value.page === 0) {
+      // Add new task at the beginning
+      // Create completely new array to ensure reactivity
+      const newEvents = [event, ...events.value.slice(0, paginationParams.value.limit - 1)]
+      events.value = newEvents
+      
+      // Update pagination total
+      pagination.value = {
+        ...pagination.value,
+        total: (pagination.value.total || 0) + 1,
+        total_pages: Math.ceil(((pagination.value.total || 0) + 1) / paginationParams.value.limit)
+      }
+    }
+    
+    lastRefreshTime.value = new Date()
   }
 
   return {
     // State
     stats: readonly(stats),
-    recentEvents: readonly(recentEvents),
+    events: readonly(events),
     activeTasks: readonly(activeTasks),
     pagination: readonly(pagination),
     isLoading: readonly(isLoading),
     error: readonly(error),
     filters: readonly(filters),
     paginationParams: readonly(paginationParams),
+    isLiveMode: readonly(isLiveMode),
+    lastRefreshTime: readonly(lastRefreshTime),
 
     // Computed
     hasNextPage,
     hasPrevPage,
     totalPages,
     currentPage,
+    paginatedEvents,
 
     // Actions
     fetchStats,
@@ -236,6 +278,7 @@ export const useTasksStore = defineStore('tasks', () => {
     setFilters,
     setSorting,
     setSearchQuery,
-    addLiveEvent,
+    setLiveMode,
+    handleLiveEvent,
   }
 })

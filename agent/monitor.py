@@ -40,6 +40,7 @@ class CeleryEventMonitor:
             task_name = event.get("name", "unknown")
             task_id = event.get("uuid", "")
             event_type = event.get("type", "")
+            
 
             if self.state and task_id:
                 task = self.state.tasks.get(task_id)

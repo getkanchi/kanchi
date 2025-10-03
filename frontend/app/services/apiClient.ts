@@ -1,24 +1,24 @@
 /**
  * Centralized API service using auto-generated types
  */
-import { Api, HttpClient } from '../src/types/api'
+import { Api } from '../src/types/api'
 import type { 
   TaskStats, 
   TaskEventResponse, 
-  WorkerInfo 
+  WorkerInfo
 } from '../src/types/api'
 
 class ApiService {
   private api: Api<unknown>
   
   constructor(baseURL: string) {
-    const httpClient = new HttpClient({
+    // The axios-generated Api class expects configuration directly
+    this.api = new Api({
       baseURL,
       headers: {
         'Content-Type': 'application/json',
       },
     })
-    this.api = new Api(httpClient)
   }
 
   // Task-related endpoints
@@ -58,6 +58,11 @@ class ApiService {
     return response.data
   }
 
+  async getOrphanedTasks(): Promise<TaskEventResponse[]> {
+    const response = await this.api.api.getOrphanedTasksApiTasksOrphanedGet()
+    return response.data
+  }
+
   // Worker-related endpoints
   async getWorkers(): Promise<WorkerInfo[]> {
     const response = await this.api.api.getWorkersApiWorkersGet()
@@ -85,6 +90,7 @@ class ApiService {
     const response = await this.api.api.getWebsocketMessageTypesApiWebsocketMessageTypesGet()
     return response.data
   }
+
 }
 
 // Create singleton instance with runtime config

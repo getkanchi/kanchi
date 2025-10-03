@@ -4,7 +4,7 @@
 
       <!-- Command Palette -->
       <CommandPalette 
-        :is-live-mode="wsStore.clientMode === 'live'"
+        :is-live-mode="tasksStore.isLiveMode"
         @toggle-live-mode="handleToggleLiveMode"
         @rerun-task="handleRerunTask"
       />
@@ -17,11 +17,19 @@
         />
       </div>
 
+      <!-- Orphaned Tasks Overview -->
+      <div class="mb-6 orphan-tasks-section">
+        <OrphanTasksSummary 
+          :orphaned-tasks="orphanTasksStore.orphanedTasks"
+          @retry-task="handleRerunTask"
+        />
+      </div>
+
       <div class="mb-6">
         <DataTable
           :columns="columns" 
-          :data="tasksStore.recentEvents" 
-          :is-live-mode="wsStore.clientMode === 'live'"
+          :data="tasksStore.paginatedEvents" 
+          :is-live-mode="tasksStore.isLiveMode"
           :seconds-since-update="secondsSinceUpdate"
           :page-index="tasksStore.currentPage"
           :page-size="tasksStore.paginationParams.limit"
@@ -48,20 +56,19 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { getTaskColumns } from "~/config/tableColumns"
 import DataTable from "~/components/data-table.vue"
 import WorkerStatusSummary from "~/components/WorkerStatusSummary.vue"
+import OrphanTasksSummary from "~/components/OrphanTasksSummary.vue"
 import CommandPalette from "~/components/CommandPalette.vue"
 
 // Stores
 const tasksStore = useTasksStore()
 const workersStore = useWorkersStore()
+const orphanTasksStore = useOrphanTasksStore()
 const wsStore = useWebSocketStore()
-
-// State
-const lastUpdated = ref<Date | null>(null)
 
 // Computed
 const secondsSinceUpdate = computed(() => {
-  if (!lastUpdated.value) return 0
-  return Math.floor((Date.now() - lastUpdated.value.getTime()) / 1000)
+  if (!tasksStore.lastRefreshTime) return 0
+  return Math.floor((Date.now() - tasksStore.lastRefreshTime.getTime()) / 1000)
 })
 
 const currentSorting = computed(() => {
@@ -90,15 +97,15 @@ const columns = getTaskColumns()
 
 // Actions
 function handleToggleLiveMode() {
-  const newMode = wsStore.clientMode === 'live' ? 'static' : 'live'
-  wsStore.setMode(newMode)
+  const newMode = !tasksStore.isLiveMode
+  wsStore.setMode(newMode ? 'live' : 'static')
+  tasksStore.setLiveMode(newMode)
   
-  if (newMode === 'live') {
-    // Reset to first page for live mode
+  if (newMode) {
+    // Reset to first page for live mode to see newest events
     tasksStore.setPage(0)
-    lastUpdated.value = new Date()
   } else {
-    // Fetch current data for static mode
+    // Refresh data when switching to static mode
     tasksStore.fetchRecentEvents()
   }
 }
@@ -155,84 +162,36 @@ onMounted(async () => {
   await Promise.all([
     tasksStore.fetchRecentEvents(),
     tasksStore.fetchStats(),
-    workersStore.fetchWorkers()
+    workersStore.fetchWorkers(),
+    orphanTasksStore.fetchOrphanedTasks()
   ])
   
-  lastUpdated.value = new Date()
+  // Set initial mode based on WebSocket client preference
+  tasksStore.setLiveMode(wsStore.clientMode === 'live')
   
-  // Set up conditional workers refresh - only poll when WebSocket is not connected
-  let workerInterval: ReturnType<typeof setInterval> | null = null
+  // Set up periodic refresh for workers and orphaned tasks
+  const orphanTasksInterval = setInterval(() => {
+    orphanTasksStore.fetchOrphanedTasks()
+  }, 60000) // Poll every 60 seconds for orphaned tasks
   
-  const startPolling = () => {
-    if (workerInterval) return
-    workerInterval = setInterval(() => {
-      // Only fetch if WebSocket is not connected
-      if (!wsStore.isConnected) {
-        workersStore.fetchWorkers()
-      }
-    }, 30000)
-  }
-  
-  const stopPolling = () => {
-    if (workerInterval) {
-      clearInterval(workerInterval)
-      workerInterval = null
-    }
-  }
-  
-  // Start polling initially and manage based on WebSocket connection
-  startPolling()
-  
-  // Watch WebSocket connection status to optimize polling
-  watch(() => wsStore.isConnected, (connected) => {
-    if (connected) {
-      // WebSocket connected: reduce polling frequency or stop
-      stopPolling()
-      // Refresh workers once when WebSocket connects to get current state
+  const workerInterval = setInterval(() => {
+    // Only fetch if WebSocket is not connected
+    if (!wsStore.isConnected) {
       workersStore.fetchWorkers()
-    } else {
-      // WebSocket disconnected: start/resume polling
-      startPolling()
     }
-  })
+  }, 30000)
   
   onUnmounted(() => {
-    stopPolling()
+    clearInterval(orphanTasksInterval)
+    clearInterval(workerInterval)
   })
 })
 
 onUnmounted(() => {
   document.removeEventListener('mousemove', handleMouseMove)
 })
-
-// The WebSocket connection watcher for polling is handled above in onMounted
-// This separate watcher is just for updating the lastUpdated timestamp
-watch(() => wsStore.isConnected, (connected) => {
-  if (connected && wsStore.clientMode === 'live') {
-    lastUpdated.value = new Date()
-  }
-})
-
-// Update last updated time when data changes in live mode
-watch(() => tasksStore.recentEvents, () => {
-  if (wsStore.clientMode === 'live') {
-    lastUpdated.value = new Date()
-  }
-}, { deep: true })
 </script>
 
 <style scoped>
-.glow-border {
-  --mouse-x: 0px;
-  --mouse-y: 0px;
-  position: relative;
-  background: linear-gradient(#121212, #121212) padding-box,
-              radial-gradient(300px at var(--mouse-x) var(--mouse-y),
-                rgba(156, 163, 175, 0.4), 
-                rgba(156, 163, 175, 0.2) 20%,
-                transparent 100%) border-box;
-  border: 1px solid rgba(156, 163, 175, 0.1);
-  background-origin: border-box;
-  background-clip: padding-box, border-box;
-}
+/* Glow effects are now handled by global CSS utilities */
 </style>
