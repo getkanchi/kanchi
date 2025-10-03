@@ -309,9 +309,9 @@ const searchInput = ref('')
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
 
 // Retry functionality
-const tasksStore = useTasksStore()
+const orphanTasksStore = useOrphanTasksStore()
 const currentRetryTaskId = ref<string | null>(null)
-const isRetrying = computed(() => tasksStore.isLoading)
+const isRetrying = computed(() => orphanTasksStore.isLoading)
 const retryDialogRef = ref<InstanceType<typeof RetryTaskConfirmDialog> | null>(null)
 
 // Table columns with retry functionality
@@ -350,11 +350,11 @@ const handleRetryConfirm = async () => {
   if (!currentRetryTaskId.value) return
   
   try {
-    const result = await tasksStore.retryTask(currentRetryTaskId.value)
-    console.log('Task retried successfully:', result)
+    await orphanTasksStore.retryOrphanedTask(currentRetryTaskId.value)
+    console.log('Orphaned task retried successfully')
     currentRetryTaskId.value = null
   } catch (error) {
-    console.error('Failed to retry task:', error)
+    console.error('Failed to retry orphaned task:', error)
     currentRetryTaskId.value = null
   }
 }

@@ -105,6 +105,20 @@ def create_router(app_state) -> APIRouter:
         # Get the latest event for the task
         original_task = task_events[-1]
         
+        # Check if this is an orphaned task and mark it as no longer orphaned
+        orphaned_task = session.query(TaskEventDB).filter_by(
+            task_id=task_id,
+            is_orphan=True
+        ).first()
+        
+        if orphaned_task:
+            # Mark all events for this task as no longer orphaned
+            session.query(TaskEventDB).filter_by(task_id=task_id).update({
+                'is_orphan': False,
+                'orphaned_at': None
+            })
+            session.commit()
+        
         try:
             # Parse args and kwargs
             import ast
@@ -135,6 +149,7 @@ def create_router(app_state) -> APIRouter:
             "original_task_id": task_id,
             "new_task_id": new_task_id,
             "task_name": original_task.task_name,
+            "was_orphaned": orphaned_task is not None,
             "timestamp": datetime.now().isoformat()
         }
 

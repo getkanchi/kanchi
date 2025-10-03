@@ -58,111 +58,111 @@ export const useTaskStatus = () => {
     const colorMap: Record<string, { pill: string; dot: string; ring?: string }> = {
       // Success states
       success: { 
-        pill: 'bg-status-success-bg border-status-success-border text-status-success', 
+        pill: 'bg-status-success/10 border-status-success/20 text-status-success', 
         dot: 'bg-status-success', 
         ring: 'ring-status-success/40' 
       },
       completed: {
-        pill: 'bg-status-success-bg border-status-success-border text-status-success', 
+        pill: 'bg-status-success/10 border-status-success/20 text-status-success', 
         dot: 'bg-status-success', 
         ring: 'ring-status-success/40' 
       },
       
       // Error states  
       error: { 
-        pill: 'bg-status-error-bg border-status-error-border text-status-error', 
+        pill: 'bg-status-error/10 border-status-error/20 text-status-error', 
         dot: 'bg-status-error', 
         ring: 'ring-status-error/40' 
       },
       failed: { 
-        pill: 'bg-status-error-bg border-status-error-border text-status-error', 
+        pill: 'bg-status-error/10 border-status-error/20 text-status-error', 
         dot: 'bg-status-error', 
         ring: 'ring-status-error/40' 
       },
       failure: { 
-        pill: 'bg-status-error-bg border-status-error-border text-status-error', 
+        pill: 'bg-status-error/10 border-status-error/20 text-status-error', 
         dot: 'bg-status-error', 
         ring: 'ring-status-error/40' 
       },
       
       // Running states
       running: { 
-        pill: 'bg-status-info-bg border-status-info-border text-status-info', 
+        pill: 'bg-status-info/10 border-status-info/20 text-status-info', 
         dot: 'bg-status-info', 
         ring: 'ring-status-info/40' 
       },
       processing: { 
-        pill: 'bg-status-info-bg border-status-info-border text-status-info', 
+        pill: 'bg-status-info/10 border-status-info/20 text-status-info', 
         dot: 'bg-status-info', 
         ring: 'ring-status-info/40' 
       },
       started: { 
-        pill: 'bg-status-info-bg border-status-info-border text-status-info', 
+        pill: 'bg-status-info/10 border-status-info/20 text-status-info', 
         dot: 'bg-status-info', 
         ring: 'ring-status-info/40' 
       },
       
       // Pending states
       pending: { 
-        pill: 'bg-status-warning-bg border-status-warning-border text-status-warning', 
+        pill: 'bg-status-warning/10 border-status-warning/20 text-status-warning', 
         dot: 'bg-status-warning', 
         ring: 'ring-status-warning/40' 
       },
       waiting: { 
-        pill: 'bg-status-warning-bg border-status-warning-border text-status-warning', 
+        pill: 'bg-status-warning/10 border-status-warning/20 text-status-warning', 
         dot: 'bg-status-warning', 
         ring: 'ring-status-warning/40' 
       },
       
       // Special states
       received: { 
-        pill: 'bg-status-special-bg border-status-special-border text-status-special', 
+        pill: 'bg-status-special/10 border-status-special/20 text-status-special', 
         dot: 'bg-status-special', 
         ring: 'ring-status-special/40' 
       },
       
       // Retry states
       retry: { 
-        pill: 'bg-status-retry-bg border-status-retry-border text-status-retry', 
+        pill: 'bg-status-retry/10 border-status-retry/20 text-status-retry', 
         dot: 'bg-status-retry', 
         ring: 'ring-status-retry/40' 
       },
       retrying: { 
-        pill: 'bg-status-retry-bg border-status-retry-border text-status-retry', 
+        pill: 'bg-status-retry/10 border-status-retry/20 text-status-retry', 
         dot: 'bg-status-retry', 
         ring: 'ring-status-retry/40' 
       },
       
       // Neutral states
       cancelled: { 
-        pill: 'bg-status-neutral-bg border-status-neutral-border text-status-neutral', 
+        pill: 'bg-status-neutral/10 border-status-neutral/20 text-status-neutral', 
         dot: 'bg-status-neutral', 
         ring: 'ring-status-neutral/40' 
       },
       revoked: { 
-        pill: 'bg-status-neutral-bg border-status-neutral-border text-status-neutral', 
+        pill: 'bg-status-neutral/10 border-status-neutral/20 text-status-neutral', 
         dot: 'bg-status-neutral', 
         ring: 'ring-status-neutral/40' 
       },
       ignored: { 
-        pill: 'bg-status-neutral-bg border-status-neutral-border text-status-neutral', 
+        pill: 'bg-status-neutral/10 border-status-neutral/20 text-status-neutral', 
         dot: 'bg-status-neutral', 
         ring: 'ring-status-neutral/40' 
       },
       rejected: { 
-        pill: 'bg-status-neutral-bg border-status-neutral-border text-status-neutral', 
+        pill: 'bg-status-neutral/10 border-status-neutral/20 text-status-neutral', 
         dot: 'bg-status-neutral', 
         ring: 'ring-status-neutral/40' 
       },
       orphaned: {
-        pill: 'bg-status-neutral-bg border-status-neutral-border text-status-neutral',
+        pill: 'bg-status-neutral/10 border-status-neutral/20 text-status-neutral',
         dot: 'bg-status-neutral',
         ring: 'ring-status-neutral/40'
       },
       
       // Default
       unknown: {
-        pill: 'bg-gray-100 border-gray-300 text-gray-600',
+        pill: 'bg-gray-500/10 border-gray-500/20 text-gray-400',
         dot: 'bg-gray-500',
         ring: 'ring-gray-400/40'
       }

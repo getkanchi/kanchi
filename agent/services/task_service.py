@@ -75,6 +75,12 @@ class TaskService:
                 routing_key = existing_sent_event.routing_key
                 queue = existing_sent_event.queue
         
+        # Check if this task is a retry (from retry relationships)
+        retry_rel = self.session.query(RetryRelationshipDB).filter_by(task_id=task_event.task_id).first()
+        if retry_rel and retry_rel.original_id != task_event.task_id:
+            task_event.retry_of = retry_rel.original_id
+            task_event.is_retry = True
+        
         task_event_db = TaskEventDB(
             task_id=task_event.task_id,
             task_name=task_event.task_name,
@@ -233,35 +239,60 @@ class TaskService:
         
         return events
     
-    def create_retry_relationship(self, original_task_id: str, new_task_id: str):
+    def create_retry_relationship(self, original_task_id: str, new_task_id: str, retried_by: str = "system"):
         """Create a retry relationship between tasks."""
-        # Create or update retry relationship for new task
+        # Create retry relationship for new task (pointing to original)
         new_retry_rel = RetryRelationshipDB(
             task_id=new_task_id,
             original_id=original_task_id,
-            retry_chain=[original_task_id],
-            total_retries=1
+            retry_chain=[],  # New retry task has no retries yet
+            total_retries=0
         )
         self.session.add(new_retry_rel)
         
-        # Update parent task's retry relationship
+        # Update original task's retry relationship to include this new retry
         parent_rel = self.session.query(RetryRelationshipDB).filter_by(task_id=original_task_id).first()
         if parent_rel:
+            # Add new retry to existing chain
             if parent_rel.retry_chain:
                 parent_rel.retry_chain.append(new_task_id)
             else:
                 parent_rel.retry_chain = [new_task_id]
             parent_rel.total_retries += 1
         else:
+            # Create new retry relationship for original task
             parent_rel = RetryRelationshipDB(
                 task_id=original_task_id,
                 original_id=original_task_id,
-                retry_chain=[new_task_id],
+                retry_chain=[new_task_id],  # Only the retry task IDs
                 total_retries=1
             )
             self.session.add(parent_rel)
         
+        # Update the original task events to indicate it has been retried
+        original_events = self.session.query(TaskEventDB).filter_by(task_id=original_task_id).all()
+        for event in original_events:
+            # Parse existing retried_by list
+            existing_retries = json.loads(event.retried_by) if event.retried_by else []
+            existing_retries.append(new_task_id)
+            
+            # Update the event
+            event.retried_by = json.dumps(existing_retries)
+            event.has_retries = True
+            event.retry_count = len(existing_retries)
+        
         self.session.commit()
+    
+    def mark_new_task_as_retry(self, new_task_id: str, original_task_id: str):
+        """Mark events for a new task as being a retry of the original task."""
+        # This will be called after the new task events start coming in
+        new_events = self.session.query(TaskEventDB).filter_by(task_id=new_task_id).all()
+        for event in new_events:
+            event.retry_of = original_task_id
+            event.is_retry = True
+        
+        if new_events:
+            self.session.commit()
     
     def _db_to_task_event(self, event_db: TaskEventDB) -> TaskEvent:
         """Convert database model to TaskEvent object."""
