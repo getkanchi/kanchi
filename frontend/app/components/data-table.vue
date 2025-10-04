@@ -16,17 +16,15 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { ChevronRight, ChevronDown, Clock, Hash, Database, Cpu, AlertTriangle, ChevronLeft, ChevronsLeft, ChevronsRight, ArrowUpDown, ArrowUp, ArrowDown, Search, RefreshCw, CornerDownRight } from 'lucide-vue-next'
-import { formatTime } from '~/composables/useDateTimeFormatters'
 
-const { eventTypeToStatus, getStatusVariant, formatStatus } = useTaskStatus()
 import {Badge} from "~/components/ui/badge";
 import StatusDot from "~/components/StatusDot.vue";
 import CopyButton from "~/components/CopyButton.vue";
 import SearchInput from "~/components/SearchInput.vue";
 import RetryChain from "~/components/RetryChain.vue";
 import RetryTaskConfirmDialog from "~/components/RetryTaskConfirmDialog.vue";
+import BaseIconButton from "~/components/BaseIconButton.vue";
 
 interface Filter {
   key: string
@@ -126,7 +124,7 @@ const handleRetryCancel = () => {
 </script>
 
 <template>
-  <div class="border border-border rounded-md bg-background-surface">
+  <div class="border border-border rounded-md bg-background-surface glow-border">
     <!-- Header with search and live mode controls -->
     <div class="flex items-center border-border justify-between p-4 border-b">
       <div class="flex items-center gap-3 flex-1">
@@ -146,7 +144,6 @@ const handleRetryCancel = () => {
         v-if="isLiveMode"
         @click="emit('toggleLiveMode')"
         variant="success"
-        class="hover:cursor-pointer"
 
       >
         <StatusDot status="success" :pulse="true" class="mr-1.5" />
@@ -155,10 +152,8 @@ const handleRetryCancel = () => {
       <Badge
         v-else
         @click="emit('toggleLiveMode')"
-        class="bg-gray-800/40 text-gray-300 border-gray-600/60 px-2 py-0.5
-         hover:bg-gray-700/30 hover:text-gray-300 hover:border-gray-600/80
-         transition-colors cursor-pointer group"
-      >
+        variant="outline"
+        >
         <StatusDot status="muted" class="mr-1.5" />
         Start Live Mode
       </Badge>
@@ -194,7 +189,7 @@ const handleRetryCancel = () => {
         <template v-if="table.getRowModel().rows?.length">
           <template v-for="row in table.getRowModel().rows" :key="row.id">
             <TableRow
-              class="border-border cursor-pointer hover:bg-background-surface/10"
+              class="border-border cursor-default hover:bg-background-hover-subtle transition-colors duration-150"
               @click="toggleRowExpansion(row.original.task_id)"
             >
               <TableCell class="w-12">
@@ -212,21 +207,15 @@ const handleRetryCancel = () => {
                 <div class="px-8 py-6">
                   
                   <!-- Retry Button Section -->
-                  <div class="flex items-center justify-between mb-6 pb-4 border-b border-border">
-                    <div class="flex items-center gap-2">
-                      <h3 class="text-base font-medium text-gray-300">Task Actions</h3>
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <Button 
+                  <div class="flex justify-end items-end w-full">
+                      <BaseIconButton
+                        :icon="RefreshCw"
                         @click="() => { currentRetryTaskId = row.original.task_id; retryDialogRef?.open() }"
                         :disabled="isRetrying"
+                        :loading="isRetrying && currentRetryTaskId === row.original.task_id"
                         size="sm"
-                        variant="outline"
-                        class="flex items-center gap-2 hover:bg-blue-950/30 hover:border-blue-800/60 transition-colors"
-                      >
-                        <RefreshCw :class="{'animate-spin': isRetrying && currentRetryTaskId === row.original.task_id}" class="h-4 w-4" />
-                      </Button>
-                    </div>
+                        variant="ghost"
+                      />
                   </div>
                   
                   <div class="grid grid-cols-2 md:grid-cols-4 gap-6 text-sm mb-2">
@@ -394,51 +383,39 @@ const handleRetryCancel = () => {
         
         
         <div class="flex items-center space-x-1">
-          <Button
-            variant="outline"
-            size="sm"
+          <BaseIconButton
+            :icon="ChevronsLeft"
+            variant="ghost"
+            size="md"
             @click="emit('setPageIndex', 0)"
             :disabled="!tasksStore.hasPrevPage"
-            class="h-8 w-8 p-0"
-            :class="tasksStore.hasPrevPage ? 'hover:cursor-pointer' : 'cursor-not-allowed opacity-50'"
-          >
-            <ChevronsLeft class="h-4 w-4" :class="tasksStore.hasPrevPage ? 'text-gray-400' : 'text-gray-600'" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
+          />
+          <BaseIconButton
+            :icon="ChevronLeft"
+            variant="ghost"
+            size="md"
             @click="emit('setPageIndex', pageIndex - 1)"
             :disabled="!tasksStore.hasPrevPage"
-            class="h-8 w-8 p-0"
-            :class="tasksStore.hasPrevPage ? 'hover:cursor-pointer' : 'cursor-not-allowed opacity-50'"
-          >
-            <ChevronLeft class="h-4 w-4" :class="tasksStore.hasPrevPage ? 'text-gray-400' : 'text-gray-600'" />
-          </Button>
+          />
           
           <span class="px-2 text-sm text-gray-500">
             Page {{ pageIndex + 1 }} of {{ pagination?.total_pages || 1 }}
           </span>
           
-          <Button
-            variant="outline"
-            size="sm"
+          <BaseIconButton
+            :icon="ChevronRight"
+            variant="ghost"
+            size="md"
             @click="emit('setPageIndex', pageIndex + 1)"
             :disabled="!tasksStore.hasNextPage"
-            class="h-8 w-8 p-0"
-            :class="tasksStore.hasNextPage ? 'hover:cursor-pointer' : 'cursor-not-allowed opacity-50'"
-          >
-            <ChevronRight class="h-4 w-4" :class="tasksStore.hasNextPage ? 'text-gray-400' : 'text-gray-600'" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
+          />
+          <BaseIconButton
+            :icon="ChevronsRight"
+            variant="ghost"
+            size="md"
             @click="emit('setPageIndex', (pagination?.total_pages || 1) - 1)"
             :disabled="!tasksStore.hasNextPage"
-            class="h-8 w-8 p-0"
-            :class="tasksStore.hasNextPage ? 'hover:cursor-pointer' : 'cursor-not-allowed opacity-50'"
-          >
-            <ChevronsRight class="h-4 w-4" :class="tasksStore.hasNextPage ? 'text-gray-400' : 'text-gray-600'" />
-          </Button>
+          />
         </div>
       </div>
     </div>

@@ -159,7 +159,7 @@ export function getOrphanTaskColumns(options?: {
         
         return h(Button, {
           variant: 'ghost',
-          class: 'h-4 w-4 p-0 min-h-0 min-w-0 hover:bg-blue-950/30 hover:border-blue-800/60 transition-colors',
+          class: 'h-4 w-4 p-0 min-h-0 min-w-0 transition-colors',
           disabled: isTaskRetrying,
           onClick: (e: Event) => {
             e.stopPropagation() // Prevent row expansion

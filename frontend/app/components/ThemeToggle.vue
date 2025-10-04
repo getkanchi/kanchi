@@ -1,14 +1,14 @@
 <template>
-  <button
+  <Button
     @click="toggleTheme"
-    class="relative inline-flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-200 bg-background-base hover:bg-background-surface border border-border group"
+    class="relative inline-flex items-center justify-center w-6 h-6 rounded-lg transition-all duration-200 bg-background-base hover:bg-background-surface border border-border group"
     :aria-label="`Switch to ${nextThemeLabel} theme`"
   >
     <!-- Dark mode icon -->
     <svg
       v-if="resolvedTheme === 'dark'"
       xmlns="http://www.w3.org/2000/svg"
-      class="w-5 h-5 text-text-primary transition-transform duration-200 group-hover:rotate-12"
+      class="w-4 h-4 text-text-primary transition-transform duration-200 group-hover:rotate-12"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -25,7 +25,7 @@
     <svg
       v-else
       xmlns="http://www.w3.org/2000/svg"
-      class="w-5 h-5 text-text-primary transition-transform duration-200 group-hover:rotate-45"
+      class="w-4 h-4 text-text-primary transition-transform duration-200 group-hover:rotate-45"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -38,7 +38,7 @@
       />
     </svg>
 
-  </button>
+  </Button>
 </template>
 
 <script setup lang="ts">

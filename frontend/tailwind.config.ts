@@ -1,6 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
+    "./app/**/*.{js,vue,ts}",
     "./components/**/*.{js,vue,ts}",
     "./layouts/**/*.vue",
     "./pages/**/*.vue",
@@ -21,7 +22,12 @@ export default {
           base: 'var(--bg-base)',
           surface: 'var(--bg-surface)',
           raised: 'var(--bg-raised)',
-          overlay: 'hsl(0, 0%, 18%, 0.8)'
+          overlay: 'hsl(0, 0%, 18%, 0.8)',
+          // Interactive states
+          hover: 'var(--bg-hover)',
+          'hover-subtle': 'var(--bg-hover-subtle)',
+          active: 'var(--bg-active)',
+          selected: 'var(--bg-selected)'
         },
         // Text colors using CSS variables
         text: {
@@ -52,7 +58,7 @@ export default {
             DEFAULT: 'var(--status-success)',
             bg: 'var(--status-success-bg)',
             border: 'var(--status-success-border)',
-            hover: 'hsl(158, 100%, 18%)'
+            hover: 'hsl(158,100%,13%)'
           },
           // Error states
           error: {

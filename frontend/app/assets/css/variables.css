@@ -5,7 +5,7 @@
   /* Backgrounds - Dark to light progression */
   --bg-base: hsl(0, 0%, 3%);
   --bg-surface: hsl(0, 0%, 6%);
-  --bg-raised: hsl(0, 0%, 18%);
+  --bg-raised: hsl(0, 0%, 9%);
   
   /* Text - Light to dark progression */
   --text-primary: hsl(0, 0%, 90%);
@@ -14,8 +14,15 @@
   --text-disabled: hsl(0, 0%, 35%);
   
   /* Borders & Highlights */
-  --border: hsl(0, 0%, 25%);
+  --border: hsl(0, 0%, 9%);
   --highlight: hsl(0, 0%, 29%);
+  
+  /* === Interactive States === */
+  /* Hover states - lighter in dark mode for elevation */
+  --bg-hover: hsl(0, 0%, 12%);
+  --bg-hover-subtle: hsl(0, 0%, 8%);
+  --bg-active: hsl(0, 0%, 15%);
+  --bg-selected: hsl(0, 0%, 10%);
   
   /* === Brand Colors === */
   --primary: hsl(217, 91%, 60%);
@@ -24,7 +31,7 @@
   /* === Semantic Status Colors === */
   /* Success - Emerald Green */
   --status-success: hsl(158, 64%, 52%);
-  --status-success-bg: hsl(158, 100%, 12%);
+  --status-success-bg: hsl(158, 94%, 7%);
   --status-success-border: hsl(158, 64%, 20%);
   
   /* Error - Rose Red */
@@ -68,19 +75,26 @@
 .light {
   /* === Neutral Colors === */
   /* Backgrounds - Light to dark progression */
-  --bg-base: hsl(0, 0%, 98%);
-  --bg-surface: hsl(0, 0%, 100%);
-  --bg-raised: hsl(0, 0%, 100%);
+  --bg-base: hsl(0, 0%, 90%);
+  --bg-surface: hsl(0, 0%, 92%);
+  --bg-raised: hsl(0, 0%, 94%);
   
   /* Text - Dark to light progression */
-  --text-primary: hsl(0, 0%, 9%);
+  --text-primary: hsl(0, 0%, 15%);
   --text-secondary: hsl(0, 0%, 32%);
   --text-muted: hsl(0, 0%, 45%);
   --text-disabled: hsl(0, 0%, 64%);
   
   /* Borders & Highlights */
-  --border: hsl(0, 0%, 90%);
+  --border: hsl(0, 0%, 85%);
   --highlight: hsl(0, 0%, 100%);
+  
+  /* === Interactive States === */
+  /* Hover states - darker in light mode for depth */
+  --bg-hover: hsl(0, 0%, 86%);
+  --bg-hover-subtle: hsl(0, 0%, 89%);
+  --bg-active: hsl(0, 0%, 82%);
+  --bg-selected: hsl(0, 0%, 87%);
   
   /* === Brand Colors === */
   --primary: hsl(217, 91%, 60%);
