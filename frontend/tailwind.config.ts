@@ -16,82 +16,87 @@ export default {
         display: ['Archivo', 'Inter Tight', 'var(--font-sans)']
       },
       colors: {
+        // Backgrounds using CSS variables
         background: {
-          base: 'hsl(20, 14.3%, 4.1%)',
-          primary: 'hsl(0, 0%, 15.75%)',
-          overlay: 'hsla(250, 24%, 9%, 0.8)'
+          base: 'var(--bg-base)',
+          surface: 'var(--bg-surface)',
+          raised: 'var(--bg-raised)',
+          overlay: 'hsl(0, 0%, 18%, 0.8)'
         },
+        // Text colors using CSS variables
         text: {
-          primary: '#e9e9e2',
-          secondary: '#a3a3a3',
-          tertiary: 'hsl(0, 0%, 50%)',
-          quaternary: 'hsl(0, 0%, 35%)'
+          primary: 'var(--text-primary)',
+          secondary: 'var(--text-secondary)',
+          muted: 'var(--text-muted)',
+          disabled: 'var(--text-disabled)'
         },
+        // Card and borders
         card: {
-          base: '#121212',
-          border: '#29292980',
+          base: 'var(--bg-surface)',
+          border: 'var(--border)',
         },
-        accent: {
-          blue: 'hsl(220, 80%, 55%)',
-          'blue-hover': 'hsl(220, 85%, 50%)'
+        // Border colors
+        border: {
+          DEFAULT: 'var(--border)',
+          highlight: 'var(--highlight)'
         },
-        // Semantic status colors - optimized for dark mode readability
+        // Primary/Brand colors
+        primary: {
+          DEFAULT: 'var(--primary)',
+          hover: 'var(--primary-hover)'
+        },
+        // Semantic status colors using CSS variables
         status: {
-          // Success states - emerald green for positive completion
+          // Success states
           success: {
-            DEFAULT: 'hsl(158, 64%, 52%)', // Emerald-500 equivalent
-            bg: 'hsla(158, 64%, 52%, 0.1)',
-            border: 'hsla(158, 64%, 52%, 0.2)',
-            hover: 'hsla(158, 64%, 52%, 0.15)'
+            DEFAULT: 'var(--status-success)',
+            bg: 'var(--status-success-bg)',
+            border: 'var(--status-success-border)',
+            hover: 'hsl(158, 100%, 18%)'
           },
-          // Error states - rose for errors that need attention
+          // Error states
           error: {
-            DEFAULT: 'hsl(347, 77%, 60%)', // Rose-500 but softer
-            bg: 'hsla(347, 77%, 60%, 0.1)',
-            border: 'hsla(347, 77%, 60%, 0.2)',
-            hover: 'hsla(347, 77%, 60%, 0.15)'
+            DEFAULT: 'var(--status-error)',
+            bg: 'var(--status-error-bg)',
+            border: 'var(--status-error-border)',
+            hover: 'hsl(347, 77%, 18%)'
           },
-          // Warning states - amber for pending/waiting
+          // Warning states
           warning: {
-            DEFAULT: 'hsl(38, 92%, 60%)', // Amber-500 equivalent
-            bg: 'hsla(38, 92%, 60%, 0.1)',
-            border: 'hsla(38, 92%, 60%, 0.2)',
-            hover: 'hsla(38, 92%, 60%, 0.15)'
+            DEFAULT: 'var(--status-warning)',
+            bg: 'var(--status-warning-bg)',
+            border: 'var(--status-warning-border)',
+            hover: 'hsl(45, 85%, 18%)'
           },
-          // Info states - sky blue for active/running
+          // Info states
           info: {
-            DEFAULT: 'hsl(199, 89%, 58%)', // Sky-500 equivalent
-            bg: 'hsla(199, 89%, 58%, 0.1)',
-            border: 'hsla(199, 89%, 58%, 0.2)',
-            hover: 'hsla(199, 89%, 58%, 0.15)'
+            DEFAULT: 'var(--status-info)',
+            bg: 'var(--status-info-bg)',
+            border: 'var(--status-info-border)',
+            hover: 'hsl(199, 89%, 18%)'
           },
-          // Retry states - orange for caution/retry attempts
+          // Retry states
           retry: {
-            DEFAULT: 'hsl(24, 95%, 58%)', // Orange-500 equivalent
-            bg: 'hsla(24, 95%, 58%, 0.1)',
-            border: 'hsla(24, 95%, 58%, 0.2)',
-            hover: 'hsla(24, 95%, 58%, 0.15)'
+            DEFAULT: 'var(--status-retry)',
+            bg: 'var(--status-retry-bg)',
+            border: 'var(--status-retry-border)',
+            hover: 'hsl(24, 95%, 18%)'
           },
-          // Neutral states - slate for cancelled/revoked/offline
+          // Neutral states
           neutral: {
-            DEFAULT: 'hsl(215, 20%, 65%)', // Slate-400 equivalent
-            bg: 'hsla(215, 20%, 65%, 0.1)',
-            border: 'hsla(215, 20%, 65%, 0.2)',
-            hover: 'hsla(215, 20%, 65%, 0.15)'
+            DEFAULT: 'var(--status-neutral)',
+            bg: 'var(--status-neutral-bg)',
+            border: 'var(--status-neutral-border)',
+            hover: 'hsl(215, 20%, 18%)'
           },
-          // Special states - violet for received/acknowledged
+          // Special states
           special: {
-            DEFAULT: 'hsl(263, 70%, 65%)', // Violet-500 equivalent
-            bg: 'hsla(263, 70%, 65%, 0.1)',
-            border: 'hsla(263, 70%, 65%, 0.2)',
-            hover: 'hsla(263, 70%, 65%, 0.15)'
+            DEFAULT: 'var(--status-special)',
+            bg: 'var(--status-special-bg)',
+            border: 'var(--status-special-border)',
+            hover: 'hsl(263, 70%, 18%)'
           }
-        },
-        // Legacy colors for backward compatibility
-        success: 'hsl(158, 64%, 52%)',
-        warning: 'hsl(38, 92%, 60%)',
-        error: 'hsl(347, 77%, 60%)',
-        info: 'hsl(199, 89%, 58%)'
+        }
       },
       borderRadius: {
         'base': '0.25rem',

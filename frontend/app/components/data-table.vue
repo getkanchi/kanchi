@@ -126,9 +126,9 @@ const handleRetryCancel = () => {
 </script>
 
 <template>
-  <div class="border border-card-border rounded-md bg-card-base">
+  <div class="border border-border rounded-md bg-background-surface">
     <!-- Header with search and live mode controls -->
-    <div class="flex items-center border-card-border justify-between p-4 border-b">
+    <div class="flex items-center border-border justify-between p-4 border-b">
       <div class="flex items-center gap-3 flex-1">
         <!-- Search input with filters -->
         <SearchInput
@@ -145,8 +145,9 @@ const handleRetryCancel = () => {
       <Badge
         v-if="isLiveMode"
         @click="emit('toggleLiveMode')"
-        class="bg-green-950/30 text-green-400 border-green-800/40 px-2 py-0.5
-         hover:bg-green-950/50 hover:border-green-700/60 transition-colors cursor-pointer"
+        variant="success"
+        class="hover:cursor-pointer"
+
       >
         <StatusDot status="success" :pulse="true" class="mr-1.5" />
         Live
@@ -165,7 +166,7 @@ const handleRetryCancel = () => {
 
     <Table>
       <TableHeader>
-        <TableRow class="border-card-border" v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+        <TableRow class="border-border" v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
           <TableHead class="w-12"></TableHead>
           <TableHead v-for="header in headerGroup.headers" :key="header.id">
             <div
@@ -193,7 +194,7 @@ const handleRetryCancel = () => {
         <template v-if="table.getRowModel().rows?.length">
           <template v-for="row in table.getRowModel().rows" :key="row.id">
             <TableRow
-              class="border-card-border cursor-pointer hover:bg-background-primary/10"
+              class="border-border cursor-pointer hover:bg-background-surface/10"
               @click="toggleRowExpansion(row.original.task_id)"
             >
               <TableCell class="w-12">
@@ -206,12 +207,12 @@ const handleRetryCancel = () => {
             </TableRow>
             
             
-            <TableRow v-if="expandedRows.has(row.original.task_id)" class="bg-muted/30 border-card-border">
+            <TableRow v-if="expandedRows.has(row.original.task_id)" class="bg-muted/30 border-border">
               <TableCell :colspan="columns.length + 1" class="p-0">
                 <div class="px-8 py-6">
                   
                   <!-- Retry Button Section -->
-                  <div class="flex items-center justify-between mb-6 pb-4 border-b border-card-border">
+                  <div class="flex items-center justify-between mb-6 pb-4 border-b border-border">
                     <div class="flex items-center gap-2">
                       <h3 class="text-base font-medium text-gray-300">Task Actions</h3>
                     </div>
@@ -233,7 +234,7 @@ const handleRetryCancel = () => {
                     <div class="flex items-center gap-1.5">
                       <Hash class="h-3.5 w-3.5 text-gray-400" />
                       <span class="text-gray-500">ID:</span>
-                      <code class="text-xs bg-background-primary px-1 py-0.5 rounded">{{ row.original.task_id }}</code>
+                      <code class="text-xs bg-background-surface px-1 py-0.5 rounded">{{ row.original.task_id }}</code>
                       <CopyButton 
                         :text="row.original.task_id" 
                         :copy-key="`task-id-${row.original.task_id}`"
@@ -266,7 +267,7 @@ const handleRetryCancel = () => {
                   
                   <!-- Retry Chain Section -->
                   <div v-if="row.original.is_retry || row.original.has_retries" 
-                       class="mb-6 p-4 border border-card-border rounded-md bg-card-base">
+                       class="mb-6 p-4 border border-border rounded-md bg-background-surface">
                     <RetryChain
                       :current-task="row.original"
                       :parent-task="row.original.retry_of ? { 
@@ -287,7 +288,7 @@ const handleRetryCancel = () => {
                   <div class="space-y-2">
                     
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      <div v-if="row.original.args" class="p-4 border border-card-border rounded-md bg-card-base">
+                      <div v-if="row.original.args" class="p-4 border border-border rounded-md bg-background-surface">
                         <div class="flex items-center justify-between mb-3">
                           <h4 class="text-sm font-medium text-gray-500">Arguments:</h4>
                           <CopyButton 
@@ -297,10 +298,10 @@ const handleRetryCancel = () => {
                             :show-text="true"
                           />
                         </div>
-                        <pre class="bg-background-primary p-3 rounded text-xs overflow-x-auto">{{ row.original.args }}</pre>
+                        <pre class="bg-background-surface p-3 rounded text-xs overflow-x-auto">{{ row.original.args }}</pre>
                       </div>
                       
-                      <div v-if="row.original.kwargs" class="p-4 border border-card-border rounded-md bg-card-base">
+                      <div v-if="row.original.kwargs" class="p-4 border border-border rounded-md bg-background-surface">
                         <div class="flex items-center justify-between mb-3">
                           <h4 class="text-sm font-medium text-gray-500">Keyword Arguments:</h4>
                           <CopyButton 
@@ -310,12 +311,12 @@ const handleRetryCancel = () => {
                             :show-text="true"
                           />
                         </div>
-                        <pre class="bg-background-primary p-3 rounded text-xs overflow-x-auto">{{ row.original.kwargs }}</pre>
+                        <pre class="bg-background-surface p-3 rounded text-xs overflow-x-auto">{{ row.original.kwargs }}</pre>
                       </div>
                     </div>
                     
                     
-                    <div v-if="row.original.result" class="p-4 border border-card-border rounded-md bg-card-base">
+                    <div v-if="row.original.result" class="p-4 border border-border rounded-md bg-background-surface">
                       <div class="flex items-center justify-between mb-3">
                         <h4 class="text-sm font-medium text-green-400">Result:</h4>
                         <CopyButton 
@@ -329,7 +330,7 @@ const handleRetryCancel = () => {
                     </div>
                     
                     
-                    <div v-if="row.original.traceback" class="p-4 border border-card-border rounded-md bg-card-base">
+                    <div v-if="row.original.traceback" class="p-4 border border-border rounded-md bg-background-surface">
                       <div class="flex items-center justify-between mb-3">
                         <div class="flex items-center gap-1.5">
                           <AlertTriangle class="h-3.5 w-3.5 text-red-400" />
@@ -351,7 +352,7 @@ const handleRetryCancel = () => {
           </template>
         </template>
         <template v-else>
-          <TableRow class="border-card-border">
+          <TableRow class="border-border">
             <TableCell :colspan="columns.length + 1" class="h-24 text-center">
               No results.
             </TableCell>
@@ -361,7 +362,7 @@ const handleRetryCancel = () => {
     </Table>
     
     
-    <div class="flex items-center justify-between p-4 border-t border-card-border">
+    <div class="flex items-center justify-between p-4 border-t border-border">
       <div class="flex items-center space-x-2">
         <span v-if="isLoading" class="text-sm text-gray-500">
           Loading...
@@ -380,7 +381,7 @@ const handleRetryCancel = () => {
           <select 
             :value="pageSize"
             @change="(e) => emit('setPageSize', parseInt((e.target as HTMLSelectElement).value))"
-            class="px-2 py-1 text-sm border border-card-border rounded bg-background-primary"
+            class="px-2 py-1 text-sm border border-border rounded bg-background-surface"
           >
             <option value="5">5</option>
             <option value="10">10</option>

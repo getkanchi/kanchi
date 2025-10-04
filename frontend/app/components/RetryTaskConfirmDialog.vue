@@ -85,7 +85,7 @@ defineExpose({ open })
             />
           </div>
           <div class="flex items-center justify-center gap-2 text-text-secondary">
-            <code class="text-sm bg-background-primary px-2 py-1 rounded font-mono">{{ task.task_id.slice(0, 12) }}...</code>
+            <code class="text-sm bg-background-surface px-2 py-1 rounded font-mono">{{ task.task_id.slice(0, 12) }}...</code>
             <CopyButton 
               :text="task.task_id" 
               :copy-key="`retry-dialog-${task.task_id}`"
@@ -100,7 +100,7 @@ defineExpose({ open })
             {{ getStatusBadge(task).text }}
           </Badge>
           <template v-if="getTimestamp(task)">
-            <span class="text-text-tertiary text-xs">at</span>
+            <span class="text-text-muted text-xs">at</span>
             <Pill variant="subtle" size="sm" class="font-mono text-xs">
               {{ formatTime(getTimestamp(task)) }}
             </Pill>

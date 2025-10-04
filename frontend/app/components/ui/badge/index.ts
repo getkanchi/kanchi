@@ -15,7 +15,6 @@ export const badgeVariants = cva(
         destructive:
           "border-transparent bg-destructive text-destructive-foreground shadow hover:bg-destructive/80",
         outline: "text-foreground",
-        // Semantic status variants optimized for dark mode UX
         success: "border-status-success-border bg-status-success-bg text-status-success hover:bg-status-success-hover",
         failed: "border-status-error-border bg-status-error-bg text-status-error hover:bg-status-error-hover",
         pending: "border-status-warning-border bg-status-warning-bg text-status-warning hover:bg-status-warning-hover",
@@ -26,7 +25,7 @@ export const badgeVariants = cva(
         orphaned: "border-status-error-border bg-status-error-bg text-status-error hover:bg-status-error-hover",
         // Worker status variants
         online: "border-status-success-border bg-status-success-bg text-status-success hover:bg-status-success-hover",
-        offline: "border-status-neutral-border bg-status-neutral-bg text-status-neutral hover:bg-status-neutral-hover",
+        offline: "border-status-error-border bg-status-error-bg text-status-error hover:bg-status-error-hover",
         heartbeat: "border-status-info-border bg-status-info-bg text-status-info hover:bg-status-info-hover",
       },
     },

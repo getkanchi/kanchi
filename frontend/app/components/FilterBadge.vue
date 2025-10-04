@@ -1,7 +1,7 @@
 <template>
   <Badge
     variant="secondary"
-    class="text-xs px-2 py-1 h-6 bg-background-primary/80 border-gray-600 flex items-center gap-1 whitespace-nowrap"
+    class="text-xs px-2 py-1 h-6 bg-background-surface/80 border-gray-600 flex items-center gap-1 whitespace-nowrap"
   >
     <span class="text-gray-400">{{ filter.key }}:</span>
     <Badge

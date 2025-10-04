@@ -8,10 +8,10 @@ export const pillVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-background-primary text-text-secondary border border-card-border",
-        shortcut: "bg-background-primary text-text-secondary border border-card-border hover:bg-background-secondary hover:border-card-border/80 transition-all duration-200 hover:scale-[1.02]",
-        accent: "bg-card-base text-text-primary border border-card-border shadow-sm",
-        subtle: "bg-background-primary/60 text-text-tertiary border border-card-border/50",
+        default: "bg-background-surface text-text-secondary border border-border",
+        shortcut: "bg-background-surface text-text-secondary border border-border hover:bg-background-raised hover:border-border/80 transition-all duration-200 hover:scale-[1.02]",
+        accent: "bg-background-surface text-text-primary border border-border shadow-sm",
+        subtle: "bg-background-surface/60 text-text-muted border border-border/50",
       },
       size: {
         sm: "text-[12px] px-2 py-0.5 rounded-md max-w-16",

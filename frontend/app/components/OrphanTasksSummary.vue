@@ -1,11 +1,11 @@
 <template>
   <div 
-    class="border border-card-border rounded-lg overflow-hidden glow-border transition-all duration-300"
+    class="border border-border rounded-lg overflow-hidden glow-border transition-all duration-300"
     :class="summaryClasses">
       
       <!-- Collapsed Summary View -->
       <div 
-        class="py-2 px-4 cursor-pointer hover:bg-background-primary/5 transition-all duration-200"
+        class="py-2 px-4 cursor-pointer hover:bg-background-surface/5 transition-all duration-200"
         @click="toggleExpanded"
       >
       <div class="flex items-center justify-between">
@@ -32,11 +32,11 @@
 
         <!-- Right: Expand Button -->
         <div class="flex items-center gap-2">
-          <span class="text-xs text-text-tertiary hidden sm:inline">
+          <span class="text-xs text-text-muted hidden sm:inline">
             {{ isExpanded ? 'Hide details' : 'View details' }}
           </span>
           <svg 
-            class="w-4 h-4 text-text-tertiary transition-transform duration-200"
+            class="w-4 h-4 text-text-muted transition-transform duration-200"
             :class="{ 'rotate-180': isExpanded }"
             fill="none" 
             stroke="currentColor" 
@@ -48,7 +48,7 @@
       </div>
 
       <!-- Mobile Quick Stats (when collapsed) -->
-      <div v-if="!isExpanded" class="sm:hidden flex items-center gap-4 text-xs text-text-secondary mt-2 pt-2 border-t border-card-border/50">
+      <div v-if="!isExpanded" class="sm:hidden flex items-center gap-4 text-xs text-text-secondary mt-2 pt-2 border-t border-border/50">
         <span class="flex items-center gap-1">
           <span class="font-mono">{{ uniqueOrphanedTasksCount }}</span>
           <span>detected</span>
@@ -63,11 +63,11 @@
     <!-- Expanded Orphan Tasks Table -->
     <div 
       v-if="isExpanded" 
-      class="border-t border-card-border bg-card-base"
+      class="border-t border-border bg-background-surface"
     >
       <div v-if="uniqueOrphanedTasks.length > 0">
         <!-- Header with search controls -->
-        <div class="flex items-center border-card-border justify-between p-4 border-b">
+        <div class="flex items-center border-border justify-between p-4 border-b">
           <div class="flex items-center gap-3 flex-1">
             <!-- Search input -->
             <SearchInput
@@ -81,7 +81,7 @@
 
         <Table>
           <TableHeader>
-            <TableRow class="border-card-border" v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+            <TableRow class="border-border" v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
               <TableHead class="w-12"></TableHead>
               <TableHead v-for="header in headerGroup.headers" :key="header.id">
                 <div
@@ -109,7 +109,7 @@
             <template v-if="table.getRowModel().rows?.length">
               <template v-for="row in table.getRowModel().rows" :key="row.id">
                 <TableRow
-                  class="border-card-border cursor-pointer hover:bg-background-primary/10"
+                  class="border-border cursor-pointer hover:bg-background-surface/10"
                   @click="toggleRowExpansion(row.original.task_id)"
                 >
                   <TableCell class="w-12">
@@ -122,7 +122,7 @@
                 </TableRow>
                 
                 <!-- Expanded Row Details -->
-                <TableRow v-if="expandedRows.has(row.original.task_id)" class="bg-muted/30 border-card-border">
+                <TableRow v-if="expandedRows.has(row.original.task_id)" class="bg-muted/30 border-border">
                   <TableCell :colspan="orphanColumns.length + 1" class="p-0">
                     <div class="px-8 py-6">
                       <div class="grid grid-cols-2 md:grid-cols-4 gap-6 text-sm mb-2">
@@ -130,7 +130,7 @@
                         <div class="flex items-center gap-1.5">
                           <Hash class="h-3.5 w-3.5 text-gray-400" />
                           <span class="text-gray-500">ID:</span>
-                          <code class="text-xs bg-background-primary px-1 py-0.5 rounded">{{ row.original.task_id }}</code>
+                          <code class="text-xs bg-background-surface px-1 py-0.5 rounded">{{ row.original.task_id }}</code>
                           <CopyButton 
                             :text="row.original.task_id" 
                             :copy-key="`task-id-${row.original.task_id}`"
@@ -163,7 +163,7 @@
               </template>
             </template>
             <template v-else>
-              <TableRow class="border-card-border">
+              <TableRow class="border-border">
                 <TableCell :colspan="orphanColumns.length + 1" class="h-24 text-center">
                   No results.
                 </TableCell>
@@ -173,7 +173,7 @@
         </Table>
         
         <!-- Pagination -->
-        <div class="flex items-center justify-between p-4 border-t border-card-border">
+        <div class="flex items-center justify-between p-4 border-t border-border">
           <div class="flex items-center space-x-2">
             <span class="text-sm text-gray-500">
               Showing {{ table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1 }} to 
@@ -188,7 +188,7 @@
               <select 
                 :value="table.getState().pagination.pageSize"
                 @change="(e) => table.setPageSize(parseInt((e.target as HTMLSelectElement).value))"
-                class="px-2 py-1 text-sm border border-card-border rounded bg-background-primary"
+                class="px-2 py-1 text-sm border border-border rounded bg-background-surface"
               >
                 <option value="5">5</option>
                 <option value="10">10</option>
@@ -242,7 +242,7 @@
       
       <!-- Empty State -->
       <div v-else class="text-center py-8">
-        <div class="text-text-tertiary text-sm">
+        <div class="text-text-muted text-sm">
           <svg class="w-8 h-8 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
@@ -452,7 +452,7 @@ const overallStatus = computed((): 'online' | 'warning' | 'error' | 'muted' => {
 })
 
 const summaryClasses = computed(() => {
-  const classes = ['bg-card-base']
+  const classes = ['bg-background-surface']
   
   // Add subtle background gradient
   if (recentOrphansCount.value > 0) {

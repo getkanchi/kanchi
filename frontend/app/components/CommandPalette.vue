@@ -264,7 +264,7 @@ onUnmounted(() => {
             ref="commandRef"
             :class="[
               'command-palette-container',
-              'relative bg-card-base border border-card-border shadow-2xl',
+              'relative bg-background-surface border border-border shadow-2xl',
               'rounded-xl overflow-hidden backdrop-blur-sm',
               justOpened ? 'glow-border-animate' : 'glow-border'
             ]"
@@ -284,7 +284,7 @@ onUnmounted(() => {
                     @click="toggleLiveMode"
                     :class="[
                       'command-item cursor-pointer',
-                      { 'bg-background-primary/40 border-card-border': selectedIndex === 0 }
+                      { 'bg-background-surface/40 border-border': selectedIndex === 0 }
                     ]"
                   >
                     <Activity v-if="isLiveMode" class="w-4 h-4 text-status-success" />
@@ -296,7 +296,7 @@ onUnmounted(() => {
                     @click="enterRerunMode"
                     :class="[
                       'command-item cursor-pointer',
-                      { 'bg-background-primary/40 border-card-border': selectedIndex === 1 }
+                      { 'bg-background-surface/40 border-border': selectedIndex === 1 }
                     ]"
                   >
                     <RotateCcw class="w-4 h-4 text-text-secondary" />
@@ -307,7 +307,7 @@ onUnmounted(() => {
               
               <!-- Rerun mode task details -->
               <template v-else>
-                <div v-if="selectedTask" class="px-4 py-3 border-t border-card-border/30">
+                <div v-if="selectedTask" class="px-4 py-3 border-t border-border/30">
                   <div class="flex items-center justify-between mb-2">
                     <div class="flex items-center gap-2">
                       <Badge
@@ -317,12 +317,12 @@ onUnmounted(() => {
                     </div>
                   </div>
                   <div class="text-xs text-text-secondary space-y-1">
-                    <div><span class="text-text-tertiary">Task:</span> {{ selectedTask.task_name || 'N/A' }}</div>
-                    <div><span class="text-text-tertiary">Worker:</span> {{ selectedTask.hostname || 'N/A' }}</div>
-                    <div><span class="text-text-tertiary">Time:</span> {{ formatTimestamp(selectedTask.timestamp) }}</div>
+                    <div><span class="text-text-muted">Task:</span> {{ selectedTask.task_name || 'N/A' }}</div>
+                    <div><span class="text-text-muted">Worker:</span> {{ selectedTask.hostname || 'N/A' }}</div>
+                    <div><span class="text-text-muted">Time:</span> {{ formatTimestamp(selectedTask.timestamp) }}</div>
                   </div>
-                  <div class="mt-3 pt-2 border-t border-card-border/20">
-                    <div class="text-xs text-text-tertiary">Press Enter to rerun this task</div>
+                  <div class="mt-3 pt-2 border-t border-border/20">
+                    <div class="text-xs text-text-muted">Press Enter to rerun this task</div>
                   </div>
                 </div>
                 <div v-else-if="searchQuery.length > 0" class="px-4 py-3 text-text-secondary text-sm text-center">
@@ -413,7 +413,7 @@ onUnmounted(() => {
 }
 
 :deep(.command-item:hover) {
-  background: theme(colors.background.primary)/50;
+  background: theme(colors.background.surface)/50;
 }
 
 :deep(.command-item[aria-disabled="true"]) {

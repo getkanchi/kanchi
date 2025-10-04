@@ -4,19 +4,19 @@ import { cva } from "class-variance-authority"
 export { default as Button } from "./Button.vue"
 
 export const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-500 disabled:pointer-events-none disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:pointer-events-none disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "bg-gray-800 text-gray-200 shadow hover:bg-gray-700",
+        default: "bg-background-raised text-text-primary border border-border shadow-sm hover:bg-background-surface hover:border-border/80",
         destructive:
-          "bg-red-600 text-white shadow-sm hover:bg-red-700",
+          "bg-status-error text-white shadow-sm hover:bg-status-error/90",
         outline:
-          "border border-card-border bg-transparent shadow-sm hover:bg-gray-800/30 text-text-primary",
+          "border border-border bg-transparent hover:bg-background-surface text-text-primary",
         secondary:
-          "bg-gray-700 text-gray-200 shadow-sm hover:bg-gray-600",
-        ghost: "hover:bg-gray-800/30 text-text-primary",
-        link: "text-gray-400 underline-offset-4 hover:underline",
+          "bg-background-surface text-text-secondary border border-border hover:bg-background-raised",
+        ghost: "hover:bg-background-surface/50 text-text-primary",
+        link: "text-text-primary underline-offset-4 hover:underline hover:text-text-secondary",
       },
       size: {
         default: "h-9 px-4 py-2",

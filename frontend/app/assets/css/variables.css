@@ -1,0 +1,145 @@
+/* HSL Color System for Kanchi */
+
+:root {
+  /* === Neutral Colors === */
+  /* Backgrounds - Dark to light progression */
+  --bg-base: hsl(0, 0%, 3%);
+  --bg-surface: hsl(0, 0%, 6%);
+  --bg-raised: hsl(0, 0%, 18%);
+  
+  /* Text - Light to dark progression */
+  --text-primary: hsl(0, 0%, 90%);
+  --text-secondary: hsl(0, 0%, 70%);
+  --text-muted: hsl(0, 0%, 50%);
+  --text-disabled: hsl(0, 0%, 35%);
+  
+  /* Borders & Highlights */
+  --border: hsl(0, 0%, 25%);
+  --highlight: hsl(0, 0%, 29%);
+  
+  /* === Brand Colors === */
+  --primary: hsl(217, 91%, 60%);
+  --primary-hover: hsl(217, 91%, 55%);
+  
+  /* === Semantic Status Colors === */
+  /* Success - Emerald Green */
+  --status-success: hsl(158, 64%, 52%);
+  --status-success-bg: hsl(158, 100%, 12%);
+  --status-success-border: hsl(158, 64%, 20%);
+  
+  /* Error - Rose Red */
+  --status-error: hsl(347, 77%, 60%);
+  --status-error-bg: hsl(347, 77%, 15%);
+  --status-error-border: hsl(347, 77%, 25%);
+  
+  /* Warning - Yellow-Amber */
+  --status-warning: hsl(45, 85%, 65%);
+  --status-warning-bg: hsl(45, 85%, 15%);
+  --status-warning-border: hsl(45, 85%, 25%);
+  
+  /* Info - Sky Blue */
+  --status-info: hsl(199, 89%, 58%);
+  --status-info-bg: hsl(199, 89%, 15%);
+  --status-info-border: hsl(199, 89%, 25%);
+  
+  /* Retry - Orange */
+  --status-retry: hsl(24, 95%, 58%);
+  --status-retry-bg: hsl(24, 95%, 15%);
+  --status-retry-border: hsl(24, 95%, 25%);
+  
+  /* Neutral - Slate */
+  --status-neutral: hsl(215, 20%, 65%);
+  --status-neutral-bg: hsl(215, 20%, 15%);
+  --status-neutral-border: hsl(215, 20%, 25%);
+  
+  /* Special - Violet */
+  --status-special: hsl(263, 70%, 65%);
+  --status-special-bg: hsl(263, 70%, 15%);
+  --status-special-border: hsl(263, 70%, 25%);
+  
+  /* === Shadows (Dark Mode) === */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+}
+
+/* Light Mode */
+.light {
+  /* === Neutral Colors === */
+  /* Backgrounds - Light to dark progression */
+  --bg-base: hsl(0, 0%, 98%);
+  --bg-surface: hsl(0, 0%, 100%);
+  --bg-raised: hsl(0, 0%, 100%);
+  
+  /* Text - Dark to light progression */
+  --text-primary: hsl(0, 0%, 9%);
+  --text-secondary: hsl(0, 0%, 32%);
+  --text-muted: hsl(0, 0%, 45%);
+  --text-disabled: hsl(0, 0%, 64%);
+  
+  /* Borders & Highlights */
+  --border: hsl(0, 0%, 90%);
+  --highlight: hsl(0, 0%, 100%);
+  
+  /* === Brand Colors === */
+  --primary: hsl(217, 91%, 60%);
+  --primary-hover: hsl(217, 91%, 55%);
+  
+  /* === Semantic Status Colors (adjusted for light mode) === */
+  /* Success - Emerald Green */
+  --status-success: hsl(158, 64%, 40%);
+  --status-success-bg: hsl(158, 64%, 90%);
+  --status-success-border: hsl(158, 64%, 75%);
+  
+  /* Error - Rose Red */
+  --status-error: hsl(347, 77%, 45%);
+  --status-error-bg: hsl(347, 77%, 90%);
+  --status-error-border: hsl(347, 77%, 75%);
+  
+  /* Warning - Yellow-Amber */
+  --status-warning: hsl(45, 85%, 45%);
+  --status-warning-bg: hsl(45, 85%, 90%);
+  --status-warning-border: hsl(45, 85%, 75%);
+  
+  /* Info - Sky Blue */
+  --status-info: hsl(199, 89%, 45%);
+  --status-info-bg: hsl(199, 89%, 90%);
+  --status-info-border: hsl(199, 89%, 75%);
+  
+  /* Retry - Orange */
+  --status-retry: hsl(24, 95%, 45%);
+  --status-retry-bg: hsl(24, 95%, 90%);
+  --status-retry-border: hsl(24, 95%, 75%);
+  
+  /* Neutral - Slate */
+  --status-neutral: hsl(215, 20%, 45%);
+  --status-neutral-bg: hsl(215, 20%, 90%);
+  --status-neutral-border: hsl(215, 20%, 75%);
+  
+  /* Special - Violet */
+  --status-special: hsl(263, 70%, 45%);
+  --status-special-bg: hsl(263, 70%, 90%);
+  --status-special-border: hsl(263, 70%, 75%);
+  
+  /* === Shadows (Light Mode) === */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 6px 10px -2px rgba(0, 0, 0, 0.08), 0 3px 5px -3px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 15px 25px -5px rgba(0, 0, 0, 0.10), 0 8px 10px -6px rgba(0, 0, 0, 0.10);
+}
+
+/* Gradient overlays for depth */
+:root {
+  --gradient-subtle: linear-gradient(
+    to bottom,
+    hsla(0, 0%, 18%, 0.05),
+    hsla(0, 0%, 3%, 0)
+  );
+  
+  --gradient-surface: linear-gradient(
+    135deg,
+    var(--bg-surface),
+    var(--bg-base)
+  );
+}

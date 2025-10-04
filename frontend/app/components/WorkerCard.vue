@@ -1,10 +1,10 @@
 <template>
   <div 
-    class="border border-card-border rounded-lg overflow-hidden transition-all duration-300"
+    class="border border-border rounded-lg overflow-hidden transition-all duration-300"
     :class="cardClasses">
     
     <!-- Compact View -->
-    <div class="p-4 cursor-pointer hover:bg-background-primary/10 transition-colors" @click="toggleExpand">
+    <div class="p-4 cursor-pointer hover:bg-background-surface/10 transition-colors" @click="toggleExpand">
       
       <!-- Header Row -->
       <div class="flex items-center justify-between mb-3">
@@ -13,8 +13,8 @@
           <span class="font-mono text-xs">{{ worker.hostname }}</span>
         </div>
         <div class="flex items-center gap-2">
-          <span class="text-xs text-text-tertiary">{{ formatTimestamp(worker.timestamp) }}</span>
-          <svg class="w-4 h-4 text-text-tertiary transition-transform"
+          <span class="text-xs text-text-muted">{{ formatTimestamp(worker.timestamp) }}</span>
+          <svg class="w-4 h-4 text-text-muted transition-transform"
                :class="{ 'rotate-180': isExpanded }"
                fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
@@ -25,17 +25,17 @@
       <!-- Key Metrics Grid -->
       <div class="grid grid-cols-2 gap-4 text-xs">
         <div>
-          <div class="text-text-tertiary mb-0.5">Active</div>
+          <div class="text-text-muted mb-0.5">Active</div>
           <div class="font-mono font-medium">{{ worker.active_tasks || 0 }}</div>
         </div>
         <div>
-          <div class="text-text-tertiary mb-0.5">Rate</div>
+          <div class="text-text-muted mb-0.5">Rate</div>
           <div class="font-mono">{{ worker.tasks_per_minute || 0 }}/min</div>
         </div>
       </div>
 
       <!-- Error Indicator (if errors exist) -->
-      <div v-if="worker.error_count && worker.error_count > 0" class="mt-2 pt-2 border-t border-card-border">
+      <div v-if="worker.error_count && worker.error_count > 0" class="mt-2 pt-2 border-t border-border">
         <div class="flex items-center gap-2 text-xs text-status-error">
           <span>⚠</span>
           <span>{{ worker.error_count }} {{ worker.error_count === 1 ? 'error' : 'errors' }} in last 5 min</span>
@@ -44,7 +44,7 @@
     </div>
 
     <!-- Expanded Details -->
-    <div v-if="isExpanded" class="border-t border-card-border">
+    <div v-if="isExpanded" class="border-t border-border">
       <div class="p-4 space-y-4">
         
         <!-- System Information -->
@@ -52,19 +52,19 @@
           <h4 class="text-xs font-medium text-text-secondary mb-2">SYSTEM INFO</h4>
           <div class="grid grid-cols-2 gap-x-8 gap-y-2 text-xs">
             <div class="flex justify-between">
-              <span class="text-text-tertiary">Software</span>
+              <span class="text-text-muted">Software</span>
               <span class="font-mono">{{ worker.sw_ident || 'N/A' }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-text-tertiary">Version</span>
+              <span class="text-text-muted">Version</span>
               <span class="font-mono">{{ worker.sw_ver || 'N/A' }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-text-tertiary">System</span>
+              <span class="text-text-muted">System</span>
               <span class="font-mono">{{ worker.sw_sys || 'N/A' }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-text-tertiary">Load Avg</span>
+              <span class="text-text-muted">Load Avg</span>
               <span class="font-mono">{{ formatLoadAvg(worker.loadavg) }}</span>
             </div>
           </div>
@@ -75,19 +75,19 @@
           <h4 class="text-xs font-medium text-text-secondary mb-2">PERFORMANCE</h4>
           <div class="grid grid-cols-2 gap-x-8 gap-y-2 text-xs">
             <div class="flex justify-between">
-              <span class="text-text-tertiary">Total Processed</span>
+              <span class="text-text-muted">Total Processed</span>
               <span class="font-mono">{{ worker.processed_tasks || 0 }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-text-tertiary">Queue Depth</span>
+              <span class="text-text-muted">Queue Depth</span>
               <span class="font-mono">{{ worker.queue_depth || 0 }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-text-tertiary">Frequency</span>
+              <span class="text-text-muted">Frequency</span>
               <span class="font-mono">{{ worker.freq ? `${worker.freq} Hz` : 'N/A' }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-text-tertiary">Tasks/Min</span>
+              <span class="text-text-muted">Tasks/Min</span>
               <span class="font-mono">{{ worker.tasks_per_minute || 0 }}</span>
             </div>
           </div>
@@ -99,10 +99,10 @@
           <div class="space-y-2">
             <div v-for="(error, idx) in worker.recent_errors.slice(0, 3)" 
                  :key="idx"
-                 class="text-xs p-2 bg-background-primary rounded border border-status-error/20">
+                 class="text-xs p-2 bg-background-surface rounded border border-status-error/20">
               <div class="flex justify-between mb-1">
                 <span class="font-mono text-status-error">{{ error.task }}</span>
-                <span class="text-text-tertiary">{{ formatTimestamp(error.time) }}</span>
+                <span class="text-text-muted">{{ formatTimestamp(error.time) }}</span>
               </div>
               <div v-if="error.error" class="text-text-secondary">
                 {{ error.error }}
@@ -119,7 +119,7 @@
                  :key="task.task_id || idx"
                  class="flex justify-between text-xs">
               <span class="font-mono truncate flex-1 mr-2">{{ task.name }}</span>
-              <span class="text-text-tertiary">{{ formatDuration(task.duration) }}</span>
+              <span class="text-text-muted">{{ formatDuration(task.duration) }}</span>
             </div>
           </div>
         </div>
@@ -147,7 +147,7 @@ const toggleExpand = () => {
 }
 
 const cardClasses = computed(() => {
-  const classes = ['bg-card-base']
+  const classes = ['bg-background-surface']
   
   if (props.worker.status === 'offline') {
     classes.push('bg-gradient-to-br from-card-base to-status-error/5', 'border-status-error/20')
@@ -170,7 +170,7 @@ const formatLoadAvg = (loadavg?: number[]): string => {
 
 
 const getResourceClass = (percent?: number): string => {
-  if (percent === undefined) return 'text-text-tertiary'
+  if (percent === undefined) return 'text-text-muted'
   if (percent < 60) return ''
   if (percent < 80) return 'text-yellow-500'
   return 'text-red-500'

@@ -1,7 +1,7 @@
 <template>
   <div class="relative max-w-md w-full">
     <!-- Main input container with flex layout -->
-    <div class="relative flex items-center gap-1 px-2 border border-card-border focus-within:ring-gray-700 rounded-md bg-background-primary/50 focus-within:ring-1  ">
+    <div class="relative flex items-center gap-1 px-2 border border-border focus-within:ring-gray-700 rounded-md bg-background-surface/50 focus-within:ring-1  ">
       <!-- Search icon -->
       <Search class="h-4 w-4 text-muted-foreground flex-shrink-0 mx-2" />
       
@@ -32,18 +32,18 @@
     <!-- Autocomplete dropdown -->
     <div
       v-if="showSuggestions && (suggestions.length > 0 || currentInput.includes(':'))"
-      class="absolute top-full mt-1 w-full bg-card-base border border-card-border rounded-md shadow-lg z-50 max-h-60 overflow-y-auto"
+      class="absolute top-full mt-1 w-full bg-background-surface border border-border rounded-md shadow-lg z-50 max-h-60 overflow-y-auto"
     >
       <!-- Filter key suggestions -->
       <div v-if="!currentFilter.key && !currentInput.includes(':')">
-        <div class="px-3 py-2 text-xs text-gray-500 border-b border-card-border">
+        <div class="px-3 py-2 text-xs text-gray-500 border-b border-border">
           Filters
         </div>
         <button
           v-for="key in filterKeys"
           :key="key.value"
           @mousedown.prevent="selectFilterKey(key.value)"
-          class="w-full text-left px-3 py-2 text-sm hover:bg-background-primary/50 flex items-center justify-between"
+          class="w-full text-left px-3 py-2 text-sm hover:bg-background-surface/50 flex items-center justify-between"
         >
           <span>
             <span class="text-gray-400">{{ key.value }}</span>
@@ -55,14 +55,14 @@
       
       <!-- Filter value suggestions -->
       <div v-else-if="currentFilter.key">
-        <div class="px-3 py-2 text-xs text-gray-500 border-b border-card-border">
+        <div class="px-3 py-2 text-xs text-gray-500 border-b border-border">
           {{ currentFilter.key }} values
         </div>
         <button
           v-for="value in currentSuggestions"
           :key="value"
           @mousedown.prevent="selectFilterValue(value)"
-          class="w-full text-left px-3 py-2 text-sm hover:bg-background-primary/50 flex items-center"
+          class="w-full text-left px-3 py-2 text-sm hover:bg-background-surface/50 flex items-center"
         >
           <Badge
             v-if="currentFilter.key === 'state'"

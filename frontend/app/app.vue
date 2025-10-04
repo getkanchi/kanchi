@@ -38,7 +38,7 @@
           :sorting="currentSorting"
           :search-query="tasksStore.filters.search || ''"
           :filters="currentFilters"
-          class="relative backdrop-blur-sm bg-card-base border-card-border glow-border"
+          class="relative backdrop-blur-sm bg-background-surface border-border glow-border"
           @toggle-live-mode="handleToggleLiveMode"
           @set-page-index="tasksStore.setPage"
           @set-page-size="tasksStore.setPageSize"

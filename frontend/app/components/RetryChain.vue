@@ -48,11 +48,11 @@
     </div>
     
     <!-- Legacy details (optional, can be removed later) -->
-    <div v-if="showDetails" class="space-y-2 text-sm mt-3 pt-3 border-t border-card-border">
+    <div v-if="showDetails" class="space-y-2 text-sm mt-3 pt-3 border-t border-border">
       <div v-if="parentTask" class="flex items-center gap-2 text-gray-400">
         <ArrowUp class="h-3 w-3" />
         <span>Parent:</span>
-        <code class="text-xs bg-background-primary px-1 py-0.5 rounded">
+        <code class="text-xs bg-background-surface px-1 py-0.5 rounded">
           {{ parentTask.task_id.substring(0, 12) }}...
         </code>
         <CopyButton :text="parentTask.task_id" :show-text="false" />

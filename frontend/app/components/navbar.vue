@@ -1,6 +1,6 @@
 <template>
   <div class="relative z-10">
-    <div class="container px-6">
+    <div class="px-6">
       <div class="flex h-14 items-center justify-between">
         <div class="flex items-center gap-8">
           <!-- Logo -->
@@ -28,13 +28,13 @@
                       {{ displayConnected ? "Agent Connected" : "Agent Disconnected" }}
                     </Badge>
                   </PopoverTrigger>
-                  <PopoverContent class="w-80 bg-card-base border-card-border text-text-primary">
+                  <PopoverContent class="w-80 bg-background-surface border-border text-text-primary">
                     <div class="space-y-2">
                       <h4 class="font-medium text-text-primary">Agent Connection Details</h4>
                       <div class="text-sm text-text-secondary space-y-1.5">
                         <p><strong class="text-text-primary">Status:</strong> <span class="font-bold">{{ displayConnected ? "Connected" : "Disconnected" }}</span></p>
-                        <p><strong class="text-text-primary">WebSocket URL:</strong> <code class="text-xs bg-background-primary px-1 py-0.5 rounded">{{ wsUrl }}</code></p>
-                        <p><strong class="text-text-primary">Last Update:</strong> <code class="text-xs bg-background-primary px-1 py-0.5 rounded">{{ new Date().toLocaleTimeString() }}</code></p>
+                        <p><strong class="text-text-primary">WebSocket URL:</strong> <code class="text-xs bg-background-surface px-1 py-0.5 rounded">{{ wsUrl }}</code></p>
+                        <p><strong class="text-text-primary">Last Update:</strong> <code class="text-xs bg-background-surface px-1 py-0.5 rounded">{{ new Date().toLocaleTimeString() }}</code></p>
                       </div>
                     </div>
                   </PopoverContent>
@@ -45,6 +45,8 @@
           </NavigationMenu>
         </div>
 
+        <!-- Theme Toggle -->
+        <ThemeToggle />
         </div>
     </div>
   </div>
@@ -61,6 +63,7 @@ import {
 import { Badge } from "~/components/ui/badge"
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover"
 import StatusDot from "~/components/StatusDot.vue"
+import ThemeToggle from "~/components/ThemeToggle.vue"
 
 // Use the WebSocket store instead of the composable
 const wsStore = useWebSocketStore()

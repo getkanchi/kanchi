@@ -1,11 +1,11 @@
 <template>
   <div 
-    class="border border-card-border rounded-lg overflow-hidden glow-border transition-all duration-300"
+    class="border border-border rounded-lg overflow-hidden glow-border transition-all duration-300"
     :class="summaryClasses">
     
     <!-- Collapsed Summary View -->
     <div 
-      class="py-2 px-4 cursor-pointer hover:bg-background-primary/5 transition-all duration-200"
+      class="py-2 px-4 cursor-pointer hover:bg-background-surface/5 transition-all duration-200"
       @click="toggleExpanded"
     >
       <div class="flex items-center justify-between">
@@ -40,11 +40,11 @@
 
         <!-- Right: Expand Button -->
         <div class="flex items-center gap-2">
-          <span class="text-xs text-text-tertiary hidden sm:inline">
+          <span class="text-xs text-text-muted hidden sm:inline">
             {{ isExpanded ? 'Hide details' : 'View details' }}
           </span>
           <svg 
-            class="w-4 h-4 text-text-tertiary transition-transform duration-200"
+            class="w-4 h-4 text-text-muted transition-transform duration-200"
             :class="{ 'rotate-180': isExpanded }"
             fill="none" 
             stroke="currentColor" 
@@ -56,7 +56,7 @@
       </div>
 
       <!-- Mobile Quick Stats (when collapsed) -->
-      <div v-if="!isExpanded" class="sm:hidden flex items-center gap-4 text-xs text-text-secondary mt-2 pt-2 border-t border-card-border/50">
+      <div v-if="!isExpanded" class="sm:hidden flex items-center gap-4 text-xs text-text-secondary mt-2 pt-2 border-t border-border/50">
         <span class="flex items-center gap-1">
           <span class="font-mono">{{ activeWorkersCount }}</span>
           <span>online</span>
@@ -75,7 +75,7 @@
     <!-- Expanded Worker Grid -->
     <div 
       v-if="isExpanded" 
-      class="border-t border-card-border bg-background-primary/30"
+      class="border-t border-border bg-background-surface/30"
     >
       <div class="p-4 space-y-4">
         <!-- Active Workers Section -->
@@ -97,7 +97,7 @@
         <!-- Offline Workers Section (Collapsible) -->
         <div v-if="offlineWorkers.length > 0" class="pt-2">
           <div 
-            class="flex items-center justify-between cursor-pointer py-2 px-3 rounded-lg hover:bg-background-primary/20 transition-all duration-200"
+            class="flex items-center justify-between cursor-pointer py-2 px-3 rounded-lg hover:bg-background-surface/20 transition-all duration-200"
             @click="toggleOfflineExpanded"
           >
             <h3 class="text-sm font-medium text-text-secondary flex items-center gap-2">
@@ -105,11 +105,11 @@
               Offline Workers ({{ offlineWorkers.length }})
             </h3>
             <div class="flex items-center gap-2">
-              <span class="text-xs text-text-tertiary">
+              <span class="text-xs text-text-muted">
                 {{ isOfflineExpanded ? 'Hide offline' : 'Show offline' }}
               </span>
               <svg 
-                class="w-4 h-4 text-text-tertiary transition-transform duration-200"
+                class="w-4 h-4 text-text-muted transition-transform duration-200"
                 :class="{ 'rotate-180': isOfflineExpanded }"
                 fill="none" 
                 stroke="currentColor" 
@@ -136,7 +136,7 @@
         
         <!-- Empty State -->
         <div v-if="workers.length === 0" class="col-span-full text-center py-8">
-          <div class="text-text-tertiary text-sm">
+          <div class="text-text-muted text-sm">
             <svg class="w-8 h-8 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
@@ -260,7 +260,7 @@ const statusText = computed(() => {
 })
 
 const summaryClasses = computed(() => {
-  const classes = ['bg-card-base']
+  const classes = ['bg-background-surface']
   
   // Critical: Any workers offline
   if (offlineWorkersCount.value > 0) {
