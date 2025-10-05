@@ -218,3 +218,4 @@ __marimo__/
 .streamlit/secrets.toml
 
 *.db
+PLAN.md
