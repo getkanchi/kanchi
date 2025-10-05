@@ -10,25 +10,17 @@ import type { TaskEventResponse } from '~/services/apiClient'
 export function getTaskColumns(): ColumnDef<TaskEventResponse>[] {
   return [
     {
-      accessorKey: 'task_name', 
+      accessorKey: 'task_name',
       header: 'Task Name',
       cell: ({ row }) => {
         const taskName = row.getValue("task_name") as string
-        const isOrphan = row.original.is_orphan
-        
-        return h("div", { class: "flex items-center gap-2" }, [
-          h(TaskName, { 
-            name: taskName,
-            size: "sm",
-            maxLength: 35,
-            expandable: true,
-            class: "min-w-0 flex-1"
-          }),
-          isOrphan ? h("div", {
-            class: "text-xs px-1.5 py-0.5 bg-status-error/20 text-status-error rounded-full flex-shrink-0",
-            title: "Orphaned task - worker went offline"
-          }, "orphaned") : null
-        ])
+
+        return h(TaskName, {
+          name: taskName,
+          size: "sm",
+          maxLength: 35,
+          expandable: true
+        })
       },
       enableSorting: true
     },
@@ -37,11 +29,15 @@ export function getTaskColumns(): ColumnDef<TaskEventResponse>[] {
       header: 'Status',
       cell: ({ row }) => {
         const { eventTypeToStatus, getStatusVariant, formatStatus } = useTaskStatus()
+        const isOrphan = row.original.is_orphan
         const eventType = row.getValue('event_type') as string
-        const status = eventTypeToStatus(eventType)
+
+        // If task is orphaned, always show ORPHANED status
+        // (even if it has been retried - it WAS orphaned)
+        const status = isOrphan ? 'ORPHANED' : eventTypeToStatus(eventType)
         const variant = getStatusVariant(status)
-        
-        return h(Badge, { 
+
+        return h(Badge, {
           variant,
           class: 'text-xs'
         }, () => formatStatus(status))

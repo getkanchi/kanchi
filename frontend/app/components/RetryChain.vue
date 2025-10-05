@@ -1,47 +1,47 @@
 <template>
   <div class="space-y-3">
     <h4 class="text-sm font-medium text-gray-300 mb-1">Retry Chain</h4>
-    
+
     <!-- Compact Status Pills Chain -->
     <div class="flex items-center gap-1 flex-wrap text-xs font-mono">
-      <!-- Parent Task -->
-      <div 
+      <!-- Parent Task (Original/Orphaned) -->
+      <div
         v-if="parentTask"
         class="flex items-center gap-1 group"
       >
-        <StatusPill 
+        <StatusPill
           :status="parentTask.status"
           :task-id="parentTask.task_id"
           :timestamp="parentTask.timestamp"
-          label="Parent"
+          :label="currentTask.is_orphan ? 'Original (Orphaned)' : 'Parent'"
           :is-current="false"
         />
         <ArrowRight class="h-3 w-3 text-gray-600" />
       </div>
-      
-      <!-- Current Task (if it's a retry) -->
-      <div 
-        v-if="currentTask && currentTask.is_retry"
+
+      <!-- Current Task -->
+      <div
+        v-if="currentTask"
         class="flex items-center gap-1"
       >
-        <StatusPill 
-          :status="currentTask.status"
+        <StatusPill
+          :status="computedCurrentStatus"
           :task-id="currentTask.task_id"
           :timestamp="currentTask.timestamp"
-          :label="`Retry ${currentTask.retry_number || 1}`"
-          :is-current="true"
+          :label="getCurrentTaskLabel()"
+          :is-current="!currentTask.has_retries"
         />
         <ArrowRight v-if="retries.length > 0" class="h-3 w-3 text-gray-600" />
       </div>
-      
+
       <!-- Subsequent Retries -->
       <template v-for="(retry, index) in retries" :key="retry.task_id">
-        <StatusPill 
+        <StatusPill
           :status="retry.status"
           :task-id="retry.task_id"
           :timestamp="retry.timestamp"
           :label="`Retry ${retry.retry_number || index + 2}`"
-          :is-current="false"
+          :is-current="index === retries.length - 1"
         />
         <ArrowRight v-if="index < retries.length - 1" class="h-3 w-3 text-gray-600" />
       </template>
@@ -84,6 +84,8 @@ interface Task {
   retried_by?: string[]
   has_retries?: boolean
   retry_count?: number
+  is_orphan?: boolean
+  event_type?: string
 }
 
 const props = defineProps<{
@@ -94,4 +96,40 @@ const props = defineProps<{
 }>()
 
 const retries = computed(() => props.retries || [])
+
+// Compute the current task status based on whether it's orphaned
+const computedCurrentStatus = computed(() => {
+  if (props.currentTask.is_orphan) {
+    return 'orphaned'
+  }
+  return props.currentTask.status
+})
+
+// Get appropriate label for current task
+const getCurrentTaskLabel = () => {
+  const task = props.currentTask
+
+  // If it's an orphaned task that was retried
+  if (task.is_orphan && task.has_retries) {
+    return 'Original (Orphaned)'
+  }
+
+  // If it's a retry of an orphaned task
+  if (task.is_retry && props.parentTask) {
+    return `Retry ${task.retry_number || 1}`
+  }
+
+  // If it's the current orphaned task (no retries yet)
+  if (task.is_orphan) {
+    return 'Orphaned'
+  }
+
+  // If it's a regular retry
+  if (task.is_retry) {
+    return `Retry ${task.retry_number || 1}`
+  }
+
+  // Default to "Current" for non-retry tasks
+  return 'Current'
+}
 </script>

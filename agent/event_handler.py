@@ -5,9 +5,8 @@ from datetime import datetime
 
 from connection_manager import ConnectionManager
 from database import DatabaseManager
-from database import TaskEventDB
 from models import TaskEvent, WorkerEvent
-from services import StatsService, TaskService, WorkerService
+from services import OrphanDetectionService, StatsService, TaskService, WorkerService
 
 logger = logging.getLogger(__name__)
 
@@ -22,16 +21,18 @@ class EventHandler:
     def handle_task_event(self, task_event: TaskEvent):
         """Handle task event: save to DB and broadcast to WebSocket."""
         try:
-            # Save to database
             with self.db_manager.get_session() as session:
                 task_service = TaskService(session)
                 stats_service = StatsService(session)
 
                 task_service._enrich_task_with_retry_info(task_event)
+                if task_event.retry_of:
+                    logger.info(f"✓ Task {task_event.task_id[:8]} enriched: is_retry={task_event.is_retry}, retry_of={task_event.retry_of.task_id[:8]}")
+                else:
+                    logger.warning(f"✗ Task {task_event.task_id[:8]} enriched but NO parent found: is_retry={task_event.is_retry}")
                 task_service.save_task_event(task_event)
                 stats_service.update_stats(task_event.event_type)
 
-            # Broadcast to WebSocket
             self.connection_manager.queue_broadcast(task_event)
 
         except Exception as e:
@@ -44,11 +45,15 @@ class EventHandler:
             with self.db_manager.get_session() as session:
                 worker_service = WorkerService(session)
                 worker_service.save_worker_event(worker_event)
-                
+
                 # If worker went offline, mark its running tasks as orphaned
                 if worker_event.event_type == 'worker-offline':
-                    logger.info(f"Worker {worker_event.hostname} went offline, marking tasks as orphaned")
-                    self._mark_tasks_as_orphaned(session, worker_event.hostname, worker_event.timestamp or datetime.utcnow())
+                    logger.info(
+                        f"Worker {worker_event.hostname} went offline, "
+                        f"marking tasks as orphaned"
+                    )
+                    orphaned_at = worker_event.timestamp or datetime.utcnow()
+                    self._mark_tasks_as_orphaned(session, worker_event.hostname, orphaned_at)
 
             # Broadcast to WebSocket
             self.connection_manager.queue_worker_broadcast(worker_event)
@@ -56,54 +61,68 @@ class EventHandler:
         except Exception as e:
             logger.error(f"Error handling worker event {worker_event.hostname}: {e}", exc_info=True)
 
-    def _mark_tasks_as_orphaned(self, session, hostname: str, orphaned_at: datetime):
-        """Mark all running tasks on a worker as orphaned."""
+    def _mark_tasks_as_orphaned(
+        self,
+        session,
+        hostname: str,
+        orphaned_at: datetime,
+        grace_period_seconds: int = 2
+    ):
+        """
+        Mark all running tasks on a worker as orphaned after grace period.
+
+        This method waits for the grace period to allow late completion events
+        to arrive, then detects and marks orphaned tasks.
+
+        Args:
+            session: Database session
+            hostname: Worker hostname
+            orphaned_at: Timestamp when worker went offline
+            grace_period_seconds: Seconds to wait before marking tasks (default: 2)
+        """
         try:
-            # Find tasks that are currently running on this worker
-            running_tasks = session.query(TaskEventDB).filter(
-                TaskEventDB.hostname == hostname,
-                TaskEventDB.event_type == 'task-started'
-            ).all()
-            
-            orphaned_tasks = []
-            
-            # Check which tasks haven't been completed yet
-            for task in running_tasks:
-                # Check if this task has any completion events
-                completed = session.query(TaskEventDB).filter(
-                    TaskEventDB.task_id == task.task_id,
-                    TaskEventDB.event_type.in_(['task-succeeded', 'task-failed', 'task-revoked'])
-                ).first()
-                
-                if not completed:
-                    # Mark as orphaned
-                    session.query(TaskEventDB).filter(
-                        TaskEventDB.task_id == task.task_id
-                    ).update({
-                        'is_orphan': True,
-                        'orphaned_at': orphaned_at
-                    })
-                    orphaned_tasks.append(task)
-            
-            session.commit()
-            
-            # Broadcast orphan events via WebSocket
-            for task in orphaned_tasks:
-                orphan_event = TaskEvent(
-                    task_id=task.task_id,
-                    task_name=task.task_name,
-                    event_type='task-orphaned',
-                    hostname=task.hostname,
-                    timestamp=orphaned_at,
-                    routing_key=task.routing_key,
-                    args=task.args,
-                    kwargs=task.kwargs
+            import time
+
+            # Wait for grace period to allow late completion events
+            if grace_period_seconds > 0:
+                logger.debug(
+                    f"Waiting {grace_period_seconds}s grace period for worker {hostname}"
                 )
-                logger.info(f"EventHandler broadcasting orphan event for task {task.task_id}")
-                self.connection_manager.queue_broadcast(orphan_event)
-            
-            logger.info(f"Marked {len(orphaned_tasks)} tasks as orphaned for offline worker {hostname}")
-            
+                time.sleep(grace_period_seconds)
+
+            # Detect and mark orphaned tasks
+            orphan_service = OrphanDetectionService(session)
+            orphaned_tasks = orphan_service.find_and_mark_orphaned_tasks(
+                hostname=hostname,
+                orphaned_at=orphaned_at,
+                grace_period_seconds=grace_period_seconds
+            )
+
+            # Broadcast orphan events via WebSocket
+            if orphaned_tasks:
+                self._broadcast_orphan_events(
+                    orphan_service, orphaned_tasks, orphaned_at
+                )
+
         except Exception as e:
-            logger.error(f"Error marking tasks as orphaned for worker {hostname}: {e}", exc_info=True)
+            logger.error(
+                f"Error marking tasks as orphaned for worker {hostname}: {e}",
+                exc_info=True
+            )
             session.rollback()
+
+    def _broadcast_orphan_events(
+        self,
+        orphan_service: OrphanDetectionService,
+        orphaned_tasks,
+        orphaned_at: datetime
+    ):
+        """Broadcast orphan events to WebSocket clients."""
+        orphan_events = orphan_service.create_orphan_events(
+            orphaned_tasks=orphaned_tasks,
+            orphaned_at=orphaned_at
+        )
+
+        for orphan_event in orphan_events:
+            logger.info(f"Broadcasting orphan event for task {orphan_event.task_id}")
+            self.connection_manager.queue_broadcast(orphan_event)

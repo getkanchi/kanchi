@@ -121,6 +121,23 @@ const handleRetryCancel = () => {
   currentRetryTaskId.value = null
 }
 
+// Helper to map TaskEventResponse to RetryChain format with status
+const mapTaskToRetryChainFormat = (task: any) => {
+  if (!task) return null
+
+  const { eventTypeToStatus } = useTaskStatus()
+
+  return {
+    task_id: task.task_id || '',
+    status: task.is_orphan ? 'orphaned' : eventTypeToStatus(task.event_type || 'unknown'),
+    timestamp: task.timestamp || '',
+    is_retry: task.is_retry || false,
+    is_orphan: task.is_orphan || false,
+    has_retries: task.has_retries || false,
+    event_type: task.event_type || 'unknown'
+  }
+}
+
 </script>
 
 <template>
@@ -255,21 +272,17 @@ const handleRetryCancel = () => {
                   </div>
                   
                   <!-- Retry Chain Section -->
-                  <div v-if="row.original.is_retry || row.original.has_retries" 
+                  <div v-if="row.original.is_retry || row.original.has_retries"
                        class="mb-6 p-4 border border-border rounded-md bg-background-surface">
                     <RetryChain
-                      :current-task="row.original"
-                      :parent-task="row.original.retry_of ? { 
-                        task_id: row.original.retry_of, 
-                        status: row.original.parent_status || 'unknown',
-                        timestamp: row.original.parent_timestamp
-                      } : undefined"
-                      :retries="row.original.retried_by ? row.original.retried_by.map((id, index) => ({
-                        task_id: id,
-                        status: row.original.retry_statuses?.[index] || 'unknown',
-                        timestamp: row.original.retry_timestamps?.[index],
-                        retry_number: index + 2
-                      })) : []"
+                      :current-task="mapTaskToRetryChainFormat(row.original)"
+                      :parent-task="row.original.retry_of ? mapTaskToRetryChainFormat(row.original.retry_of) : undefined"
+                      :retries="row.original.retried_by ? row.original.retried_by
+                        .map((retryTask, index) => {
+                          const mapped = mapTaskToRetryChainFormat(retryTask)
+                          return mapped ? { ...mapped, retry_number: index + 2 } : null
+                        })
+                        .filter(task => task !== null) : []"
                       :show-details="false"
                     />
                   </div>

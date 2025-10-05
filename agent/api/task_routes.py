@@ -1,5 +1,6 @@
 """API routes for task-related endpoints."""
 
+import uuid
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException
@@ -82,11 +83,40 @@ def create_router(app_state) -> APIRouter:
 
     @router.get("/tasks/orphaned", response_model=List[TaskEventResponse])
     async def get_orphaned_tasks(session: Session = Depends(get_db)):
-        """Get tasks that have been marked as orphaned."""
-        orphaned_events = session.query(TaskEventDB).filter(
+        """Get tasks that have been marked as orphaned and NOT yet retried."""
+        from sqlalchemy import func, and_
+        from database import RetryRelationshipDB
+
+        # Get latest event per orphaned task
+        latest_orphaned_subquery = session.query(
+            TaskEventDB.task_id,
+            func.max(TaskEventDB.timestamp).label('max_timestamp')
+        ).filter(
             TaskEventDB.is_orphan == True
+        ).group_by(TaskEventDB.task_id).subquery()
+
+        # Get the full event data for latest orphaned tasks
+        orphaned_events_db = session.query(TaskEventDB).join(
+            latest_orphaned_subquery,
+            and_(
+                TaskEventDB.task_id == latest_orphaned_subquery.c.task_id,
+                TaskEventDB.timestamp == latest_orphaned_subquery.c.max_timestamp
+            )
         ).order_by(TaskEventDB.orphaned_at.desc()).all()
-        return [TaskEventResponse.from_task_event(event) for event in orphaned_events]
+
+        # Convert to TaskEvent and enrich with retry info
+        task_service = TaskService(session)
+        orphaned_events = [task_service._db_to_task_event(event_db) for event_db in orphaned_events_db]
+        task_service._bulk_enrich_with_retry_info(orphaned_events)
+
+        # Filter out orphaned tasks that have been retried (have retry_chain entries)
+        unretried_orphaned = []
+        for event in orphaned_events:
+            retry_rel = session.query(RetryRelationshipDB).filter_by(task_id=event.task_id).first()
+            if not retry_rel or not retry_rel.retry_chain or len(retry_rel.retry_chain) == 0:
+                unretried_orphaned.append(event)
+
+        return [TaskEventResponse.from_task_event(event) for event in unretried_orphaned]
 
 
     @router.post("/tasks/{task_id}/retry")
@@ -102,46 +132,37 @@ def create_router(app_state) -> APIRouter:
         if not task_events:
             raise HTTPException(status_code=404, detail="Task not found")
         
-        # Get the latest event for the task
         original_task = task_events[-1]
-        
-        # Check if this is an orphaned task and mark it as no longer orphaned
+
         orphaned_task = session.query(TaskEventDB).filter_by(
             task_id=task_id,
             is_orphan=True
         ).first()
         
-        if orphaned_task:
-            # Mark all events for this task as no longer orphaned
-            session.query(TaskEventDB).filter_by(task_id=task_id).update({
-                'is_orphan': False,
-                'orphaned_at': None
-            })
-            session.commit()
-        
         try:
-            # Parse args and kwargs
             import ast
             args = ast.literal_eval(original_task.args) if original_task.args and original_task.args != "()" else ()
             kwargs = ast.literal_eval(original_task.kwargs) if original_task.kwargs and original_task.kwargs != "{}" else {}
         except (ValueError, SyntaxError):
             args = ()
             kwargs = {}
-        
-        # Retry the task
+
         queue_name = original_task.routing_key if original_task.routing_key else 'default'
-        
+
+        # Generate task ID upfront so we can create retry relationship first
+        new_task_id = str(uuid.uuid4())
+
+        task_service.create_retry_relationship(task_id, new_task_id)
+        session.commit()
+
+        # Now send the task with the pre-generated task_id
         result = app_state.monitor_instance.app.send_task(
             original_task.task_name,
             args=args,
             kwargs=kwargs,
-            queue=queue_name
+            queue=queue_name,
+            task_id=new_task_id  # Use our pre-generated ID
         )
-        
-        new_task_id = str(result.id)
-        
-        # Store retry relationship
-        task_service.create_retry_relationship(task_id, new_task_id)
         
         return {
             "status": "success",

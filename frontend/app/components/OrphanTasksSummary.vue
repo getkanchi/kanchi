@@ -363,24 +363,29 @@ const handleRetryCancel = () => {
   currentRetryTaskId.value = null
 }
 
-// Deduplicate orphaned tasks by task_id - take the most recent event per task
+// Deduplicate orphaned tasks by task_id and filter out retried ones
 const uniqueOrphanedTasks = computed(() => {
   const taskMap = new Map<string, TaskEventResponse>()
-  
+
   // Sort by timestamp desc to get most recent events first
   const sortedTasks = [...props.orphanedTasks].sort((a, b) => {
     const aTime = new Date(a.timestamp || 0).getTime()
     const bTime = new Date(b.timestamp || 0).getTime()
     return bTime - aTime
   })
-  
+
   // Keep only the most recent event for each task_id
+  // Filter: is_orphan = true AND retried_by is empty (not retried yet)
   for (const task of sortedTasks) {
     if (task.task_id && !taskMap.has(task.task_id)) {
-      taskMap.set(task.task_id, task)
+      // Only show orphans that haven't been retried
+      const hasRetries = task.retried_by && task.retried_by.length > 0
+      if (task.is_orphan && !hasRetries) {
+        taskMap.set(task.task_id, task)
+      }
     }
   }
-  
+
   return Array.from(taskMap.values())
 })
 

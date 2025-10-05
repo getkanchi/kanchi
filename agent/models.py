@@ -28,18 +28,39 @@ class TaskEvent:
     runtime: Optional[float] = None
     exception: Optional[str] = None
     traceback: Optional[str] = None
-    retry_of: Optional[str] = None
-    retried_by: List[str] = field(default_factory=list)
+    retry_of: Optional['TaskEvent'] = None  # Parent task object (1 level up only, no grandparents)
+    retried_by: List['TaskEvent'] = field(default_factory=list)  # Child retry tasks (1 level down only, no grandchildren)
     is_retry: bool = False
     has_retries: bool = False
     retry_count: int = 0
-    
+    is_orphan: bool = False
+    orphaned_at: Optional[datetime] = None
+
     def to_dict(self) -> dict:
-        """Convert to dictionary for JSON serialization"""
+        """Convert to dictionary for JSON serialization with nested task objects"""
         data = asdict(self)
         # Convert datetime to ISO format string
         if isinstance(data['timestamp'], datetime):
             data['timestamp'] = data['timestamp'].isoformat()
+        if data.get('orphaned_at') and isinstance(data['orphaned_at'], datetime):
+            data['orphaned_at'] = data['orphaned_at'].isoformat()
+
+        # Handle nested retry_of object (parent task)
+        if data.get('retry_of') and isinstance(data['retry_of'], dict):
+            if data['retry_of'].get('timestamp') and isinstance(data['retry_of']['timestamp'], datetime):
+                data['retry_of']['timestamp'] = data['retry_of']['timestamp'].isoformat()
+            if data['retry_of'].get('orphaned_at') and isinstance(data['retry_of']['orphaned_at'], datetime):
+                data['retry_of']['orphaned_at'] = data['retry_of']['orphaned_at'].isoformat()
+
+        # Handle nested retried_by list (child retry tasks)
+        if data.get('retried_by'):
+            for retry_task in data['retried_by']:
+                if isinstance(retry_task, dict):
+                    if retry_task.get('timestamp') and isinstance(retry_task['timestamp'], datetime):
+                        retry_task['timestamp'] = retry_task['timestamp'].isoformat()
+                    if retry_task.get('orphaned_at') and isinstance(retry_task['orphaned_at'], datetime):
+                        retry_task['orphaned_at'] = retry_task['orphaned_at'].isoformat()
+
         return data
     
     def to_json(self) -> str:
@@ -130,7 +151,7 @@ class TaskInfo:
 
 # Pydantic models for FastAPI
 class TaskEventResponse(BaseModel):
-    """Pydantic model for API responses"""
+    """Pydantic model for API responses with nested retry relationships"""
     task_id: str
     task_name: str
     event_type: str
@@ -149,8 +170,8 @@ class TaskEventResponse(BaseModel):
     runtime: Optional[float] = None
     exception: Optional[str] = None
     traceback: Optional[str] = None
-    retry_of: Optional[str] = None
-    retried_by: List[str] = Field(default_factory=list)
+    retry_of: Optional['TaskEventResponse'] = None  # Nested parent task object
+    retried_by: List['TaskEventResponse'] = Field(default_factory=list)  # Nested retry task objects
     is_retry: bool = False
     has_retries: bool = False
     retry_count: int = 0
@@ -167,6 +188,10 @@ class TaskEventResponse(BaseModel):
     def from_task_event(cls, task_event: TaskEvent) -> 'TaskEventResponse':
         """Create from TaskEvent dataclass"""
         return cls(**task_event.to_dict())
+
+
+# Rebuild the model to resolve forward references
+TaskEventResponse.model_rebuild()
 
 
 class TaskStats(BaseModel):

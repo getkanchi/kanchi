@@ -70,16 +70,11 @@ class TaskService:
                 task_id=task_event.task_id,
                 event_type='task-sent'
             ).first()
-            
+
             if existing_sent_event and existing_sent_event.routing_key:
                 routing_key = existing_sent_event.routing_key
                 queue = existing_sent_event.queue
-        
-        # Check if this task is a retry (from retry relationships)
-        retry_rel = self.session.query(RetryRelationshipDB).filter_by(task_id=task_event.task_id).first()
-        if retry_rel and retry_rel.original_id != task_event.task_id:
-            task_event.retry_of = retry_rel.original_id
-            task_event.is_retry = True
+
         
         task_event_db = TaskEventDB(
             task_id=task_event.task_id,
@@ -102,8 +97,8 @@ class TaskService:
             runtime=task_event.runtime,
             exception=task_event.exception,
             traceback=task_event.traceback,
-            retry_of=task_event.retry_of,
-            retried_by=json.dumps(task_event.retried_by) if task_event.retried_by else None,
+            retry_of=task_event.retry_of.task_id if task_event.retry_of else None,
+            retried_by=json.dumps([t.task_id for t in task_event.retried_by]) if task_event.retried_by else None,
             is_retry=task_event.is_retry,
             has_retries=task_event.has_retries,
             retry_count=task_event.retry_count
@@ -115,7 +110,18 @@ class TaskService:
     def get_task_events(self, task_id: str) -> List[TaskEvent]:
         """Get all events for a specific task."""
         events_db = self.session.query(TaskEventDB).filter_by(task_id=task_id).order_by(TaskEventDB.timestamp).all()
-        return [self._db_to_task_event(event_db) for event_db in events_db]
+        events = [self._db_to_task_event(event_db) for event_db in events_db]
+
+        if events:
+            self._bulk_enrich_with_retry_info([events[0]])
+            for i in range(1, len(events)):
+                events[i].retry_of = events[0].retry_of
+                events[i].retried_by = events[0].retried_by
+                events[i].is_retry = events[0].is_retry
+                events[i].has_retries = events[0].has_retries
+                events[i].retry_count = events[0].retry_count
+
+        return events
     
     def get_recent_events(
         self,
@@ -296,7 +302,7 @@ class TaskService:
     
     def _db_to_task_event(self, event_db: TaskEventDB) -> TaskEvent:
         """Convert database model to TaskEvent object."""
-        return TaskEvent(
+        task_event = TaskEvent(
             task_id=event_db.task_id,
             task_name=event_db.task_name,
             event_type=event_db.event_type,
@@ -318,48 +324,128 @@ class TaskService:
             exception=event_db.exception,
             traceback=event_db.traceback
         )
+
+        # Enrich with orphan information from database
+        task_event.is_orphan = event_db.is_orphan or False
+        task_event.orphaned_at = event_db.orphaned_at
+
+        return task_event
     
     def _enrich_task_with_retry_info(self, task_event: TaskEvent):
         """Enrich task event with retry relationship information."""
-        retry_rel = self.session.query(RetryRelationshipDB).filter_by(task_id=task_event.task_id).first()
-        if retry_rel:
-            task_event.retry_of = retry_rel.original_id if retry_rel.original_id != task_event.task_id else None
-            task_event.retried_by = retry_rel.retry_chain if retry_rel.retry_chain else []
-            task_event.is_retry = retry_rel.original_id != task_event.task_id
-            task_event.has_retries = len(retry_rel.retry_chain) > 0 if retry_rel.retry_chain else False
-            task_event.retry_count = retry_rel.total_retries
-        else:
-            # Set default values if no retry relationship found
-            task_event.retry_of = None
-            task_event.retried_by = []
-            task_event.is_retry = False
-            task_event.has_retries = False
-            task_event.retry_count = 0
+        self._bulk_enrich_with_retry_info([task_event])
     
     def _bulk_enrich_with_retry_info(self, events: List[TaskEvent]):
-        """Bulk enrich multiple task events with retry information in a single query."""
+        """
+        Bulk enrich multiple task events with retry information in a single query.
+        Populates nested TaskEvent objects for retry_of and retried_by (1 level only).
+
+        Circular references are prevented by setting nested objects' retry_of and retried_by to None/[].
+        """
         if not events:
             return
-        
-        # Extract all task IDs
+
         task_ids = [event.task_id for event in events]
-        
-        # Single query to fetch all retry relationships
+
         retry_relationships = self.session.query(RetryRelationshipDB).filter(
             RetryRelationshipDB.task_id.in_(task_ids)
         ).all()
-        
+
         # Create mapping for O(1) lookup
         retry_map = {rel.task_id: rel for rel in retry_relationships}
-        
-        # Enrich events with retry information
+
+        # Collect all parent and retry task IDs to fetch in bulk
+        parent_task_ids = set()
+        retry_task_ids = set()
+
         for event in events:
             retry_rel = retry_map.get(event.task_id)
             if retry_rel:
-                event.retry_of = retry_rel.original_id if retry_rel.original_id != event.task_id else None
-                event.retried_by = retry_rel.retry_chain if retry_rel.retry_chain else []
-                event.is_retry = retry_rel.original_id != event.task_id
-                event.has_retries = len(retry_rel.retry_chain) > 0 if retry_rel.retry_chain else False
+                # Collect parent task ID
+                if retry_rel.original_id != event.task_id:
+                    parent_task_ids.add(retry_rel.original_id)
+                # Collect retry task IDs
+                if retry_rel.retry_chain:
+                    retry_task_ids.update(retry_rel.retry_chain)
+
+        # Fetch all parent and retry tasks in a single query (latest event per task)
+        all_related_task_ids = parent_task_ids | retry_task_ids
+        related_tasks_map = {}
+
+        if all_related_task_ids:
+            # Get latest event for each related task
+            latest_events_subquery = self.session.query(
+                TaskEventDB.task_id,
+                func.max(TaskEventDB.timestamp).label('max_timestamp')
+            ).filter(
+                TaskEventDB.task_id.in_(all_related_task_ids)
+            ).group_by(TaskEventDB.task_id).subquery()
+
+            related_events_db = self.session.query(TaskEventDB).join(
+                latest_events_subquery,
+                and_(
+                    TaskEventDB.task_id == latest_events_subquery.c.task_id,
+                    TaskEventDB.timestamp == latest_events_subquery.c.max_timestamp
+                )
+            ).all()
+
+            for event_db in related_events_db:
+                task_event = self._db_to_task_event(event_db)
+                task_event.retry_of = None
+                task_event.retried_by = []
+                related_tasks_map[event_db.task_id] = task_event
+
+        # Now enrich the main events with nested retry information
+        for event in events:
+            retry_rel = retry_map.get(event.task_id)
+            if retry_rel:
+                # Populate parent task object (1 level up only)
+                if retry_rel.original_id != event.task_id:
+                    parent_task = related_tasks_map.get(retry_rel.original_id)
+                    if not parent_task:
+                        # Parent task not in bulk result - fetch it directly
+                        parent_event_db = self.session.query(TaskEventDB).filter_by(
+                            task_id=retry_rel.original_id
+                        ).order_by(TaskEventDB.timestamp.desc()).first()
+
+                        if parent_event_db:
+                            parent_task = self._db_to_task_event(parent_event_db)
+                            parent_task.retry_of = None
+                            parent_task.retried_by = []
+                            related_tasks_map[retry_rel.original_id] = parent_task
+                        else:
+                            parent_task = None
+
+                    event.retry_of = parent_task
+                    event.is_retry = True
+                else:
+                    event.retry_of = None
+                    event.is_retry = False
+
+                # Populate retry task objects (1 level down only)
+                if retry_rel.retry_chain:
+                    event.retried_by = []
+                    for retry_id in retry_rel.retry_chain:
+                        retry_task = related_tasks_map.get(retry_id)
+                        if not retry_task:
+                            # Retry task not in bulk result - fetch it directly
+                            retry_event_db = self.session.query(TaskEventDB).filter_by(
+                                task_id=retry_id
+                            ).order_by(TaskEventDB.timestamp.desc()).first()
+
+                            if retry_event_db:
+                                retry_task = self._db_to_task_event(retry_event_db)
+                                retry_task.retry_of = None
+                                retry_task.retried_by = []
+                                related_tasks_map[retry_id] = retry_task
+
+                        if retry_task:
+                            event.retried_by.append(retry_task)
+                    event.has_retries = len(event.retried_by) > 0
+                else:
+                    event.retried_by = []
+                    event.has_retries = False
+
                 event.retry_count = retry_rel.total_retries
             else:
                 # Set default values if no retry relationship found

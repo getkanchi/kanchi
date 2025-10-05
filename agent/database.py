@@ -181,7 +181,8 @@ class DatabaseManager:
                 poolclass=StaticPool,
                 pool_pre_ping=True,
                 echo=False,
-                connect_args={"check_same_thread": False}
+                connect_args={"check_same_thread": False},
+                isolation_level="READ UNCOMMITTED"
             )
         else:
             self.engine = create_engine(
