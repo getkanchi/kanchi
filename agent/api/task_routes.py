@@ -87,6 +87,9 @@ def create_router(app_state) -> APIRouter:
         from sqlalchemy import func, and_
         from database import RetryRelationshipDB
 
+        # Define final states - tasks in these states cannot be orphaned
+        FINAL_STATES = {'task-succeeded', 'task-failed', 'task-revoked', 'task-rejected', 'task-retried'}
+
         latest_orphaned_subquery = session.query(
             TaskEventDB.task_id,
             func.max(TaskEventDB.timestamp).label('max_timestamp')
@@ -108,8 +111,18 @@ def create_router(app_state) -> APIRouter:
 
         unretried_orphaned = []
         for event in orphaned_events:
+            # Check if task has been retried
             retry_rel = session.query(RetryRelationshipDB).filter_by(task_id=event.task_id).first()
-            if not retry_rel or not retry_rel.retry_chain or len(retry_rel.retry_chain) == 0:
+            if retry_rel and retry_rel.retry_chain and len(retry_rel.retry_chain) > 0:
+                continue
+
+            # Check if task has any final state events
+            has_final_state = session.query(TaskEventDB).filter(
+                TaskEventDB.task_id == event.task_id,
+                TaskEventDB.event_type.in_(FINAL_STATES)
+            ).first() is not None
+
+            if not has_final_state:
                 unretried_orphaned.append(event)
 
         return [TaskEventResponse.from_task_event(event) for event in unretried_orphaned]
