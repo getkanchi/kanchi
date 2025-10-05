@@ -1,51 +1,109 @@
 # Kanchi
 
-## Running the Application
+Real-time Celery task monitoring system with WebSocket support.
 
-### Backend
+## Features
+
+- Real-time task monitoring via WebSocket
+- Task retry tracking and orphan detection
+- Worker health monitoring
+- SQLite (development) and PostgreSQL (production) support
+- Auto-migrations with Alembic
+
+## Quick Start with Docker
+
+```bash
+docker build -t kanchi .
+docker run -p 8765:8765 -p 3000:3000 \
+  -e RABBITMQ_URL=amqp://guest:guest@localhost:5672// \
+  kanchi
+```
+
+Access at `http://localhost:3000`
+
+## Configuration
+
+### Required
+
+```bash
+RABBITMQ_URL=amqp://guest:guest@localhost:5672//
+```
+
+### Optional
+
+```bash
+DATABASE_URL=sqlite:///kanchi.db           # or postgresql://user:pass@host/db
+WS_HOST=localhost
+WS_PORT=8765
+LOG_LEVEL=INFO
+```
+
+### Database Options
+
+**SQLite (default)** - No setup required
+
+**PostgreSQL (production)**
 ```bash
 cd agent
-poetry run python main.py
+poetry install -E postgresql
+export DATABASE_URL=postgresql://user:pass@localhost:5432/kanchi
 ```
 
-### Frontend
+Migrations run automatically on startup.
+
+## Local Development
+
+### Prerequisites
+
+- Python 3.8+
+- Poetry
+- Node.js 20+
+- RabbitMQ
+
+### Installation
+
 ```bash
-cd frontend
-npm run dev
+cd agent && poetry install
+cd ../frontend && npm install
 ```
 
-### Using Makefile
+### Run
+
+```bash
+# Terminal 1: Backend
+cd agent && poetry run python app.py
+
+# Terminal 2: Frontend
+cd frontend && npm run dev
+```
+
+### Testing Environment
 
 ```bash
 cd scripts/test-celery-app
-make test-mixed
-etc.
+make start          # Start RabbitMQ, Redis, Workers
+make test-mixed     # Generate test tasks
 ```
 
-### Docker
+## Contributing
 
-Build and run with Docker:
+### Backend
+
 ```bash
-# Build image
-docker build -t kanchi .
-
-# Run with RabbitMQ on host machine (macOS/Windows)
-docker run -p 8765:8765 -p 3000:3000 \
-  -e RABBITMQ_URL=amqp://guest:guest@host.docker.internal:5672// \
-  kanchi
-
-# Run with RabbitMQ on another server/EC2
-docker run -p 8765:8765 -p 3000:3000 \
-  -e RABBITMQ_URL=amqp://user:pass@<rabbitmq-host>:5672// \
-  kanchi
-
-# Or use the helper script (auto-detects host networking)
-./scripts/docker-run.sh --rabbitmq-host <host>
+cd agent
+poetry run black .              # Format
+poetry run ruff check .         # Lint
+poetry run alembic revision --autogenerate -m "description"  # Migration
 ```
 
-See [DOCKER_NETWORKING.md](./DOCKER_NETWORKING.md) for detailed networking configurations.
+### Frontend
 
-### Docker Compose
 ```bash
-docker-compose up
+cd frontend
+npm run build                   # Build
+npx swagger-typescript-api generate -p http://localhost:8765/openapi.json -o app/src/types -n api.ts --modular
 ```
+
+## License
+
+[License Type]
