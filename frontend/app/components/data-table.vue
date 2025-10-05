@@ -307,15 +307,15 @@ const handleRetryCancel = () => {
                     
                     <div v-if="row.original.result" class="p-4 border border-border rounded-md bg-background-surface">
                       <div class="flex items-center justify-between mb-3">
-                        <h4 class="text-sm font-medium text-green-400">Result:</h4>
-                        <CopyButton 
+                        <h4 class="text-sm font-medium text-status-success">Result:</h4>
+                        <CopyButton
                           :text="typeof row.original.result === 'string' ? row.original.result : JSON.stringify(row.original.result, null, 2)"
                           :copy-key="`result-${row.original.task_id}`"
                           title="Copy result"
                           :show-text="true"
                         />
                       </div>
-                      <pre class="bg-green-950/20 border border-green-900/20 p-3 rounded text-xs overflow-x-auto text-green-400 font-mono">{{ typeof row.original.result === 'string' ? row.original.result : JSON.stringify(row.original.result, null, 2) }}</pre>
+                      <pre class="bg-status-success-bg border border-status-success-border p-3 rounded text-xs overflow-x-auto text-status-success font-mono">{{ typeof row.original.result === 'string' ? row.original.result : JSON.stringify(row.original.result, null, 2) }}</pre>
                     </div>
                     
                     
