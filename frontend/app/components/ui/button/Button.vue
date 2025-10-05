@@ -27,10 +27,7 @@ const buttonClass = computed(() => {
     variant: props.variant || "default", 
     size: props.size || "default" 
   })
-  console.log('Button props:', { variant: props.variant, size: props.size })
-  console.log('Variant classes:', variantClasses)
   const finalClasses = cn(variantClasses, props.class)
-  console.log('Final classes:', finalClasses)
   return finalClasses
 })
 </script>
