@@ -19,7 +19,8 @@
 
       <!-- Orphaned Tasks Overview -->
       <div class="mb-6 orphan-tasks-section">
-        <OrphanTasksSummary 
+        <OrphanTasksSummary
+          v-if="orphanTasksStore.orphanedTasks.length > 0"
           :orphaned-tasks="orphanTasksStore.orphanedTasks"
           @retry-task="handleRerunTask"
         />
