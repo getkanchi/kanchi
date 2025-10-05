@@ -83,14 +83,12 @@ class EventHandler:
         try:
             import time
 
-            # Wait for grace period to allow late completion events
             if grace_period_seconds > 0:
                 logger.debug(
                     f"Waiting {grace_period_seconds}s grace period for worker {hostname}"
                 )
                 time.sleep(grace_period_seconds)
 
-            # Detect and mark orphaned tasks
             orphan_service = OrphanDetectionService(session)
             orphaned_tasks = orphan_service.find_and_mark_orphaned_tasks(
                 hostname=hostname,

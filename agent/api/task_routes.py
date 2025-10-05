@@ -87,7 +87,6 @@ def create_router(app_state) -> APIRouter:
         from sqlalchemy import func, and_
         from database import RetryRelationshipDB
 
-        # Get latest event per orphaned task
         latest_orphaned_subquery = session.query(
             TaskEventDB.task_id,
             func.max(TaskEventDB.timestamp).label('max_timestamp')
@@ -95,7 +94,6 @@ def create_router(app_state) -> APIRouter:
             TaskEventDB.is_orphan == True
         ).group_by(TaskEventDB.task_id).subquery()
 
-        # Get the full event data for latest orphaned tasks
         orphaned_events_db = session.query(TaskEventDB).join(
             latest_orphaned_subquery,
             and_(
@@ -104,12 +102,10 @@ def create_router(app_state) -> APIRouter:
             )
         ).order_by(TaskEventDB.orphaned_at.desc()).all()
 
-        # Convert to TaskEvent and enrich with retry info
         task_service = TaskService(session)
         orphaned_events = [task_service._db_to_task_event(event_db) for event_db in orphaned_events_db]
         task_service._bulk_enrich_with_retry_info(orphaned_events)
 
-        # Filter out orphaned tasks that have been retried (have retry_chain entries)
         unretried_orphaned = []
         for event in orphaned_events:
             retry_rel = session.query(RetryRelationshipDB).filter_by(task_id=event.task_id).first()
@@ -149,13 +145,11 @@ def create_router(app_state) -> APIRouter:
 
         queue_name = original_task.routing_key if original_task.routing_key else 'default'
 
-        # Generate task ID upfront so we can create retry relationship first
         new_task_id = str(uuid.uuid4())
 
         task_service.create_retry_relationship(task_id, new_task_id)
         session.commit()
 
-        # Now send the task with the pre-generated task_id
         result = app_state.monitor_instance.app.send_task(
             original_task.task_name,
             args=args,
