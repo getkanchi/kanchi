@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from typing import Dict, Any
 
@@ -61,7 +61,7 @@ def create_router(app_state) -> APIRouter:
         
         welcome = ConnectionInfo(
             status="connected",
-            timestamp=datetime.now(),
+            timestamp=datetime.now(timezone.utc),
             message="Connected to Celery Event Monitor",
             total_connections=len(app_state.connection_manager.active_connections)
         )
@@ -75,17 +75,17 @@ def create_router(app_state) -> APIRouter:
                     message = json.loads(data)
                     
                     if message.get('type') == 'ping':
-                        pong_response = PongResponse(timestamp=datetime.now())
+                        pong_response = PongResponse(timestamp=datetime.now(timezone.utc))
                         await app_state.connection_manager.send_personal_message(pong_response.model_dump_json(), websocket)
                     
                     elif message.get('type') == 'subscribe':
                         filters = message.get('filters', {})
                         app_state.connection_manager.set_client_filters(websocket, filters)
-                        
+
                         response = SubscriptionResponse(
                             status="acknowledged",
                             filters=filters,
-                            timestamp=datetime.now()
+                            timestamp=datetime.now(timezone.utc)
                         )
                         await app_state.connection_manager.send_personal_message(response.model_dump_json(), websocket)
                     
@@ -126,7 +126,7 @@ def create_router(app_state) -> APIRouter:
         
         mode_response = ModeChangedResponse(
             mode=mode,
-            timestamp=datetime.now(),
+            timestamp=datetime.now(timezone.utc),
             events_count=events_sent if mode == 'static' else None
         )
         await app_state.connection_manager.send_personal_message(mode_response.model_dump_json(), websocket)
@@ -154,7 +154,7 @@ def create_router(app_state) -> APIRouter:
         
         stored_response = StoredEventsResponse(
             count=events_sent,
-            timestamp=datetime.now()
+            timestamp=datetime.now(timezone.utc)
         )
         await app_state.connection_manager.send_personal_message(stored_response.model_dump_json(), websocket)
 

@@ -1,6 +1,6 @@
 """Database models and session management for Kanchi."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any
 from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, DateTime, JSON, Text, Index
 from sqlalchemy.ext.declarative import declarative_base
@@ -10,6 +10,24 @@ from contextlib import contextmanager
 import json
 
 Base = declarative_base()
+
+
+def utc_now():
+    """Return current UTC time with timezone info."""
+    return datetime.now(timezone.utc)
+
+
+def ensure_utc_isoformat(dt: datetime) -> str:
+    """
+    Convert datetime to ISO format string with UTC timezone.
+    If datetime is naive, assume it's UTC and add timezone info.
+    """
+    if dt is None:
+        return None
+    # If naive (no timezone), treat as UTC
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat()
 
 
 class TaskEventDB(Base):
@@ -69,7 +87,7 @@ class TaskEventDB(Base):
             'task_id': self.task_id,
             'task_name': self.task_name,
             'event_type': self.event_type,
-            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+            'timestamp': ensure_utc_isoformat(self.timestamp),
             'hostname': self.hostname,
             'worker_name': self.worker_name,
             'queue': self.queue,
@@ -92,7 +110,7 @@ class TaskEventDB(Base):
             'has_retries': self.has_retries,
             'retry_count': self.retry_count,
             'is_orphan': self.is_orphan,
-            'orphaned_at': self.orphaned_at.isoformat() if self.orphaned_at else None,
+            'orphaned_at': ensure_utc_isoformat(self.orphaned_at),
         }
 
 
@@ -118,7 +136,7 @@ class WorkerEventDB(Base):
         return {
             'hostname': self.hostname,
             'event_type': self.event_type,
-            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+            'timestamp': ensure_utc_isoformat(self.timestamp),
             'status': self.status,
             'active_tasks': self.active_tasks,
             'processed': self.processed,
@@ -128,7 +146,7 @@ class WorkerEventDB(Base):
 class TaskStatsDB(Base):
     """SQLAlchemy model for task statistics."""
     __tablename__ = 'task_stats'
-    
+
     id = Column(Integer, primary_key=True, default=1)  # Single row for global stats
     total_tasks = Column(Integer, default=0)
     succeeded = Column(Integer, default=0)
@@ -136,7 +154,7 @@ class TaskStatsDB(Base):
     pending = Column(Integer, default=0)
     retried = Column(Integer, default=0)
     active = Column(Integer, default=0)
-    last_updated = Column(DateTime, default=datetime.utcnow)
+    last_updated = Column(DateTime, default=utc_now)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for API responses."""
@@ -147,7 +165,7 @@ class TaskStatsDB(Base):
             'pending': self.pending,
             'retried': self.retried,
             'active': self.active,
-            'last_updated': self.last_updated.isoformat() if self.last_updated else None,
+            'last_updated': ensure_utc_isoformat(self.last_updated),
         }
 
 
@@ -160,8 +178,8 @@ class RetryRelationshipDB(Base):
     original_id = Column(String(255), nullable=False, index=True)
     retry_chain = Column(JSON)  # List of task IDs in retry chain
     total_retries = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
     __table_args__ = (
         Index('idx_retry_bulk_lookup', 'task_id', 'original_id'),

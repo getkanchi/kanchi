@@ -3,7 +3,7 @@
 import logging
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from database import DatabaseManager
 from event_handler import EventHandler
@@ -60,7 +60,7 @@ class WorkerHealthMonitor:
 
     def _check_worker_health(self):
         """Check all workers for staleness and mark offline workers."""
-        current_time = datetime.utcnow()
+        current_time = datetime.now(timezone.utc)
         timeout_threshold = current_time - timedelta(seconds=self.worker_timeout)
 
         # Get current worker states from monitor

@@ -1,7 +1,7 @@
 """Simplified event handling for Celery events."""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from connection_manager import ConnectionManager
 from database import DatabaseManager
@@ -52,7 +52,8 @@ class EventHandler:
                         f"Worker {worker_event.hostname} went offline, "
                         f"marking tasks as orphaned"
                     )
-                    orphaned_at = worker_event.timestamp or datetime.utcnow()
+                    # Use current server time, not worker timestamp (worker clock may be wrong)
+                    orphaned_at = datetime.now(timezone.utc)
                     self._mark_tasks_as_orphaned(session, worker_event.hostname, orphaned_at)
 
             # Broadcast to WebSocket

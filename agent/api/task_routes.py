@@ -1,7 +1,7 @@
 """API routes for task-related endpoints."""
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -178,7 +178,7 @@ def create_router(app_state) -> APIRouter:
             "new_task_id": new_task_id,
             "task_name": original_task.task_name,
             "was_orphaned": orphaned_task is not None,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
     return router

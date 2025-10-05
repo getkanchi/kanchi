@@ -43,7 +43,7 @@ Performance Impact:
 """
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, asc, or_, and_, func
@@ -720,6 +720,6 @@ class StatsService:
         elif event_type == 'task-received':
             if stats.pending > 0:
                 stats.pending -= 1
-        
-        stats.last_updated = datetime.utcnow()
+
+        stats.last_updated = datetime.now(timezone.utc)
         self.session.commit()

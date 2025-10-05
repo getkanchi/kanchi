@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional, List, Union, Literal
 from dataclasses import dataclass, asdict, field
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 from pydantic import BaseModel, Field
 
@@ -39,25 +39,31 @@ class TaskEvent:
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization with nested task objects"""
         data = asdict(self)
-        # Convert datetime to ISO format string
-        if isinstance(data['timestamp'], datetime):
-            data['timestamp'] = data['timestamp'].isoformat()
-        if data.get('orphaned_at') and isinstance(data['orphaned_at'], datetime):
-            data['orphaned_at'] = data['orphaned_at'].isoformat()
+
+        # Helper to ensure UTC timezone in ISO format
+        def ensure_utc_iso(dt):
+            if dt is None:
+                return None
+            if isinstance(dt, datetime):
+                # If naive, treat as UTC
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt.isoformat()
+            return dt
+
+        # Convert datetime to ISO format string with timezone
+        data['timestamp'] = ensure_utc_iso(data['timestamp'])
+        data['orphaned_at'] = ensure_utc_iso(data.get('orphaned_at'))
 
         if data.get('retry_of') and isinstance(data['retry_of'], dict):
-            if data['retry_of'].get('timestamp') and isinstance(data['retry_of']['timestamp'], datetime):
-                data['retry_of']['timestamp'] = data['retry_of']['timestamp'].isoformat()
-            if data['retry_of'].get('orphaned_at') and isinstance(data['retry_of']['orphaned_at'], datetime):
-                data['retry_of']['orphaned_at'] = data['retry_of']['orphaned_at'].isoformat()
+            data['retry_of']['timestamp'] = ensure_utc_iso(data['retry_of'].get('timestamp'))
+            data['retry_of']['orphaned_at'] = ensure_utc_iso(data['retry_of'].get('orphaned_at'))
 
         if data.get('retried_by'):
             for retry_task in data['retried_by']:
                 if isinstance(retry_task, dict):
-                    if retry_task.get('timestamp') and isinstance(retry_task['timestamp'], datetime):
-                        retry_task['timestamp'] = retry_task['timestamp'].isoformat()
-                    if retry_task.get('orphaned_at') and isinstance(retry_task['orphaned_at'], datetime):
-                        retry_task['orphaned_at'] = retry_task['orphaned_at'].isoformat()
+                    retry_task['timestamp'] = ensure_utc_iso(retry_task.get('timestamp'))
+                    retry_task['orphaned_at'] = ensure_utc_iso(retry_task.get('orphaned_at'))
 
         return data
     
@@ -67,10 +73,15 @@ class TaskEvent:
     
     @classmethod
     def from_celery_event(cls, event: dict, task_name: Optional[str] = None) -> 'TaskEvent':
-        """Create TaskEvent from Celery event data"""
+        """Create TaskEvent from Celery event data
+
+        NOTE: We use the current server time (UTC) instead of the timestamp from the Celery event
+        because worker clocks may be misconfigured or out of sync. The receive time is more reliable
+        for monitoring purposes.
+        """
         # Extract event type from the event
         event_type = event.get('type', 'unknown')
-        
+
         # Get task info
         task_id = event.get('uuid', '')
         
@@ -87,12 +98,13 @@ class TaskEvent:
         else:
             args_str = str(args_data)
             
-        
+
         return cls(
             task_id=task_id,
             task_name=task_name or event.get('name', 'unknown'),
             event_type=event_type,
-            timestamp=datetime.fromtimestamp(event.get('timestamp', datetime.now().timestamp())),
+            # Use server receive time instead of worker's timestamp to avoid clock skew issues
+            timestamp=datetime.now(timezone.utc),
             args=args_str,
             kwargs=kwargs_str,
             retries=event.get('retries', 0),
@@ -245,11 +257,11 @@ class WorkerEvent(BaseModel):
     def from_celery_event(cls, event: dict) -> 'WorkerEvent':
         """Create WorkerEvent from Celery worker event"""
         event_type = event.get('type', 'unknown')
-        
+
         return cls(
             hostname=event.get('hostname', 'unknown'),
             event_type=event_type,
-            timestamp=datetime.fromtimestamp(event.get('timestamp', datetime.now().timestamp())),
+            timestamp=datetime.fromtimestamp(event.get('timestamp', datetime.now(timezone.utc).timestamp()), tz=timezone.utc),
             active=event.get('active'),
             processed=event.get('processed'),
             pool=event.get('pool'),

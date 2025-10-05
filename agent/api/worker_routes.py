@@ -1,6 +1,6 @@
 """API routes for worker-related endpoints."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -34,7 +34,7 @@ def create_router(app_state) -> APIRouter:
             worker_info = WorkerInfo(
                 hostname=hostname,
                 status=data.get('status', 'unknown'),
-                timestamp=data.get('timestamp', datetime.now()),
+                timestamp=data.get('timestamp', datetime.now(timezone.utc)),
                 active_tasks=data.get('active', 0),
                 processed_tasks=data.get('processed', 0),
                 sw_ident=data.get('sw_ident'),
@@ -62,7 +62,7 @@ def create_router(app_state) -> APIRouter:
         return WorkerInfo(
             hostname=hostname,
             status=data.get('status', 'unknown'),
-            timestamp=data.get('timestamp', datetime.now()),
+            timestamp=data.get('timestamp', datetime.now(timezone.utc)),
             active_tasks=data.get('active', 0),
             processed_tasks=data.get('processed', 0),
             sw_ident=data.get('sw_ident'),
