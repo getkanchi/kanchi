@@ -30,7 +30,6 @@ class ApplicationState:
         self.health_monitor: Optional[WorkerHealthMonitor] = None
 
 
-# Application state instance
 app_state = ApplicationState()
 
 
@@ -58,7 +57,6 @@ def create_app() -> FastAPI:
         lifespan=lifespan
     )
 
-    # Add CORS middleware
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -67,7 +65,6 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Import and include routers with dependencies
     from api.task_routes import create_router as create_task_router
     from api.worker_routes import create_router as create_worker_router
     from api.websocket_routes import create_router as create_websocket_router
@@ -95,18 +92,16 @@ async def initialize_application():
     """Initialize all application components."""
     config = Config.from_env()
     
-    # Setup logging
     logging.basicConfig(
         level=getattr(logging, config.log_level),
         format=config.log_format
     )
     
-    # Initialize database
     app_state.db_manager = DatabaseManager(config.database_url)
-    app_state.db_manager.create_tables()
-    logger.info(f"Database initialized with URL: {config.database_url}")
+    logger.info(f"Running database migrations for: {config.database_url}")
+    app_state.db_manager.run_migrations()
+    logger.info(f"Database migrations completed")
     
-    # Initialize stats if not exists
     with app_state.db_manager.get_session() as session:
         from database import TaskStatsDB
         stats = session.query(TaskStatsDB).filter_by(id=1).first()
@@ -115,16 +110,12 @@ async def initialize_application():
             session.add(stats)
             session.commit()
     
-    # Initialize connection manager
     app_state.connection_manager = ConnectionManager()
     
-    # Initialize event handler
     app_state.event_handler = EventHandler(app_state.db_manager, app_state.connection_manager)
     
-    # Start Celery monitor
     start_monitor(config)
     
-    # Start worker health monitor
     start_health_monitor()
 
 
@@ -137,11 +128,9 @@ def start_monitor(config: Config):
     logger.info(f"Starting Celery monitor with broker: {config.broker_url}")
     app_state.monitor_instance = CeleryEventMonitor(config.broker_url)
     
-    # Set simplified callbacks
     app_state.monitor_instance.set_task_callback(app_state.event_handler.handle_task_event)
     app_state.monitor_instance.set_worker_callback(app_state.event_handler.handle_worker_event)
     
-    # Start monitoring in a separate thread
     app_state.monitor_thread = threading.Thread(target=app_state.monitor_instance.start_monitoring)
     app_state.monitor_thread.daemon = True
     app_state.monitor_thread.start()
@@ -175,7 +164,6 @@ def start_server():
     )
 
 
-# Create the app instance for external use
 app = create_app()
 
 

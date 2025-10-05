@@ -1,10 +1,11 @@
 """Database models and session management for Kanchi."""
 
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Dict, Any
 from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, DateTime, JSON, Text, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.pool import StaticPool
 from contextlib import contextmanager
 import json
 
@@ -26,44 +27,40 @@ class TaskEventDB(Base):
     exchange = Column(String(255))
     routing_key = Column(String(255))
     
-    # Task hierarchy
     root_id = Column(String(255), index=True)
     parent_id = Column(String(255), index=True)
     
-    # Task parameters - stored as JSON
     args = Column(JSON)
     kwargs = Column(JSON)
     retries = Column(Integer, default=0)
     eta = Column(String(50))
     expires = Column(String(50))
     
-    # Results
     result = Column(JSON)
     runtime = Column(Float)
     exception = Column(Text)
     traceback = Column(Text)
     
-    # Retry tracking
     retry_of = Column(String(255), index=True)
     retried_by = Column(Text)  # JSON serialized list
     is_retry = Column(Boolean, default=False)
     has_retries = Column(Boolean, default=False)
     retry_count = Column(Integer, default=0)
     
-    # Orphan task tracking
     is_orphan = Column(Boolean, default=False, index=True)
     orphaned_at = Column(DateTime)
     
-    # Composite index for common queries
     __table_args__ = (
         Index('idx_task_timestamp', 'task_id', 'timestamp'),
         Index('idx_event_type_timestamp', 'event_type', 'timestamp'),
-        # Performance optimization indexes for /recent endpoint
         Index('idx_recent_events_optimized', 'timestamp', 'event_type', 'task_id'),
         Index('idx_aggregation_optimized', 'task_id', 'timestamp', 'event_type'),
         Index('idx_orphan_lookup', 'is_orphan', 'orphaned_at'),
         Index('idx_hostname_routing', 'hostname', 'routing_key', 'timestamp'),
         Index('idx_task_name_search', 'task_name', 'timestamp'),
+        Index('idx_retry_tracking', 'task_id', 'is_retry', 'retry_of'),
+        Index('idx_active_tasks', 'event_type', 'timestamp'),
+        Index('idx_routing_key_timestamp', 'routing_key', 'timestamp'),
     )
     
     def to_dict(self) -> Dict[str, Any]:
@@ -102,7 +99,7 @@ class TaskEventDB(Base):
 class WorkerEventDB(Base):
     """SQLAlchemy model for worker events."""
     __tablename__ = 'worker_events'
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     hostname = Column(String(255), nullable=False, index=True)
     event_type = Column(String(50), nullable=False)
@@ -110,6 +107,11 @@ class WorkerEventDB(Base):
     status = Column(String(50))
     active_tasks = Column(JSON)
     processed = Column(Integer, default=0)
+
+    __table_args__ = (
+        Index('idx_worker_status', 'hostname', 'event_type', 'timestamp'),
+        Index('idx_worker_heartbeat', 'hostname', 'timestamp'),
+    )
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for API responses."""
@@ -152,7 +154,7 @@ class TaskStatsDB(Base):
 class RetryRelationshipDB(Base):
     """SQLAlchemy model for retry relationships."""
     __tablename__ = 'retry_relationships'
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     task_id = Column(String(255), nullable=False, unique=True, index=True)
     original_id = Column(String(255), nullable=False, index=True)
@@ -161,55 +163,51 @@ class RetryRelationshipDB(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-
-"""
-SQL STATEMENTS FOR ALEMBIC MIGRATION:
-
--- Performance optimization indexes for task_events table
--- Add these to your Alembic migration file:
-
-CREATE INDEX idx_recent_events_optimized ON task_events (timestamp DESC, event_type, task_id);
-CREATE INDEX idx_aggregation_optimized ON task_events (task_id, timestamp DESC, event_type);
-CREATE INDEX idx_orphan_lookup ON task_events (is_orphan, orphaned_at DESC);
-CREATE INDEX idx_hostname_routing ON task_events (hostname, routing_key, timestamp DESC);
-CREATE INDEX idx_task_name_search ON task_events (task_name, timestamp DESC);
-
--- Retry relationships table optimization
-CREATE INDEX idx_retry_bulk_lookup ON retry_relationships (task_id, original_id);
-
--- Worker events optimization
-CREATE INDEX idx_worker_recent ON worker_events (hostname, timestamp DESC, event_type);
-"""
+    __table_args__ = (
+        Index('idx_retry_bulk_lookup', 'task_id', 'original_id'),
+    )
 
 
 class DatabaseManager:
     """Manage database connections and sessions."""
-    
+
     def __init__(self, database_url: str):
-        """Initialize database manager.
-        
-        Args:
-            database_url: SQLAlchemy database URL (e.g., 'sqlite:///kanchi.db', 'postgresql://...')
-        """
-        self.engine = create_engine(
-            database_url,
-            pool_pre_ping=True,  # Verify connections before using
-            pool_size=20,        # Increase pool size for concurrent requests
-            max_overflow=30,     # Allow overflow connections
-            pool_recycle=3600,   # Recycle connections hourly
-            pool_timeout=30,     # Timeout for getting connection from pool
-            echo=False  # Set to True for SQL debugging
-        )
+        self.database_url = database_url
+        is_sqlite = database_url.startswith('sqlite')
+
+        if is_sqlite:
+            self.engine = create_engine(
+                database_url,
+                poolclass=StaticPool,
+                pool_pre_ping=True,
+                echo=False,
+                connect_args={"check_same_thread": False}
+            )
+        else:
+            self.engine = create_engine(
+                database_url,
+                pool_size=20,
+                max_overflow=30,
+                pool_recycle=3600,
+                pool_timeout=30,
+                pool_pre_ping=True,
+                echo=False
+            )
+
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
-        
-    def create_tables(self):
-        """Create all tables in the database."""
-        Base.metadata.create_all(bind=self.engine)
-    
-    def drop_tables(self):
-        """Drop all tables in the database."""
-        Base.metadata.drop_all(bind=self.engine)
-    
+
+    def run_migrations(self):
+        """Run Alembic migrations to upgrade database to latest version."""
+        from alembic.config import Config as AlembicConfig
+        from alembic import command
+        import os
+
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        alembic_ini_path = os.path.join(current_dir, 'alembic.ini')
+        alembic_cfg = AlembicConfig(alembic_ini_path)
+        alembic_cfg.set_main_option('sqlalchemy.url', self.database_url)
+        command.upgrade(alembic_cfg, 'head')
+
     @contextmanager
     def get_session(self) -> Session:
         """Get a database session context manager."""
@@ -220,13 +218,5 @@ class DatabaseManager:
         except Exception:
             session.rollback()
             raise
-        finally:
-            session.close()
-    
-    def get_session_dependency(self) -> Session:
-        """FastAPI dependency for getting a database session."""
-        session = self.SessionLocal()
-        try:
-            yield session
         finally:
             session.close()
