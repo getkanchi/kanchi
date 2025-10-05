@@ -4,6 +4,7 @@ import { formatTime, calculateDuration } from '~/composables/useDateTimeFormatte
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import TaskName from '~/components/TaskName.vue'
+import TimeDisplay from '~/components/TimeDisplay.vue'
 import { RefreshCw } from 'lucide-vue-next'
 import type { TaskEventResponse } from '~/services/apiClient'
 
@@ -47,7 +48,11 @@ export function getTaskColumns(): ColumnDef<TaskEventResponse>[] {
     {
       accessorKey: 'timestamp',
       header: 'Time',
-      cell: ({ row }) => h("div", { class: "text-sm" }, formatTime(row.getValue("timestamp"))),
+      cell: ({ row }) => h(TimeDisplay, {
+        timestamp: row.getValue("timestamp"),
+        autoRefresh: true,
+        refreshInterval: 10000
+      }),
       enableSorting: true,
       sortDescFirst: true
     },
@@ -120,7 +125,11 @@ export function getOrphanTaskColumns(options?: {
       cell: ({ row }) => {
         const orphanedAt = row.original.orphaned_at
         if (!orphanedAt) return h("div", { class: "text-gray-400" }, "-")
-        return h("div", { class: "text-sm" }, formatTime(orphanedAt))
+        return h(TimeDisplay, {
+          timestamp: orphanedAt,
+          autoRefresh: true,
+          refreshInterval: 10000
+        })
       },
       enableSorting: true,
       sortDescFirst: true

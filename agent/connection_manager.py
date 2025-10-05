@@ -2,8 +2,7 @@
 
 import asyncio
 import logging
-from queue import Queue
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from fastapi import WebSocket
 
@@ -19,14 +18,17 @@ class ConnectionManager:
         self.active_connections: List[WebSocket] = []
         self.client_filters: Dict[WebSocket, dict] = {}
         self.client_modes: Dict[WebSocket, str] = {}
-        self.message_queue = Queue()
+        self.message_queue: Optional[asyncio.Queue] = None
         self._broadcast_task = None
         self._running = False
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
 
     def start_background_broadcaster(self):
         """Start the background task that processes queued messages."""
         if self._broadcast_task is None and not self._running:
             self._running = True
+            self._loop = asyncio.get_event_loop()
+            self.message_queue = asyncio.Queue()
             self._broadcast_task = asyncio.create_task(self._background_broadcaster())
             logger.info("Background broadcaster started")
 
@@ -34,18 +36,24 @@ class ConnectionManager:
         """Background task that processes the message queue."""
         while self._running:
             try:
-                if not self.message_queue.empty():
-                    message_type, data = self.message_queue.get_nowait()
+                # Use asyncio.Queue.get() with timeout to allow clean shutdown
+                try:
+                    message_type, data = await asyncio.wait_for(
+                        self.message_queue.get(),
+                        timeout=0.1
+                    )
 
                     if message_type == "task":
                         await self._broadcast_task_event(data)
                     elif message_type == "worker":
                         await self._broadcast_worker_event(data)
 
-                await asyncio.sleep(0.01)
+                except asyncio.TimeoutError:
+                    # No message available, continue loop
+                    continue
 
             except Exception as e:
-                logger.error(f"Error in background broadcaster: {e}")
+                logger.error(f"Error in background broadcaster: {e}", exc_info=True)
                 await asyncio.sleep(0.1)
 
     async def stop_background_broadcaster(self):
@@ -82,14 +90,38 @@ class ConnectionManager:
         logger.info(f"Client disconnected. Total connections: {len(self.active_connections)}")
 
     def queue_broadcast(self, task_event: TaskEvent):
-        """Queue a task event for broadcasting (called from sync context)."""
-        if self.active_connections:
-            self.message_queue.put(("task", task_event))
+        """
+        Queue a task event for broadcasting (thread-safe, called from sync context).
+
+        Uses call_soon_threadsafe to safely schedule the put operation on the event loop.
+        This prevents segfaults when daemon threads (Celery monitor, worker health monitor)
+        try to broadcast events to the async WebSocket handler.
+        """
+        if self.active_connections and self._loop and self.message_queue:
+            try:
+                # Thread-safe way to put into asyncio.Queue from daemon thread
+                self._loop.call_soon_threadsafe(
+                    self.message_queue.put_nowait, ("task", task_event)
+                )
+            except Exception as e:
+                logger.error(f"Error queuing task event: {e}", exc_info=True)
 
     def queue_worker_broadcast(self, worker_event: WorkerEvent):
-        """Queue a worker event for broadcasting (called from sync context)."""
-        if self.active_connections:
-            self.message_queue.put(("worker", worker_event))
+        """
+        Queue a worker event for broadcasting (thread-safe, called from sync context).
+
+        Uses call_soon_threadsafe to safely schedule the put operation on the event loop.
+        This prevents segfaults when daemon threads (Celery monitor, worker health monitor)
+        try to broadcast events to the async WebSocket handler.
+        """
+        if self.active_connections and self._loop and self.message_queue:
+            try:
+                # Thread-safe way to put into asyncio.Queue from daemon thread
+                self._loop.call_soon_threadsafe(
+                    self.message_queue.put_nowait, ("worker", worker_event)
+                )
+            except Exception as e:
+                logger.error(f"Error queuing worker event: {e}", exc_info=True)
 
     async def _broadcast_task_event(self, task_event: TaskEvent):
         """Broadcast a task event to all connected clients."""

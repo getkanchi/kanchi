@@ -154,7 +154,11 @@
                         <div v-if="row.original.orphaned_at" class="flex items-center gap-1.5">
                           <Clock class="h-3.5 w-3.5 text-gray-400" />
                           <span class="text-gray-500">Orphaned:</span>
-                          <span class="font-medium text-sm">{{ formatTime(row.original.orphaned_at) }}</span>
+                          <TimeDisplay
+                            :timestamp="row.original.orphaned_at"
+                            :auto-refresh="true"
+                            :refresh-interval="10000"
+                          />
                         </div>
                       </div>
                     </div>
@@ -277,6 +281,7 @@ import StatusDot from '~/components/StatusDot.vue'
 import CopyButton from '~/components/CopyButton.vue'
 import SearchInput from '~/components/SearchInput.vue'
 import RetryTaskConfirmDialog from '~/components/RetryTaskConfirmDialog.vue'
+import TimeDisplay from '~/components/TimeDisplay.vue'
 import { formatTime } from '~/composables/useDateTimeFormatters'
 import {
   Table,
