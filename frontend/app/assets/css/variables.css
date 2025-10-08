@@ -15,6 +15,7 @@
   
   /* Borders & Highlights */
   --border: hsl(0, 0%, 9%);
+  --border-subtle: hsl(0, 0%, 7%);
   --highlight: hsl(0, 0%, 29%);
   
   /* === Interactive States === */
@@ -90,6 +91,7 @@
   
   /* Borders & Highlights */
   --border: hsl(0, 0%, 85%);
+  --border-subtle: hsl(0, 0%, 88%);
   --highlight: hsl(0, 0%, 100%);
   
   /* === Interactive States === */

@@ -26,6 +26,7 @@ import TimeRangeFilter from "~/components/TimeRangeFilter.vue";
 import RetryChain from "~/components/RetryChain.vue";
 import RetryTaskConfirmDialog from "~/components/RetryTaskConfirmDialog.vue";
 import BaseIconButton from "~/components/BaseIconButton.vue";
+import PythonValueViewer from "~/components/PythonValueViewer.vue";
 import type { ParsedFilter } from '~/composables/useFilterParser'
 import type { TimeRange } from '~/components/TimeRangeFilter.vue'
 
@@ -230,53 +231,50 @@ const mapTaskToRetryChainFormat = (task: any) => {
             <TableRow v-if="expandedRows.has(row.original.task_id)" class="bg-muted/30 border-border">
               <TableCell :colspan="columns.length + 1" class="p-0">
                 <div class="px-8 py-6">
-                  
-                  <!-- Retry Button Section -->
-                  <div class="flex justify-end items-end w-full">
-                      <BaseIconButton
-                        :icon="RefreshCw"
-                        @click="() => { currentRetryTaskId = row.original.task_id; retryDialogRef?.open() }"
-                        :disabled="isRetrying"
-                        :loading="isRetrying && currentRetryTaskId === row.original.task_id"
-                        size="sm"
-                        variant="ghost"
-                      />
-                  </div>
-                  
-                  <div class="grid grid-cols-2 md:grid-cols-4 gap-6 text-sm mb-2">
-                    
-                    <div class="flex items-center gap-1.5">
-                      <Hash class="h-3.5 w-3.5 text-gray-400" />
-                      <span class="text-gray-500">ID:</span>
-                      <code class="text-xs bg-background-surface px-1 py-0.5 rounded">{{ row.original.task_id }}</code>
-                      <CopyButton 
-                        :text="row.original.task_id" 
-                        :copy-key="`task-id-${row.original.task_id}`"
-                        title="Copy task ID"
-                        :show-text="true"
-                      />
+
+                  <!-- Task Details and Retry Button in one line -->
+                  <div class="flex items-center justify-between gap-6 text-sm mb-6">
+                    <div class="flex items-center gap-6 flex-wrap">
+                      <div class="flex items-center gap-1.5">
+                        <Hash class="h-3.5 w-3.5 text-gray-400" />
+                        <span class="text-gray-500">ID:</span>
+                        <code class="text-xs bg-background-surface px-1 py-0.5 rounded">{{ row.original.task_id }}</code>
+                        <CopyButton
+                          :text="row.original.task_id"
+                          :copy-key="`task-id-${row.original.task_id}`"
+                          title="Copy task ID"
+                          :show-text="true"
+                        />
+                      </div>
+
+                      <div class="flex items-center gap-1.5">
+                        <Database class="h-3.5 w-3.5 text-gray-400" />
+                        <span class="text-gray-500">Queue:</span>
+                        <span class="font-medium text-sm">{{ row.original.routing_key || 'default' }}</span>
+                      </div>
+
+                      <div v-if="row.original.hostname" class="flex items-center gap-1.5">
+                        <Cpu class="h-3.5 w-3.5 text-gray-400" />
+                        <span class="text-gray-500">Worker:</span>
+                        <span class="font-medium text-sm">{{ row.original.hostname }}</span>
+                      </div>
+
+                      <div v-if="row.original.eta" class="flex items-center gap-1.5">
+                        <Clock class="h-3.5 w-3.5 text-gray-400" />
+                        <span class="text-gray-500">ETA:</span>
+                        <span class="font-medium text-sm">{{ row.original.eta }}</span>
+                      </div>
                     </div>
-                    
-                    
-                    <div class="flex items-center gap-1.5">
-                      <Database class="h-3.5 w-3.5 text-gray-400" />
-                      <span class="text-gray-500">Queue:</span>
-                      <span class="font-medium text-sm">{{ row.original.routing_key || 'default' }}</span>
-                    </div>
-                    
-                    
-                    <div v-if="row.original.hostname" class="flex items-center gap-1.5">
-                      <Cpu class="h-3.5 w-3.5 text-gray-400" />
-                      <span class="text-gray-500">Worker:</span>
-                      <span class="font-medium text-sm">{{ row.original.hostname }}</span>
-                    </div>
-                    
-                    
-                    <div v-if="row.original.eta" class="flex items-center gap-1.5">
-                      <Clock class="h-3.5 w-3.5 text-gray-400" />
-                      <span class="text-gray-500">ETA:</span>
-                      <span class="font-medium text-sm">{{ row.original.eta }}</span>
-                    </div>
+
+                    <!-- Retry Button -->
+                    <BaseIconButton
+                      :icon="RefreshCw"
+                      @click="() => { currentRetryTaskId = row.original.task_id; retryDialogRef?.open() }"
+                      :disabled="isRetrying"
+                      :loading="isRetrying && currentRetryTaskId === row.original.task_id"
+                      size="sm"
+                      variant="ghost"
+                    />
                   </div>
                   
                   <!-- Retry Chain Section -->
@@ -295,34 +293,24 @@ const mapTaskToRetryChainFormat = (task: any) => {
                     />
                   </div>
                   
-                  <div class="space-y-2">
-                    
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      <div v-if="row.original.args" class="p-4 border border-border rounded-md bg-background-surface">
-                        <div class="flex items-center justify-between mb-3">
-                          <h4 class="text-sm font-medium text-gray-500">Arguments:</h4>
-                          <CopyButton 
-                            :text="row.original.args"
-                            :copy-key="`args-${row.original.task_id}`"
-                            title="Copy arguments"
-                            :show-text="true"
-                          />
-                        </div>
-                        <pre class="bg-background-surface p-3 rounded text-xs overflow-x-auto">{{ row.original.args }}</pre>
-                      </div>
-                      
-                      <div v-if="row.original.kwargs" class="p-4 border border-border rounded-md bg-background-surface">
-                        <div class="flex items-center justify-between mb-3">
-                          <h4 class="text-sm font-medium text-gray-500">Keyword Arguments:</h4>
-                          <CopyButton 
-                            :text="row.original.kwargs"
-                            :copy-key="`kwargs-${row.original.task_id}`"
-                            title="Copy kwargs"
-                            :show-text="true"
-                          />
-                        </div>
-                        <pre class="bg-background-surface p-3 rounded text-xs overflow-x-auto">{{ row.original.kwargs }}</pre>
-                      </div>
+                  <div class="space-y-4">
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <PythonValueViewer
+                        v-if="row.original.args"
+                        :value="row.original.args"
+                        title="Arguments"
+                        :copy-key="`args-${row.original.task_id}`"
+                        empty-message="No arguments"
+                      />
+
+                      <PythonValueViewer
+                        v-if="row.original.kwargs"
+                        :value="row.original.kwargs"
+                        title="Keyword Arguments"
+                        :copy-key="`kwargs-${row.original.task_id}`"
+                        empty-message="No keyword arguments"
+                      />
                     </div>
                     
                     

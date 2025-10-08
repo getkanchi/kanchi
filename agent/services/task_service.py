@@ -328,6 +328,12 @@ class TaskService:
     
     def _db_to_task_event(self, event_db: TaskEventDB) -> TaskEvent:
         """Convert database model to TaskEvent object."""
+        import json
+
+        # SQLAlchemy JSON column deserializes to Python objects, but TaskEvent expects strings
+        args_str = json.dumps(event_db.args) if event_db.args is not None else "()"
+        kwargs_str = json.dumps(event_db.kwargs) if event_db.kwargs is not None else "{}"
+
         task_event = TaskEvent(
             task_id=event_db.task_id,
             task_name=event_db.task_name,
@@ -336,12 +342,12 @@ class TaskService:
             hostname=event_db.hostname,
             worker_name=event_db.worker_name,
             queue=event_db.queue,
-            exchange=event_db.exchange,
+            exchange=event_db.exchange or "",
             routing_key=event_db.routing_key,
             root_id=event_db.root_id,
             parent_id=event_db.parent_id,
-            args=event_db.args,
-            kwargs=event_db.kwargs,
+            args=args_str,
+            kwargs=kwargs_str,
             retries=event_db.retries,
             eta=event_db.eta,
             expires=event_db.expires,

@@ -44,7 +44,8 @@ export default {
         // Border colors
         border: {
           DEFAULT: 'var(--border)',
-          highlight: 'var(--highlight)'
+          highlight: 'var(--highlight)',
+          subtle: 'var(--border-subtle)'
         },
         // Primary/Brand colors
         primary: {
