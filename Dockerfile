@@ -26,7 +26,7 @@ COPY agent/pyproject.toml agent/poetry.lock* ./agent/
 RUN pip install poetry && \
     cd agent && \
     poetry config virtualenvs.create false && \
-    poetry install --without dev --extras postgresql
+    poetry install --without dev
 
 COPY agent/ ./agent/
 
