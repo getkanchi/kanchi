@@ -63,7 +63,7 @@ class TaskService:
         # Handle queue information: preserve from task-sent events for subsequent events
         routing_key = task_event.routing_key
         queue = task_event.queue
-        
+
         # If this event doesn't have queue info, try to get it from a previous task-sent event
         if not routing_key or routing_key == 'default':
             existing_sent_event = self.session.query(TaskEventDB).filter_by(
@@ -75,7 +75,23 @@ class TaskService:
                 routing_key = existing_sent_event.routing_key
                 queue = existing_sent_event.queue
 
-        
+        # Handle args/kwargs: preserve from task-received events for subsequent events
+        args = task_event.args if isinstance(task_event.args, (list, dict)) else str(task_event.args)
+        kwargs = task_event.kwargs if isinstance(task_event.kwargs, dict) else str(task_event.kwargs)
+
+        # If args/kwargs are empty, try to get them from the task-received event
+        if (not args or args == "()" or args == []) and (not kwargs or kwargs == "{}" or kwargs == {}):
+            existing_received_event = self.session.query(TaskEventDB).filter_by(
+                task_id=task_event.task_id,
+                event_type='task-received'
+            ).first()
+
+            if existing_received_event:
+                if existing_received_event.args:
+                    args = existing_received_event.args
+                if existing_received_event.kwargs:
+                    kwargs = existing_received_event.kwargs
+
         task_event_db = TaskEventDB(
             task_id=task_event.task_id,
             task_name=task_event.task_name,
@@ -88,8 +104,8 @@ class TaskService:
             routing_key=routing_key,
             root_id=task_event.root_id,
             parent_id=task_event.parent_id,
-            args=task_event.args if isinstance(task_event.args, (list, dict)) else str(task_event.args),
-            kwargs=task_event.kwargs if isinstance(task_event.kwargs, dict) else str(task_event.kwargs),
+            args=args,
+            kwargs=kwargs,
             retries=task_event.retries,
             eta=task_event.eta,
             expires=task_event.expires,

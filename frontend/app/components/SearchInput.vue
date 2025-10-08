@@ -83,7 +83,7 @@
       <input
         ref="inputRef"
         type="text"
-        :placeholder="activeFilters.length > 0 || currentFilter.field ? '' : 'Search or filter: state, worker, task, queue, id'"
+        :placeholder="activeFilters.length > 0 || currentFilter.field ? '' : 'Search or filter for state, worker, task and more'"
         class="flex-1 bg-transparent border-0 outline-0 text-sm min-w-0 h-8 py-1"
         :value="currentFilter.field ? currentFilter.partial : currentInput"
         @input="handleInput"
