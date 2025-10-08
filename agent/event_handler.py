@@ -52,21 +52,17 @@ class EventHandler:
             logger.error(f"Error handling task event {task_event.task_id}: {e}", exc_info=True)
 
     def handle_worker_event(self, worker_event: WorkerEvent):
-        """Handle worker event: save to DB and broadcast to WebSocket."""
+        """Handle worker event: broadcast to WebSocket and handle orphan detection."""
         try:
-            # Save to database
-            with self.db_manager.get_session() as session:
-                worker_service = WorkerService(session)
-                worker_service.save_worker_event(worker_event)
-
-                # If worker went offline, mark its running tasks as orphaned
-                if worker_event.event_type == 'worker-offline':
-                    logger.info(
-                        f"Worker {worker_event.hostname} went offline, "
-                        f"marking tasks as orphaned"
-                    )
-                    # Use current server time, not worker timestamp (worker clock may be wrong)
-                    orphaned_at = datetime.now(timezone.utc)
+            # If worker went offline, mark its running tasks as orphaned
+            if worker_event.event_type == 'worker-offline':
+                logger.info(
+                    f"Worker {worker_event.hostname} went offline, "
+                    f"marking tasks as orphaned"
+                )
+                # Use current server time, not worker timestamp (worker clock may be wrong)
+                orphaned_at = datetime.now(timezone.utc)
+                with self.db_manager.get_session() as session:
                     self._mark_tasks_as_orphaned(session, worker_event.hostname, orphaned_at)
 
             # Broadcast to WebSocket
