@@ -4,7 +4,7 @@ import PythonValueNode from './PythonValueNode.vue'
 import CopyButton from './CopyButton.vue'
 
 interface Props {
-  value: string | null | undefined
+  value: any  // Can be object (from API/WebSocket) or string (legacy)
   title: string
   copyKey: string
   emptyMessage?: string
@@ -14,16 +14,26 @@ const props = withDefaults(defineProps<Props>(), {
   emptyMessage: 'No data'
 })
 
-// Parse the value (assuming it's JSON from Python)
+// Parse the value (can be object or JSON string)
 const parsedValue = computed(() => {
   if (!props.value) return null
 
-  try {
-    return JSON.parse(props.value)
-  } catch (e) {
-    // If it's not valid JSON, return as string
+  // If already an object, use it directly
+  if (typeof props.value === 'object') {
     return props.value
   }
+
+  // If string, try to parse as JSON
+  if (typeof props.value === 'string') {
+    try {
+      return JSON.parse(props.value)
+    } catch (e) {
+      // If it's not valid JSON, return as string
+      return props.value
+    }
+  }
+
+  return props.value
 })
 
 // Check if value is empty
@@ -49,6 +59,15 @@ const displayType = computed(() => {
   if (typeof parsedValue.value === 'object') return 'dict'
   return 'value'
 })
+
+// Computed value for copying (always stringify if object)
+const copyValue = computed(() => {
+  if (!props.value) return ''
+  if (typeof props.value === 'object') {
+    return JSON.stringify(props.value, null, 2)
+  }
+  return props.value
+})
 </script>
 
 <template>
@@ -63,7 +82,7 @@ const displayType = computed(() => {
       </div>
       <CopyButton
         v-if="value"
-        :text="value"
+        :text="copyValue"
         :copy-key="copyKey"
         :title="`Copy ${title.toLowerCase()}`"
         :show-text="false"

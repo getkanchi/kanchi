@@ -76,11 +76,35 @@ class TaskService:
                 queue = existing_sent_event.queue
 
         # Handle args/kwargs: preserve from task-received events for subsequent events
-        args = task_event.args if isinstance(task_event.args, (list, dict)) else str(task_event.args)
-        kwargs = task_event.kwargs if isinstance(task_event.kwargs, dict) else str(task_event.kwargs)
+        # TaskEvent.args and TaskEvent.kwargs are JSON strings, we need to parse them to Python objects
+        # because the database column is JSON type (will auto-serialize Python objects)
+
+        # Parse args - expect JSON string from TaskEvent
+        if isinstance(task_event.args, (list, dict)):
+            args = task_event.args
+        elif isinstance(task_event.args, str):
+            try:
+                args = json.loads(task_event.args)
+            except (json.JSONDecodeError, ValueError):
+                # Fallback: keep as string (old format)
+                args = task_event.args
+        else:
+            args = task_event.args
+
+        # Parse kwargs - expect JSON string from TaskEvent
+        if isinstance(task_event.kwargs, dict):
+            kwargs = task_event.kwargs
+        elif isinstance(task_event.kwargs, str):
+            try:
+                kwargs = json.loads(task_event.kwargs)
+            except (json.JSONDecodeError, ValueError):
+                # Fallback: keep as string (old format)
+                kwargs = task_event.kwargs
+        else:
+            kwargs = task_event.kwargs
 
         # If args/kwargs are empty, try to get them from the task-received event
-        if (not args or args == "()" or args == []) and (not kwargs or kwargs == "{}" or kwargs == {}):
+        if (not args or args == "()" or args == [] or args == "[]") and (not kwargs or kwargs == "{}" or kwargs == {} or kwargs == "{}"):
             existing_received_event = self.session.query(TaskEventDB).filter_by(
                 task_id=task_event.task_id,
                 event_type='task-received'

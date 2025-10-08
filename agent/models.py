@@ -55,15 +55,53 @@ class TaskEvent:
         data['timestamp'] = ensure_utc_iso(data['timestamp'])
         data['orphaned_at'] = ensure_utc_iso(data.get('orphaned_at'))
 
+        # Parse args/kwargs from JSON strings back to Python objects
+        # This ensures WebSocket clients receive proper JSON objects, not stringified JSON
+        if isinstance(data.get('args'), str):
+            try:
+                data['args'] = json.loads(data['args'])
+            except (json.JSONDecodeError, ValueError):
+                data['args'] = []  # Default to empty list if parsing fails
+
+        if isinstance(data.get('kwargs'), str):
+            try:
+                data['kwargs'] = json.loads(data['kwargs'])
+            except (json.JSONDecodeError, ValueError):
+                data['kwargs'] = {}  # Default to empty dict if parsing fails
+
         if data.get('retry_of') and isinstance(data['retry_of'], dict):
             data['retry_of']['timestamp'] = ensure_utc_iso(data['retry_of'].get('timestamp'))
             data['retry_of']['orphaned_at'] = ensure_utc_iso(data['retry_of'].get('orphaned_at'))
+
+            # Parse nested retry_of args/kwargs too
+            if isinstance(data['retry_of'].get('args'), str):
+                try:
+                    data['retry_of']['args'] = json.loads(data['retry_of']['args'])
+                except (json.JSONDecodeError, ValueError):
+                    data['retry_of']['args'] = []
+            if isinstance(data['retry_of'].get('kwargs'), str):
+                try:
+                    data['retry_of']['kwargs'] = json.loads(data['retry_of']['kwargs'])
+                except (json.JSONDecodeError, ValueError):
+                    data['retry_of']['kwargs'] = {}
 
         if data.get('retried_by'):
             for retry_task in data['retried_by']:
                 if isinstance(retry_task, dict):
                     retry_task['timestamp'] = ensure_utc_iso(retry_task.get('timestamp'))
                     retry_task['orphaned_at'] = ensure_utc_iso(retry_task.get('orphaned_at'))
+
+                    # Parse nested retried_by args/kwargs too
+                    if isinstance(retry_task.get('args'), str):
+                        try:
+                            retry_task['args'] = json.loads(retry_task['args'])
+                        except (json.JSONDecodeError, ValueError):
+                            retry_task['args'] = []
+                    if isinstance(retry_task.get('kwargs'), str):
+                        try:
+                            retry_task['kwargs'] = json.loads(retry_task['kwargs'])
+                        except (json.JSONDecodeError, ValueError):
+                            retry_task['kwargs'] = {}
 
         return data
     
@@ -84,19 +122,43 @@ class TaskEvent:
 
         # Get task info
         task_id = event.get('uuid', '')
-        
+
         # Handle different event types
+        # Celery sends args/kwargs as STRING representations of Python objects
+        # e.g., "({'key': 'value'},)" for args, "{'key': 'value'}" for kwargs
+        # We need to: 1) Parse string to Python object, 2) Convert to JSON
+        import ast
+
         kwargs_data = event.get('kwargs', {})
-        if isinstance(kwargs_data, dict):
-            kwargs_str = str(kwargs_data)
-        else:
-            kwargs_str = str(kwargs_data)
-            
         args_data = event.get('args', ())
-        if isinstance(args_data, (list, tuple)):
-            args_str = str(args_data)
-        else:
-            args_str = str(args_data)
+
+        # Parse and convert kwargs
+        try:
+            # If it's a string, parse it as Python literal
+            if isinstance(kwargs_data, str):
+                kwargs_obj = ast.literal_eval(kwargs_data) if kwargs_data and kwargs_data != '{}' else {}
+            else:
+                kwargs_obj = kwargs_data
+            kwargs_str = json.dumps(kwargs_obj)
+        except (ValueError, SyntaxError, TypeError):
+            # If parsing fails, keep as-is
+            kwargs_str = kwargs_data if isinstance(kwargs_data, str) else str(kwargs_data)
+
+        # Parse and convert args
+        try:
+            # If it's a string, parse it as Python literal
+            if isinstance(args_data, str):
+                args_obj = ast.literal_eval(args_data) if args_data and args_data != '()' else []
+            else:
+                args_obj = args_data
+
+            # Convert tuple to list for JSON serialization
+            if isinstance(args_obj, tuple):
+                args_obj = list(args_obj)
+            args_str = json.dumps(args_obj)
+        except (ValueError, SyntaxError, TypeError):
+            # If parsing fails, keep as-is
+            args_str = args_data if isinstance(args_data, str) else str(args_data)
             
 
         return cls(
@@ -139,13 +201,39 @@ class TaskInfo:
     @classmethod
     def from_celery_task(cls, task) -> 'TaskInfo':
         """Create TaskInfo from Celery task state object"""
+        import ast
         info = task.info() if hasattr(task, 'info') else {}
-        
+
+        # Parse and convert args (same logic as TaskEvent)
+        args_data = info.get('args', ())
+        try:
+            if isinstance(args_data, str):
+                args_obj = ast.literal_eval(args_data) if args_data and args_data != '()' else []
+            else:
+                args_obj = args_data
+
+            if isinstance(args_obj, tuple):
+                args_obj = list(args_obj)
+            args_str = json.dumps(args_obj)
+        except (ValueError, SyntaxError, TypeError):
+            args_str = args_data if isinstance(args_data, str) else str(args_data)
+
+        # Parse and convert kwargs (same logic as TaskEvent)
+        kwargs_data = info.get('kwargs', {})
+        try:
+            if isinstance(kwargs_data, str):
+                kwargs_obj = ast.literal_eval(kwargs_data) if kwargs_data and kwargs_data != '{}' else {}
+            else:
+                kwargs_obj = kwargs_data
+            kwargs_str = json.dumps(kwargs_obj)
+        except (ValueError, SyntaxError, TypeError):
+            kwargs_str = kwargs_data if isinstance(kwargs_data, str) else str(kwargs_data)
+
         return cls(
             uuid=task.uuid if hasattr(task, 'uuid') else '',
             name=task.name if hasattr(task, 'name') else 'unknown',
-            args=str(info.get('args', '()')),
-            kwargs=str(info.get('kwargs', '{}')),
+            args=args_str,
+            kwargs=kwargs_str,
             retries=info.get('retries', 0),
             result=str(info.get('result', '')),
             runtime=info.get('runtime'),
@@ -166,8 +254,8 @@ class TaskEventResponse(BaseModel):
     task_name: str
     event_type: str
     timestamp: datetime
-    args: str = "()"
-    kwargs: str = "{}"
+    args: Any = []  # Can be list, dict, or any JSON-serializable type
+    kwargs: Dict[str, Any] = Field(default_factory=dict)
     retries: int = 0
     eta: Optional[str] = None
     expires: Optional[str] = None
