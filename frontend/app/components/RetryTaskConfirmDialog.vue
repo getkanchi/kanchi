@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import ConfirmationDialog from '~/components/ConfirmationDialog.vue'
 import TaskName from '~/components/TaskName.vue'
 import CopyButton from '~/components/CopyButton.vue'
+import UuidDisplay from '~/components/UuidDisplay.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Pill } from '~/components/ui/pill'
@@ -85,11 +86,13 @@ defineExpose({ open })
             />
           </div>
           <div class="flex items-center justify-center gap-2 text-text-secondary">
-            <code class="text-sm bg-background-surface px-2 py-1 rounded font-mono">{{ task.task_id.slice(0, 12) }}...</code>
-            <CopyButton 
-              :text="task.task_id" 
-              :copy-key="`retry-dialog-${task.task_id}`"
-              title="Copy full task ID"
+            <UuidDisplay
+              :uuid="task.task_id"
+              :show-copy="true"
+              :show-copy-text="false"
+              copy-title="Copy full task ID"
+              :truncate-length="12"
+              size="sm"
             />
           </div>
         </div>

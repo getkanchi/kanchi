@@ -6,20 +6,24 @@ from typing import Optional
 @dataclass
 class Config:
     """Configuration for the Celery WebSocket Bridge"""
-    
+
     # Celery broker configuration (RabbitMQ URL)
     broker_url: str = os.getenv('RABBITMQ_URL')
-    
+
     # Database configuration
     database_url: str = os.getenv('DATABASE_URL', 'sqlite:///kanchi.db')  # Default to SQLite
-    
+
     # WebSocket server configuration
     ws_host: str = os.getenv('WS_HOST', 'localhost')
     ws_port: int = int(os.getenv('WS_PORT', 8765))
-    
+
+    # Development mode (enables unified logging)
+    development_mode: bool = os.getenv('DEVELOPMENT_MODE', 'false').lower() in ('true', '1', 'yes')
+
     # Logging configuration
     log_level: str = os.getenv('LOG_LEVEL', 'INFO')
     log_format: str = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    log_file: str = os.getenv('LOG_FILE', 'kanchi.log')
     
     # Event filtering (optional)
     event_types_filter: Optional[list] = None  # If set, only these event types will be broadcast

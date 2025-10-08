@@ -147,7 +147,7 @@ export const useWebSocketStore = defineStore('websocket', () => {
           break
 
         default:
-          console.log('Unknown response type:', messageType, message)
+          console.warn('Unknown response type:', messageType, message)
       }
       return
     }
@@ -167,7 +167,7 @@ export const useWebSocketStore = defineStore('websocket', () => {
         }
       }
     } else {
-      console.log('Unknown message type:', messageType, message)
+      console.warn('Unknown message type:', messageType, message)
     }
   }
 

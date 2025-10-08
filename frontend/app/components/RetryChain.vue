@@ -52,10 +52,12 @@
       <div v-if="parentTask" class="flex items-center gap-2 text-gray-400">
         <ArrowUp class="h-3 w-3" />
         <span>Parent:</span>
-        <code class="text-xs bg-background-surface px-1 py-0.5 rounded">
-          {{ parentTask.task_id.substring(0, 12) }}...
-        </code>
-        <CopyButton :text="parentTask.task_id" :show-text="false" />
+        <UuidDisplay
+          :uuid="parentTask.task_id"
+          :show-copy="true"
+          :show-copy-text="false"
+          :truncate-length="12"
+        />
       </div>
       
       <div v-if="retries.length > 0" class="space-y-1">
@@ -73,6 +75,7 @@ import { ref, computed } from 'vue'
 import { RefreshCw, ArrowRight, ArrowUp, ArrowDown } from 'lucide-vue-next'
 import StatusPill from './StatusPill.vue'
 import CopyButton from './CopyButton.vue'
+import UuidDisplay from './UuidDisplay.vue'
 
 interface Task {
   task_id: string

@@ -68,10 +68,14 @@ def create_app() -> FastAPI:
     from api.task_routes import create_router as create_task_router
     from api.worker_routes import create_router as create_worker_router
     from api.websocket_routes import create_router as create_websocket_router
-    
+    from api.log_routes import create_router as create_log_router
+    from api.registry_routes import create_router as create_registry_router
+
     app.include_router(create_task_router(app_state))
     app.include_router(create_worker_router(app_state))
     app.include_router(create_websocket_router(app_state))
+    app.include_router(create_log_router(app_state))
+    app.include_router(create_registry_router(app_state))
 
     @app.get("/api/health")
     async def health_check():
@@ -91,24 +95,44 @@ def create_app() -> FastAPI:
 async def initialize_application():
     """Initialize all application components."""
     config = Config.from_env()
-    
-    logging.basicConfig(
-        level=getattr(logging, config.log_level),
-        format=config.log_format
-    )
+
+    # Set up unified logging to file (only in development mode)
+    if config.development_mode:
+        # Clean the log file on startup
+        with open(config.log_file, 'w') as f:
+            f.write('')
+
+        # Configure root logger
+        logging.basicConfig(
+            level=getattr(logging, config.log_level),
+            format='%(asctime)s [BACKEND] %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler(config.log_file),
+                logging.StreamHandler()
+            ]
+        )
+
+        # Configure frontend logger
+        frontend_logger = logging.getLogger('kanchi.frontend')
+        frontend_logger.setLevel(getattr(logging, config.log_level))
+        # Create file handler with custom format for frontend logs
+        fh = logging.FileHandler(config.log_file)
+        fh.setFormatter(logging.Formatter('%(asctime)s [FRONTEND] %(levelname)s - %(message)s'))
+        frontend_logger.addHandler(fh)
+        frontend_logger.propagate = False  # Don't propagate to root logger
+
+        logger.info("Development mode enabled - unified logging active")
+    else:
+        # Production mode - standard logging without file output
+        logging.basicConfig(
+            level=getattr(logging, config.log_level),
+            format=config.log_format
+        )
     
     app_state.db_manager = DatabaseManager(config.database_url)
     logger.info(f"Running database migrations for: {config.database_url}")
     app_state.db_manager.run_migrations()
     logger.info(f"Database migrations completed")
-    
-    with app_state.db_manager.get_session() as session:
-        from database import TaskStatsDB
-        stats = session.query(TaskStatsDB).filter_by(id=1).first()
-        if not stats:
-            stats = TaskStatsDB(id=1)
-            session.add(stats)
-            session.commit()
     
     app_state.connection_manager = ConnectionManager()
     

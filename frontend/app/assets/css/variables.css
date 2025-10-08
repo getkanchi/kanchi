@@ -23,10 +23,13 @@
   --bg-hover-subtle: hsl(0, 0%, 8%);
   --bg-active: hsl(0, 0%, 15%);
   --bg-selected: hsl(0, 0%, 10%);
-  
+
   /* === Brand Colors === */
-  --primary: hsl(217, 91%, 60%);
-  --primary-hover: hsl(217, 91%, 55%);
+  /* Modern green-turquoise (more on the green side) */
+  --primary: hsl(158, 70%, 45%);
+  --primary-hover: hsl(158, 70%, 40%);
+  --primary-bg: hsl(158, 70%, 8%);
+  --primary-border: hsl(158, 70%, 20%);
   
   /* === Semantic Status Colors === */
   /* Success - Emerald Green */
@@ -95,10 +98,13 @@
   --bg-hover-subtle: hsl(0, 0%, 89%);
   --bg-active: hsl(0, 0%, 82%);
   --bg-selected: hsl(0, 0%, 87%);
-  
+
   /* === Brand Colors === */
-  --primary: hsl(217, 91%, 60%);
-  --primary-hover: hsl(217, 91%, 55%);
+  /* Modern green-turquoise (more on the green side) */
+  --primary: hsl(158, 70%, 35%);
+  --primary-hover: hsl(158, 70%, 30%);
+  --primary-bg: hsl(158, 70%, 92%);
+  --primary-border: hsl(158, 70%, 75%);
   
   /* === Semantic Status Colors (adjusted for light mode) === */
   /* Success - Emerald Green */
@@ -150,10 +156,21 @@
     hsla(0, 0%, 18%, 0.05),
     hsla(0, 0%, 3%, 0)
   );
-  
+
   --gradient-surface: linear-gradient(
     135deg,
     var(--bg-surface),
     var(--bg-base)
   );
+}
+
+/* Text selection highlighting with primary color */
+::selection {
+  background-color: var(--primary);
+  color: white;
+}
+
+::-moz-selection {
+  background-color: var(--primary);
+  color: white;
 }

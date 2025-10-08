@@ -10,6 +10,10 @@ import type { TaskStats, TaskEventResponse } from '../services/apiClient'
 
 export interface TaskFilters {
   search?: string | null
+  filters?: string | null  // New format: field:operator:value(s)
+  start_time?: string | null  // ISO 8601 timestamp
+  end_time?: string | null    // ISO 8601 timestamp
+  // Legacy filters (deprecated)
   filter_state?: string | null
   filter_worker?: string | null
   filter_task?: string | null
@@ -92,12 +96,14 @@ export const useTasksStore = defineStore('tasks', () => {
         isLoading.value = true
       }
       error.value = null
-      
-      const response = await apiService.getRecentEvents({
+
+      const params = {
         ...paginationParams.value,
         ...filters.value,
         aggregate: true
-      })
+      }
+
+      const response = await apiService.getRecentEvents(params)
 
       const data = response as any
       if (data.data && Array.isArray(data.data)) {
@@ -201,6 +207,13 @@ export const useTasksStore = defineStore('tasks', () => {
     fetchRecentEvents()
   }
 
+  function setTimeRange(startTime: string | null, endTime: string | null) {
+    filters.value.start_time = startTime
+    filters.value.end_time = endTime
+    paginationParams.value.page = 0
+    fetchRecentEvents()
+  }
+
   // Live mode management
   function setLiveMode(enabled: boolean) {
     isLiveMode.value = enabled
@@ -278,6 +291,7 @@ export const useTasksStore = defineStore('tasks', () => {
     setFilters,
     setSorting,
     setSearchQuery,
+    setTimeRange,
     setLiveMode,
     handleLiveEvent,
   }

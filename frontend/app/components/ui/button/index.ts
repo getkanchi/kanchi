@@ -8,11 +8,12 @@ export const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-background-raised text-text-primary border border-border/60 hover:bg-background-surface hover:border-border/40 active:bg-background-base",
+        default: "bg-background-raised text-text-primary hover:bg-background-surface active:bg-background-base",
+        primary: "bg-primary text-white hover:bg-primary-hover active:bg-primary-hover font-medium",
         destructive:
-          "bg-status-error/10 text-status-error border border-status-error/20 hover:bg-status-error/15 hover:border-status-error/30 active:bg-status-error/20",
+          "bg-status-error/10 text-status-error hover:bg-status-error/15 active:bg-status-error/20",
         outline:
-          "border border-border/40 bg-transparent hover:bg-background-hover-subtle hover:border-border/60 text-text-secondary hover:text-text-primary active:bg-background-active",
+          "bg-transparent hover:bg-background-hover-subtle text-text-secondary hover:text-text-primary active:bg-background-active",
         secondary:
           "bg-background-surface/60 text-text-secondary hover:bg-background-hover hover:text-text-primary active:bg-background-active",
         ghost: "hover:bg-background-hover-subtle text-text-secondary hover:text-text-primary active:bg-background-active",

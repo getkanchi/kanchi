@@ -130,12 +130,12 @@
                         <div class="flex items-center gap-1.5">
                           <Hash class="h-3.5 w-3.5 text-gray-400" />
                           <span class="text-gray-500">ID:</span>
-                          <code class="text-xs bg-background-surface px-1 py-0.5 rounded">{{ row.original.task_id }}</code>
-                          <CopyButton 
-                            :text="row.original.task_id" 
-                            :copy-key="`task-id-${row.original.task_id}`"
-                            title="Copy task ID"
-                            :show-text="true"
+                          <UuidDisplay
+                            :uuid="row.original.task_id"
+                            :show-copy="true"
+                            :show-copy-text="true"
+                            copy-title="Copy task ID"
+                            :truncate-length="12"
                           />
                         </div>
                         
@@ -157,7 +157,7 @@
                           <TimeDisplay
                             :timestamp="row.original.orphaned_at"
                             :auto-refresh="true"
-                            :refresh-interval="10000"
+                            :refresh-interval="1000"
                           />
                         </div>
                       </div>
@@ -282,6 +282,7 @@ import CopyButton from '~/components/CopyButton.vue'
 import SearchInput from '~/components/SearchInput.vue'
 import RetryTaskConfirmDialog from '~/components/RetryTaskConfirmDialog.vue'
 import TimeDisplay from '~/components/TimeDisplay.vue'
+import UuidDisplay from '~/components/UuidDisplay.vue'
 import { formatTime } from '~/composables/useDateTimeFormatters'
 import {
   Table,
@@ -356,7 +357,6 @@ const handleRetryConfirm = async () => {
   
   try {
     await orphanTasksStore.retryOrphanedTask(currentRetryTaskId.value)
-    console.log('Orphaned task retried successfully')
     currentRetryTaskId.value = null
   } catch (error) {
     console.error('Failed to retry orphaned task:', error)

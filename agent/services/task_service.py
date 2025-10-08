@@ -48,8 +48,8 @@ from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, asc, or_, and_, func
 
-from database import TaskEventDB, TaskStatsDB, RetryRelationshipDB
-from models import TaskEvent, TaskEventResponse, TaskStats
+from database import TaskEventDB, RetryRelationshipDB
+from models import TaskEvent, TaskEventResponse
 
 
 class TaskService:
@@ -131,6 +131,9 @@ class TaskService:
         sort_by: Optional[str] = None,
         sort_order: str = "desc",
         search: Optional[str] = None,
+        filters: Optional[str] = None,
+        start_time: Optional[str] = None,
+        end_time: Optional[str] = None,
         filter_state: Optional[str] = None,
         filter_worker: Optional[str] = None,
         filter_task: Optional[str] = None,
@@ -138,31 +141,54 @@ class TaskService:
     ) -> Dict[str, Any]:
         """Get recent task events with filtering and pagination."""
         query = self.session.query(TaskEventDB)
-        
-        # Apply filters
+
+        # Parse new filter format if provided
+        parsed_filters = self._parse_filters(filters) if filters else []
+
+        # Apply new filter format
+        for filter_obj in parsed_filters:
+            query = self._apply_filter(query, filter_obj)
+
+        # Apply time range filter
+        if start_time:
+            try:
+                from dateutil import parser
+                import logging
+                logger = logging.getLogger(__name__)
+                start_dt = parser.isoparse(start_time)
+                logger.info(f"Applying start_time filter: {start_time} -> {start_dt}")
+                query = query.filter(TaskEventDB.timestamp >= start_dt)
+            except (ValueError, ImportError) as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Failed to parse start_time: {start_time}, error: {e}")
+
+        if end_time:
+            try:
+                from dateutil import parser
+                import logging
+                logger = logging.getLogger(__name__)
+                end_dt = parser.isoparse(end_time)
+                logger.info(f"Applying end_time filter: {end_time} -> {end_dt}")
+                query = query.filter(TaskEventDB.timestamp <= end_dt)
+            except (ValueError, ImportError) as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Failed to parse end_time: {end_time}, error: {e}")
+
+        # Apply legacy filters (for backward compatibility)
         if filter_state:
-            state_to_event_type = {
-                'PENDING': 'task-sent',
-                'RECEIVED': 'task-received',
-                'RUNNING': 'task-started',
-                'SUCCESS': 'task-succeeded',
-                'FAILED': 'task-failed',
-                'RETRY': 'task-retried',
-                'REVOKED': 'task-revoked'
-            }
-            event_type_filter = state_to_event_type.get(filter_state.upper())
-            if event_type_filter:
-                query = query.filter(TaskEventDB.event_type == event_type_filter)
-        
+            query = self._apply_state_filter(query, 'is', [filter_state])
+
         if filter_worker:
-            query = query.filter(TaskEventDB.hostname.ilike(f"%{filter_worker}%"))
-        
+            query = self._apply_worker_filter(query, 'contains', [filter_worker])
+
         if filter_task:
-            query = query.filter(TaskEventDB.task_name.ilike(f"%{filter_task}%"))
-        
+            query = self._apply_task_filter(query, 'contains', [filter_task])
+
         if filter_queue:
-            query = query.filter(TaskEventDB.routing_key.ilike(f"%{filter_queue}%"))
-        
+            query = self._apply_queue_filter(query, 'contains', [filter_queue])
+
         if search:
             search_pattern = f"%{search}%"
             query = query.filter(
@@ -173,13 +199,13 @@ class TaskService:
                     TaskEventDB.event_type.ilike(search_pattern)
                 )
             )
-        
+
         # For aggregation, use optimized database-level approach
         if aggregate:
             # Use optimized SQLAlchemy-based aggregation for better performance
             events, total_events = self._get_recent_events_aggregated_sqlalchemy(
                 limit, page, sort_by, sort_order,
-                filter_state, filter_worker, filter_task, filter_queue, search
+                filters, start_time, end_time, filter_state, filter_worker, filter_task, filter_queue, search
             )
         else:
             # Apply sorting for non-aggregated events
@@ -443,13 +469,191 @@ class TaskService:
                 event.is_retry = False
                 event.has_retries = False
                 event.retry_count = 0
-    
+
+    def _parse_filters(self, filters_str: str) -> List[Dict[str, Any]]:
+        """
+        Parse filter string into structured filter objects.
+        Format: field:operator:value(s)
+        Multiple filters separated by semicolons
+        Example: "state:is:success;worker:contains:celery"
+        """
+        if not filters_str:
+            return []
+
+        parsed = []
+        filter_parts = filters_str.split(';')
+
+        for part in filter_parts:
+            part = part.strip()
+            if not part:
+                continue
+
+            segments = part.split(':', 2)
+            if len(segments) < 2:
+                continue
+
+            field = segments[0].strip().lower()
+
+            # Default operator is 'is' if not specified
+            if len(segments) == 2:
+                operator = 'is'
+                value_str = segments[1].strip()
+            else:
+                operator = segments[1].strip().lower()
+                value_str = segments[2].strip()
+
+            # Parse multiple values for in/not_in operators
+            if operator in ['in', 'not_in']:
+                values = [v.strip() for v in value_str.split(',') if v.strip()]
+            else:
+                values = [value_str]
+
+            parsed.append({
+                'field': field,
+                'operator': operator,
+                'values': values
+            })
+
+        return parsed
+
+    def _apply_filter(self, query, filter_obj: Dict[str, Any]):
+        """Apply a single filter to the query based on field and operator."""
+        field = filter_obj['field']
+        operator = filter_obj['operator']
+        values = filter_obj['values']
+
+        if field == 'state':
+            return self._apply_state_filter(query, operator, values)
+        elif field == 'worker':
+            return self._apply_worker_filter(query, operator, values)
+        elif field == 'task':
+            return self._apply_task_filter(query, operator, values)
+        elif field == 'queue':
+            return self._apply_queue_filter(query, operator, values)
+        elif field == 'id':
+            return self._apply_id_filter(query, operator, values)
+
+        return query
+
+    def _apply_state_filter(self, query, operator: str, values: List[str]):
+        """Apply state filter with operator support."""
+        state_to_event_type = {
+            'PENDING': 'task-sent',
+            'RECEIVED': 'task-received',
+            'RUNNING': 'task-started',
+            'SUCCESS': 'task-succeeded',
+            'FAILED': 'task-failed',
+            'RETRY': 'task-retried',
+            'REVOKED': 'task-revoked',
+            'ORPHANED': 'task-orphaned'
+        }
+
+        event_types = [state_to_event_type.get(v.upper()) for v in values]
+        event_types = [et for et in event_types if et]
+
+        if not event_types:
+            return query
+
+        if operator == 'is':
+            return query.filter(TaskEventDB.event_type == event_types[0])
+        elif operator == 'not':
+            return query.filter(TaskEventDB.event_type != event_types[0])
+        elif operator == 'in':
+            return query.filter(TaskEventDB.event_type.in_(event_types))
+        elif operator == 'not_in':
+            return query.filter(~TaskEventDB.event_type.in_(event_types))
+
+        return query
+
+    def _apply_worker_filter(self, query, operator: str, values: List[str]):
+        """Apply worker (hostname) filter with operator support."""
+        if not values:
+            return query
+
+        if operator in ['is', '']:
+            return query.filter(TaskEventDB.hostname == values[0])
+        elif operator == 'not':
+            return query.filter(TaskEventDB.hostname != values[0])
+        elif operator == 'contains':
+            return query.filter(TaskEventDB.hostname.ilike(f"%{values[0]}%"))
+        elif operator == 'starts':
+            return query.filter(TaskEventDB.hostname.ilike(f"{values[0]}%"))
+        elif operator == 'in':
+            return query.filter(TaskEventDB.hostname.in_(values))
+        elif operator == 'not_in':
+            return query.filter(~TaskEventDB.hostname.in_(values))
+
+        return query
+
+    def _apply_task_filter(self, query, operator: str, values: List[str]):
+        """Apply task name filter with operator support."""
+        if not values:
+            return query
+
+        if operator in ['is', '']:
+            return query.filter(TaskEventDB.task_name == values[0])
+        elif operator == 'not':
+            return query.filter(TaskEventDB.task_name != values[0])
+        elif operator == 'contains':
+            return query.filter(TaskEventDB.task_name.ilike(f"%{values[0]}%"))
+        elif operator == 'starts':
+            return query.filter(TaskEventDB.task_name.ilike(f"{values[0]}%"))
+        elif operator == 'in':
+            return query.filter(TaskEventDB.task_name.in_(values))
+        elif operator == 'not_in':
+            return query.filter(~TaskEventDB.task_name.in_(values))
+
+        return query
+
+    def _apply_queue_filter(self, query, operator: str, values: List[str]):
+        """Apply queue (routing_key) filter with operator support."""
+        if not values:
+            return query
+
+        if operator in ['is', '']:
+            return query.filter(TaskEventDB.routing_key == values[0])
+        elif operator == 'not':
+            return query.filter(TaskEventDB.routing_key != values[0])
+        elif operator == 'contains':
+            return query.filter(TaskEventDB.routing_key.ilike(f"%{values[0]}%"))
+        elif operator == 'starts':
+            return query.filter(TaskEventDB.routing_key.ilike(f"{values[0]}%"))
+        elif operator == 'in':
+            return query.filter(TaskEventDB.routing_key.in_(values))
+        elif operator == 'not_in':
+            return query.filter(~TaskEventDB.routing_key.in_(values))
+
+        return query
+
+    def _apply_id_filter(self, query, operator: str, values: List[str]):
+        """Apply task ID filter with operator support."""
+        if not values:
+            return query
+
+        if operator in ['is', '']:
+            return query.filter(TaskEventDB.task_id == values[0])
+        elif operator == 'not':
+            return query.filter(TaskEventDB.task_id != values[0])
+        elif operator == 'contains':
+            return query.filter(TaskEventDB.task_id.ilike(f"%{values[0]}%"))
+        elif operator == 'starts':
+            return query.filter(TaskEventDB.task_id.ilike(f"{values[0]}%"))
+        elif operator == 'in':
+            return query.filter(TaskEventDB.task_id.in_(values))
+        elif operator == 'not_in':
+            return query.filter(~TaskEventDB.task_id.in_(values))
+
+        return query
+
     def _get_recent_events_aggregated_sqlalchemy(
         self,
         limit: int,
         page: int,
         sort_by: Optional[str] = None,
         sort_order: str = "desc",
+        filters: Optional[str] = None,
+        start_time: Optional[str] = None,
+        end_time: Optional[str] = None,
         filter_state: Optional[str] = None,
         filter_worker: Optional[str] = None,
         filter_task: Optional[str] = None,
@@ -459,17 +663,17 @@ class TaskService:
         """
         Optimized aggregation using SQLAlchemy with window functions.
         Gets the latest event per task efficiently using database-level operations.
-        
+
         SQL generated (for Alembic reference):
-        
+
         SELECT DISTINCT ON (task_id) *
         FROM task_events
         WHERE [filters]
         ORDER BY task_id, timestamp DESC
         LIMIT ? OFFSET ?
-        
+
         Alternative with window function:
-        
+
         WITH latest_events AS (
             SELECT *,
                    ROW_NUMBER() OVER (PARTITION BY task_id ORDER BY timestamp DESC) as rn
@@ -480,37 +684,58 @@ class TaskService:
         ORDER BY timestamp DESC
         LIMIT ? OFFSET ?
         """
-        
+
         # Use a subquery to find the latest timestamp for each task_id
         latest_subquery = self.session.query(
             TaskEventDB.task_id,
             func.max(TaskEventDB.timestamp).label('max_timestamp')
         )
-        
-        # Apply filters to the subquery
+
+        # Parse and apply new filter format
+        parsed_filters = self._parse_filters(filters) if filters else []
+        for filter_obj in parsed_filters:
+            latest_subquery = self._apply_filter(latest_subquery, filter_obj)
+
+        # Apply time range filter
+        if start_time:
+            try:
+                from dateutil import parser
+                import logging
+                logger = logging.getLogger(__name__)
+                start_dt = parser.isoparse(start_time)
+                logger.info(f"Aggregated query - Applying start_time filter: {start_time} -> {start_dt}")
+                latest_subquery = latest_subquery.filter(TaskEventDB.timestamp >= start_dt)
+            except (ValueError, ImportError) as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Aggregated query - Failed to parse start_time: {start_time}, error: {e}")
+
+        if end_time:
+            try:
+                from dateutil import parser
+                import logging
+                logger = logging.getLogger(__name__)
+                end_dt = parser.isoparse(end_time)
+                logger.info(f"Aggregated query - Applying end_time filter: {end_time} -> {end_dt}")
+                latest_subquery = latest_subquery.filter(TaskEventDB.timestamp <= end_dt)
+            except (ValueError, ImportError) as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Aggregated query - Failed to parse end_time: {end_time}, error: {e}")
+
+        # Apply legacy filters (for backward compatibility)
         if filter_state:
-            state_to_event_type = {
-                'PENDING': 'task-sent',
-                'RECEIVED': 'task-received', 
-                'RUNNING': 'task-started',
-                'SUCCESS': 'task-succeeded',
-                'FAILED': 'task-failed',
-                'RETRY': 'task-retried',
-                'REVOKED': 'task-revoked'
-            }
-            event_type_filter = state_to_event_type.get(filter_state.upper())
-            if event_type_filter:
-                latest_subquery = latest_subquery.filter(TaskEventDB.event_type == event_type_filter)
-        
+            latest_subquery = self._apply_state_filter(latest_subquery, 'is', [filter_state])
+
         if filter_worker:
-            latest_subquery = latest_subquery.filter(TaskEventDB.hostname.ilike(f"%{filter_worker}%"))
-        
+            latest_subquery = self._apply_worker_filter(latest_subquery, 'contains', [filter_worker])
+
         if filter_task:
-            latest_subquery = latest_subquery.filter(TaskEventDB.task_name.ilike(f"%{filter_task}%"))
-        
+            latest_subquery = self._apply_task_filter(latest_subquery, 'contains', [filter_task])
+
         if filter_queue:
-            latest_subquery = latest_subquery.filter(TaskEventDB.routing_key.ilike(f"%{filter_queue}%"))
-        
+            latest_subquery = self._apply_queue_filter(latest_subquery, 'contains', [filter_queue])
+
         if search:
             search_pattern = f"%{search}%"
             latest_subquery = latest_subquery.filter(
@@ -671,55 +896,3 @@ class TaskService:
             ],
             'recent_activity': recent_activity or 0
         }
-
-
-class StatsService:
-    """Service for managing task statistics."""
-    
-    def __init__(self, session: Session):
-        self.session = session
-    
-    def get_stats(self) -> TaskStats:
-        """Get current task statistics."""
-        stats = self.session.query(TaskStatsDB).filter_by(id=1).first()
-        if not stats:
-            return TaskStats()
-        
-        return TaskStats(
-            total_tasks=stats.total_tasks,
-            succeeded=stats.succeeded,
-            failed=stats.failed,
-            pending=stats.pending,
-            retried=stats.retried,
-            active=stats.active
-        )
-    
-    def update_stats(self, event_type: str):
-        """Update statistics based on event type."""
-        stats = self.session.query(TaskStatsDB).filter_by(id=1).first()
-        if not stats:
-            stats = TaskStatsDB(id=1)
-            self.session.add(stats)
-        
-        stats.total_tasks += 1
-        
-        if event_type == 'task-succeeded':
-            stats.succeeded += 1
-            if stats.active > 0:
-                stats.active -= 1
-        elif event_type == 'task-failed':
-            stats.failed += 1
-            if stats.active > 0:
-                stats.active -= 1
-        elif event_type == 'task-retried':
-            stats.retried += 1
-        elif event_type == 'task-started':
-            stats.active += 1
-        elif event_type == 'task-sent':
-            stats.pending += 1
-        elif event_type == 'task-received':
-            if stats.pending > 0:
-                stats.pending -= 1
-
-        stats.last_updated = datetime.now(timezone.utc)
-        self.session.commit()

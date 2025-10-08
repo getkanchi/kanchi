@@ -22,14 +22,12 @@ import {Badge} from "~/components/ui/badge";
 import StatusDot from "~/components/StatusDot.vue";
 import CopyButton from "~/components/CopyButton.vue";
 import SearchInput from "~/components/SearchInput.vue";
+import TimeRangeFilter from "~/components/TimeRangeFilter.vue";
 import RetryChain from "~/components/RetryChain.vue";
 import RetryTaskConfirmDialog from "~/components/RetryTaskConfirmDialog.vue";
 import BaseIconButton from "~/components/BaseIconButton.vue";
-
-interface Filter {
-  key: string
-  value: string
-}
+import type { ParsedFilter } from '~/composables/useFilterParser'
+import type { TimeRange } from '~/components/TimeRangeFilter.vue'
 
 const props = defineProps<{
   columns: ColumnDef<TData, TValue>[]
@@ -42,7 +40,8 @@ const props = defineProps<{
   isLoading?: boolean
   sorting?: { id: string; desc: boolean }[]
   searchQuery?: string
-  filters?: Filter[]
+  filters?: ParsedFilter[]
+  timeRange?: TimeRange
 }>()
 
 const emit = defineEmits<{
@@ -51,7 +50,9 @@ const emit = defineEmits<{
   setPageSize: [size: number]
   setSorting: [sorting: { id: string; desc: boolean }[]]
   setSearchQuery: [query: string]
-  setFilters: [filters: Filter[]]
+  setFilters: [filters: ParsedFilter[]]
+  setTimeRange: [range: TimeRange]
+  clearTimeRange: []
 }>()
 
 const expandedRows = ref(new Set<string>())
@@ -107,7 +108,6 @@ const handleRetryConfirm = async () => {
   
   try {
     const result = await tasksStore.retryTask(currentRetryTaskId.value)
-    console.log('Task retried successfully:', result)
     // Reset current retry task ID
     currentRetryTaskId.value = null
   } catch (error) {
@@ -152,7 +152,15 @@ const mapTaskToRetryChainFormat = (task: any) => {
           @update:model-value="handleSearch"
           @update:filters="emit('setFilters', $event)"
         />
-        
+
+        <!-- Time Range Filter -->
+        <TimeRangeFilter
+          :model-value="timeRange || { start: null, end: null }"
+          :disabled="isLiveMode"
+          @update:model-value="emit('setTimeRange', $event)"
+          @clear="emit('clearTimeRange')"
+          @disable-live-mode="emit('toggleLiveMode')"
+        />
 
       </div>
       

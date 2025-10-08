@@ -94,7 +94,7 @@ const IconComponent = computed(() => iconMap[props.variant])
     <button
       v-if="dismissible"
       @click="emit('dismiss')"
-      class="absolute right-2 top-2 rounded-sm opacity-70 hover:opacity-100 transition-opacity focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+      class="absolute right-2 top-2 rounded-sm opacity-70 hover:opacity-100 transition-opacity focus:outline-none focus:ring-2 focus:ring-primary/30 focus:ring-offset-2"
     >
       <XCircle :class="['w-3 h-3', variantClasses.icon]" />
       <span class="sr-only">Dismiss</span>

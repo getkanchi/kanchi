@@ -28,8 +28,8 @@
 
       <div class="mb-6">
         <DataTable
-          :columns="columns" 
-          :data="tasksStore.paginatedEvents" 
+          :columns="columns"
+          :data="tasksStore.paginatedEvents"
           :is-live-mode="tasksStore.isLiveMode"
           :seconds-since-update="secondsSinceUpdate"
           :page-index="tasksStore.currentPage"
@@ -39,6 +39,7 @@
           :sorting="currentSorting"
           :search-query="tasksStore.filters.search || ''"
           :filters="currentFilters"
+          :time-range="timeRange"
           class="relative backdrop-blur-sm bg-background-surface border-border glow-border"
           @toggle-live-mode="handleToggleLiveMode"
           @set-page-index="tasksStore.setPage"
@@ -46,6 +47,8 @@
           @set-sorting="handleSetSorting"
           @set-search-query="tasksStore.setSearchQuery"
           @set-filters="handleSetFilters"
+          @set-time-range="handleSetTimeRange"
+          @clear-time-range="handleClearTimeRange"
         />
       </div>
     </div>
@@ -59,12 +62,20 @@ import DataTable from "~/components/data-table.vue"
 import WorkerStatusSummary from "~/components/WorkerStatusSummary.vue"
 import OrphanTasksSummary from "~/components/OrphanTasksSummary.vue"
 import CommandPalette from "~/components/CommandPalette.vue"
+import type { ParsedFilter } from '~/composables/useFilterParser'
+import type { TimeRange } from '~/components/TimeRangeFilter.vue'
 
 // Stores
 const tasksStore = useTasksStore()
 const workersStore = useWorkersStore()
 const orphanTasksStore = useOrphanTasksStore()
 const wsStore = useWebSocketStore()
+
+// Time range state
+const timeRange = ref<TimeRange>({ start: null, end: null })
+
+// Filter parser
+const { queryStringToFilters, filtersToQueryString } = useFilterParser()
 
 // Computed
 const secondsSinceUpdate = computed(() => {
@@ -78,19 +89,16 @@ const currentSorting = computed(() => {
   return [{ id: sort_by, desc: sort_order === 'desc' }]
 })
 
-const currentFilters = computed(() => {
+const currentFilters = computed((): ParsedFilter[] => {
   const filters = tasksStore.filters
-  const result: { key: string; value: string }[] = []
-  
-  Object.entries(filters).forEach(([key, value]) => {
-    if (value && key !== 'search') {
-      // Remove 'filter_' prefix if present
-      const cleanKey = key.startsWith('filter_') ? key.slice(7) : key
-      result.push({ key: cleanKey, value })
-    }
-  })
-  
-  return result
+
+  // If we have the new filters format, parse it
+  if (filters.filters) {
+    return queryStringToFilters(filters.filters)
+  }
+
+  // Otherwise return empty array (legacy filters handled by backend)
+  return []
 })
 
 // Table columns
@@ -120,15 +128,26 @@ function handleSetSorting(sorting: { id: string; desc: boolean }[]) {
   }
 }
 
-function handleSetFilters(filters: { key: string; value: string }[]) {
-  const filterObj: Record<string, string | null> = {}
-  
-  filters.forEach(filter => {
-    // Add 'filter_' prefix for API compatibility
-    filterObj[`filter_${filter.key}`] = filter.value
+function handleSetFilters(filters: ParsedFilter[]) {
+  // Convert ParsedFilter[] to query string format
+  const filterQueryString = filtersToQueryString(filters)
+
+  // Update store with new filter format
+  tasksStore.setFilters({
+    filters: filterQueryString || null
   })
-  
-  tasksStore.setFilters(filterObj)
+}
+
+function handleSetTimeRange(range: TimeRange) {
+  timeRange.value = range
+  const startTime = range.start ? range.start.toISOString() : null
+  const endTime = range.end ? range.end.toISOString() : null
+  tasksStore.setTimeRange(startTime, endTime)
+}
+
+function handleClearTimeRange() {
+  timeRange.value = { start: null, end: null }
+  tasksStore.setTimeRange(null, null)
 }
 
 async function handleRerunTask(taskId: string) {

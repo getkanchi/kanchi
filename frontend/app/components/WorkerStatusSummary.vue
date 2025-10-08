@@ -96,32 +96,37 @@
 
         <!-- Offline Workers Section (Collapsible) -->
         <div v-if="offlineWorkers.length > 0" class="pt-2">
-          <div 
+          <!-- Info Alert about offline workers -->
+          <Alert variant="info" size="sm" class="mb-3">
+            {{ offlineWorkers.length }} worker{{ offlineWorkers.length === 1 ? '' : 's' }} offline — normal during scaling, restarts, or deployments
+          </Alert>
+
+          <div
             class="flex items-center justify-between cursor-pointer py-2 px-3 rounded-lg hover:bg-background-surface/20 transition-all duration-200"
             @click="toggleOfflineExpanded"
           >
             <h3 class="text-sm font-medium text-text-secondary flex items-center gap-2">
-              <StatusDot status="error" class="scale-90" />
+              <StatusDot status="muted" class="scale-90" />
               Offline Workers ({{ offlineWorkers.length }})
             </h3>
             <div class="flex items-center gap-2">
               <span class="text-xs text-text-muted">
                 {{ isOfflineExpanded ? 'Hide offline' : 'Show offline' }}
               </span>
-              <svg 
+              <svg
                 class="w-4 h-4 text-text-muted transition-transform duration-200"
                 :class="{ 'rotate-180': isOfflineExpanded }"
-                fill="none" 
-                stroke="currentColor" 
+                fill="none"
+                stroke="currentColor"
                 viewBox="0 0 24 24"
               >
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
               </svg>
             </div>
           </div>
-          
+
           <!-- Offline Workers Grid -->
-          <div 
+          <div
             v-if="isOfflineExpanded"
             class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2 mt-3"
           >
@@ -153,6 +158,7 @@
 import { ref, computed } from 'vue'
 import StatusDot from '~/components/StatusDot.vue'
 import WorkerCard from '~/components/WorkerCard.vue'
+import Alert from '~/components/alert/Alert.vue'
 
 interface WorkerInfo {
   hostname: string
@@ -223,54 +229,55 @@ const totalErrors = computed(() => {
 
 const overallStatus = computed((): 'online' | 'warning' | 'error' | 'muted' => {
   if (props.workers.length === 0) return 'muted'
-  
-  // Critical: Any workers offline
-  if (offlineWorkersCount.value > 0) return 'error'
-  
+
+  // Critical: ALL workers offline (system down)
+  if (activeWorkersCount.value === 0) return 'error'
+
   // Warning: High error rate
   if (totalErrors.value > 0) return 'warning'
-  
-  // All good
+
+  // All good - some workers online (offline workers are normal)
   if (activeWorkersCount.value > 0) return 'online'
-  
+
   return 'muted'
 })
 
 const statusText = computed(() => {
   const total = props.workers.length
-  
+
   if (total === 0) {
     return 'No workers detected'
   }
-  
+
+  // Critical: No workers online
+  if (activeWorkersCount.value === 0) {
+    return 'No workers online - system down'
+  }
+
+  // Normal operations - focus on what's working
   if (offlineWorkersCount.value > 0) {
-    const online = activeWorkersCount.value
-    return `${offlineWorkersCount.value} worker${offlineWorkersCount.value === 1 ? '' : 's'} offline${online > 0 ? `, ${online} online` : ''}`
+    return `System operational - ${activeWorkersCount.value} worker${activeWorkersCount.value === 1 ? '' : 's'} active`
   }
-  
-  if (totalErrors.value > 0) {
-    return `All workers online, ${totalErrors.value} recent error${totalErrors.value === 1 ? '' : 's'}`
-  }
-  
+
   if (activeWorkersCount.value === total) {
     return `All ${total} worker${total === 1 ? '' : 's'} operational`
   }
-  
-  return `${activeWorkersCount.value} of ${total} workers online`
+
+  return `${activeWorkersCount.value} of ${total} workers active`
 })
 
 const summaryClasses = computed(() => {
   const classes = ['bg-background-surface']
-  
-  // Critical: Any workers offline
-  if (offlineWorkersCount.value > 0) {
+
+  // Critical: ALL workers offline
+  if (activeWorkersCount.value === 0) {
     classes.push('bg-gradient-to-r from-card-base to-status-error/5')
   }
   // Warning: High error rate
   else if (totalErrors.value > 0) {
     classes.push('bg-gradient-to-r from-card-base to-status-warning/5')
   }
-  
+
   return classes.join(' ')
 })
 </script>

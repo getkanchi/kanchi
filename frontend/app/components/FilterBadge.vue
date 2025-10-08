@@ -1,40 +1,71 @@
 <template>
-  <Badge
-    variant="secondary"
-    class="text-xs px-2 py-1 h-6 bg-background-surface/80 border-gray-600 flex items-center gap-1 whitespace-nowrap"
+  <div
+    class="inline-flex items-center h-6 rounded-md bg-background-surface/80 border border-border text-xs font-mono whitespace-nowrap overflow-hidden"
   >
-    <span class="text-gray-400">{{ filter.key }}:</span>
-    <Badge
-      v-if="filter.key === 'state'"
-      :variant="getStatusVariant(filter.value)"
-      class="text-xs px-1 py-0 h-4 normal-case"
-    >
-      {{ formatStatus(filter.value) }}
-    </Badge>
-    <span v-else class="text-white">
-      {{ filter.value }}
-    </span>
+    <!-- Field segment -->
+    <div class="px-2.5 py-1 text-text-muted border-r border-[hsl(0,0%,15%)]">
+      {{ filter.field }}
+    </div>
+
+    <!-- Operator segment -->
+    <div class="px-2 py-1 text-text-muted text-[10px] border-r border-[hsl(0,0%,15%)]">
+      {{ formattedOperator }}
+    </div>
+
+    <!-- Values segment -->
+    <div class="px-2.5 py-1 flex items-center gap-1 border-r border-[hsl(0,0%,15%)]">
+      <template v-if="filter.field === 'state'">
+        <!-- State values with colored badges -->
+        <Badge
+          v-for="(value, index) in filter.values"
+          :key="index"
+          :variant="getStatusVariant(value)"
+          class="text-xs px-1 py-0 h-4 normal-case"
+        >
+          {{ formatStatus(value) }}
+        </Badge>
+      </template>
+      <template v-else-if="filter.field === 'id'">
+        <!-- UUID values - truncated -->
+        <span
+          v-for="(value, index) in filter.values"
+          :key="index"
+          class="font-mono text-[10px] text-text-primary bg-background-raised px-1 py-0.5 rounded"
+          :title="value"
+        >
+          {{ truncateUUID(value) }}
+        </span>
+      </template>
+      <template v-else>
+        <!-- Regular text values -->
+        <span
+          v-for="(value, index) in filter.values"
+          :key="index"
+          class="text-text-primary"
+        >
+          {{ value }}<span v-if="index < filter.values.length - 1" class="text-text-muted">,</span>
+        </span>
+      </template>
+    </div>
+
+    <!-- Remove button segment -->
     <button
       @click.stop="$emit('remove')"
-      class="ml-1 hover:text-red-400 transition-colors"
+      class="px-2 py-1 hover:bg-status-error/10 hover:text-status-error transition-colors"
     >
       <X class="h-3 w-3" />
     </button>
-  </Badge>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { Badge } from '@/components/ui/badge'
-import type { BadgeVariants } from '@/components/ui/badge'
 import { X } from 'lucide-vue-next'
+import { computed } from 'vue'
+import type { ParsedFilter } from '~/composables/useFilterParser'
 
-interface Filter {
-  key: string
-  value: string
-}
-
-defineProps<{
-  filter: Filter
+const props = defineProps<{
+  filter: ParsedFilter
 }>()
 
 defineEmits<{
@@ -42,4 +73,12 @@ defineEmits<{
 }>()
 
 const { getStatusVariant, formatStatus } = useTaskStatus()
+const { formatOperator } = useFilterParser()
+
+const formattedOperator = computed(() => formatOperator(props.filter.operator))
+
+function truncateUUID(uuid: string): string {
+  if (uuid.length <= 8) return uuid
+  return `${uuid.substring(0, 8)}...`
+}
 </script>

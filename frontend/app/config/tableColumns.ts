@@ -51,7 +51,7 @@ export function getTaskColumns(): ColumnDef<TaskEventResponse>[] {
       cell: ({ row }) => h(TimeDisplay, {
         timestamp: row.getValue("timestamp"),
         autoRefresh: true,
-        refreshInterval: 10000
+        refreshInterval: 1000
       }),
       enableSorting: true,
       sortDescFirst: true
@@ -128,7 +128,7 @@ export function getOrphanTaskColumns(options?: {
         return h(TimeDisplay, {
           timestamp: orphanedAt,
           autoRefresh: true,
-          refreshInterval: 10000
+          refreshInterval: 1000
         })
       },
       enableSorting: true,

@@ -6,9 +6,9 @@ from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from services import TaskService, StatsService
+from services import TaskService
 from database import TaskEventDB
-from models import TaskEventResponse, TaskStats
+from models import TaskEventResponse
 
 
 def create_router(app_state) -> APIRouter:
@@ -23,13 +23,6 @@ def create_router(app_state) -> APIRouter:
             yield session
 
 
-    @router.get("/stats", response_model=TaskStats)
-    async def get_task_stats(session: Session = Depends(get_db)):
-        """Get current task statistics."""
-        stats_service = StatsService(session)
-        return stats_service.get_stats()
-
-
     @router.get("/events/recent", response_model=Dict[str, Any])
     async def get_recent_events(
         limit: int = 100,
@@ -38,15 +31,38 @@ def create_router(app_state) -> APIRouter:
         sort_by: Optional[str] = None,
         sort_order: str = "desc",
         search: Optional[str] = None,
+        filters: Optional[str] = None,
+        start_time: Optional[str] = None,
+        end_time: Optional[str] = None,
+        # Legacy filter parameters (deprecated but kept for backward compatibility)
         filter_state: Optional[str] = None,
         filter_worker: Optional[str] = None,
         filter_task: Optional[str] = None,
         filter_queue: Optional[str] = None,
         session: Session = Depends(get_db)
     ):
-        """Get recent task events with filtering and pagination."""
+        """
+        Get recent task events with filtering and pagination.
+
+        Filters can be provided in two ways:
+        1. New format: filters="state:is:success,worker:contains:celery@host"
+        2. Legacy format: filter_state=success&filter_worker=celery (deprecated)
+
+        Filter syntax: field:operator:value(s)
+        - Fields: state, worker, task, queue, id
+        - Operators: is, not, in, not_in, contains, starts
+        - Multiple values: comma-separated for in/not_in operators
+
+        Time range filtering:
+        - start_time: ISO 8601 timestamp (e.g., "2024-01-01T00:00:00Z")
+        - end_time: ISO 8601 timestamp (e.g., "2024-01-02T23:59:59Z")
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"API /events/recent called with start_time={start_time}, end_time={end_time}")
+
         task_service = TaskService(session)
-        
+
         return task_service.get_recent_events(
             limit=limit,
             page=page,
@@ -54,6 +70,9 @@ def create_router(app_state) -> APIRouter:
             sort_by=sort_by,
             sort_order=sort_order,
             search=search,
+            filters=filters,
+            start_time=start_time,
+            end_time=end_time,
             filter_state=filter_state,
             filter_worker=filter_worker,
             filter_task=filter_task,

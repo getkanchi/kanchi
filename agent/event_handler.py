@@ -6,7 +6,13 @@ from datetime import datetime, timezone
 from connection_manager import ConnectionManager
 from database import DatabaseManager
 from models import TaskEvent, WorkerEvent
-from services import OrphanDetectionService, StatsService, TaskService, WorkerService
+from services import (
+    OrphanDetectionService,
+    TaskService,
+    WorkerService,
+    TaskRegistryService,
+    DailyStatsService
+)
 
 logger = logging.getLogger(__name__)
 
@@ -22,16 +28,23 @@ class EventHandler:
         """Handle task event: save to DB and broadcast to WebSocket."""
         try:
             with self.db_manager.get_session() as session:
+                # Ensure task is registered (auto-discovery)
+                registry_service = TaskRegistryService(session)
+                registry_service.ensure_task_registered(task_event.task_name)
+
                 task_service = TaskService(session)
-                stats_service = StatsService(session)
+                daily_stats_service = DailyStatsService(session)
 
                 task_service._enrich_task_with_retry_info(task_event)
                 if task_event.retry_of:
                     logger.info(f"✓ Task {task_event.task_id[:8]} enriched: is_retry={task_event.is_retry}, retry_of={task_event.retry_of.task_id[:8]}")
                 else:
                     logger.warning(f"✗ Task {task_event.task_id[:8]} enriched but NO parent found: is_retry={task_event.is_retry}")
+
                 task_service.save_task_event(task_event)
-                stats_service.update_stats(task_event.event_type)
+
+                # Update daily statistics
+                daily_stats_service.update_daily_stats(task_event)
 
             self.connection_manager.queue_broadcast(task_event)
 

@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional, List, Union, Literal
 from dataclasses import dataclass, asdict, field
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 import json
 from pydantic import BaseModel, Field
 
@@ -203,16 +203,6 @@ class TaskEventResponse(BaseModel):
 TaskEventResponse.model_rebuild()
 
 
-class TaskStats(BaseModel):
-    """Task statistics model"""
-    total_tasks: int = 0
-    succeeded: int = 0
-    failed: int = 0
-    pending: int = 0
-    retried: int = 0
-    active: int = 0
-
-
 class WorkerInfo(BaseModel):
     """Worker information model"""
     hostname: str
@@ -292,6 +282,85 @@ class SubscriptionResponse(BaseModel):
     status: str
     filters: dict
     timestamp: datetime
+
+
+class LogEntry(BaseModel):
+    """Log entry from frontend"""
+    level: str
+    message: str
+    timestamp: Optional[datetime] = None
+    context: Optional[Dict[str, Any]] = None
+
+
+class TaskRegistryResponse(BaseModel):
+    """Task registry API response model"""
+    id: str
+    name: str
+    human_readable_name: Optional[str] = None
+    description: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+    first_seen: datetime
+    last_seen: datetime
+
+    class Config:
+        from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+class TaskRegistryUpdate(BaseModel):
+    """Task registry update request model"""
+    human_readable_name: Optional[str] = None
+    description: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+
+class TaskRegistryStats(BaseModel):
+    """Statistics for a specific task"""
+    task_name: str
+    total_executions: int = 0
+    succeeded: int = 0
+    failed: int = 0
+    pending: int = 0
+    retried: int = 0
+    avg_runtime: Optional[float] = None
+    last_execution: Optional[datetime] = None
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+class TaskDailyStatsResponse(BaseModel):
+    """Daily statistics response model"""
+    task_name: str
+    date: date
+    total_executions: int = 0
+    succeeded: int = 0
+    failed: int = 0
+    pending: int = 0
+    retried: int = 0
+    revoked: int = 0
+    orphaned: int = 0
+    avg_runtime: Optional[float] = None
+    min_runtime: Optional[float] = None
+    max_runtime: Optional[float] = None
+    p50_runtime: Optional[float] = None
+    p95_runtime: Optional[float] = None
+    p99_runtime: Optional[float] = None
+    first_execution: Optional[datetime] = None
+    last_execution: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat(),
+            date: lambda v: v.isoformat()
+        }
 
 
 # WebSocket Message Models

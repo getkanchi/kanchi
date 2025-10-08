@@ -17,23 +17,88 @@ export interface HTTPValidationError {
 }
 
 /**
- * RegisteredTask
- * Model for registered Celery tasks.
+ * LogEntry
+ * Log entry from frontend
  */
-export interface RegisteredTask {
-  /** Name */
-  name: string;
-  /** Doc */
-  doc?: string | null;
-  /** Full Name */
-  full_name?: string | null;
-  /** Module */
-  module?: string | null;
+export interface LogEntry {
+  /** Level */
+  level: string;
+  /** Message */
+  message: string;
+  /** Timestamp */
+  timestamp?: string | null;
+  /** Context */
+  context?: object | null;
+}
+
+/**
+ * TaskDailyStatsResponse
+ * Daily statistics response model
+ */
+export interface TaskDailyStatsResponse {
+  /** Task Name */
+  task_name: string;
+  /**
+   * Date
+   * @format date
+   */
+  date: string;
+  /**
+   * Total Executions
+   * @default 0
+   */
+  total_executions?: number;
+  /**
+   * Succeeded
+   * @default 0
+   */
+  succeeded?: number;
+  /**
+   * Failed
+   * @default 0
+   */
+  failed?: number;
+  /**
+   * Pending
+   * @default 0
+   */
+  pending?: number;
+  /**
+   * Retried
+   * @default 0
+   */
+  retried?: number;
+  /**
+   * Revoked
+   * @default 0
+   */
+  revoked?: number;
+  /**
+   * Orphaned
+   * @default 0
+   */
+  orphaned?: number;
+  /** Avg Runtime */
+  avg_runtime?: number | null;
+  /** Min Runtime */
+  min_runtime?: number | null;
+  /** Max Runtime */
+  max_runtime?: number | null;
+  /** P50 Runtime */
+  p50_runtime?: number | null;
+  /** P95 Runtime */
+  p95_runtime?: number | null;
+  /** P99 Runtime */
+  p99_runtime?: number | null;
+  /** First Execution */
+  first_execution?: string | null;
+  /** Last Execution */
+  last_execution?: string | null;
 }
 
 /**
  * TaskEventResponse
- * Pydantic model for API responses
+ * Pydantic model for API responses with nested retry relationships
  */
 export interface TaskEventResponse {
   /** Task Id */
@@ -90,10 +155,9 @@ export interface TaskEventResponse {
   exception?: string | null;
   /** Traceback */
   traceback?: string | null;
-  /** Retry Of */
-  retry_of?: string | null;
+  retry_of?: TaskEventResponse | null;
   /** Retried By */
-  retried_by?: string[];
+  retried_by?: TaskEventResponse[];
   /**
    * Is Retry
    * @default false
@@ -114,23 +178,59 @@ export interface TaskEventResponse {
    * @default false
    */
   is_orphan?: boolean;
-  /**
-   * Orphaned At
-   * @format date-time
-   */
+  /** Orphaned At */
   orphaned_at?: string | null;
 }
 
 /**
- * TaskStats
- * Task statistics model
+ * TaskRegistryResponse
+ * Task registry API response model
  */
-export interface TaskStats {
+export interface TaskRegistryResponse {
+  /** Id */
+  id: string;
+  /** Name */
+  name: string;
+  /** Human Readable Name */
+  human_readable_name?: string | null;
+  /** Description */
+  description?: string | null;
+  /** Tags */
+  tags?: string[];
   /**
-   * Total Tasks
+   * Created At
+   * @format date-time
+   */
+  created_at: string;
+  /**
+   * Updated At
+   * @format date-time
+   */
+  updated_at: string;
+  /**
+   * First Seen
+   * @format date-time
+   */
+  first_seen: string;
+  /**
+   * Last Seen
+   * @format date-time
+   */
+  last_seen: string;
+}
+
+/**
+ * TaskRegistryStats
+ * Statistics for a specific task
+ */
+export interface TaskRegistryStats {
+  /** Task Name */
+  task_name: string;
+  /**
+   * Total Executions
    * @default 0
    */
-  total_tasks?: number;
+  total_executions?: number;
   /**
    * Succeeded
    * @default 0
@@ -151,11 +251,23 @@ export interface TaskStats {
    * @default 0
    */
   retried?: number;
-  /**
-   * Active
-   * @default 0
-   */
-  active?: number;
+  /** Avg Runtime */
+  avg_runtime?: number | null;
+  /** Last Execution */
+  last_execution?: string | null;
+}
+
+/**
+ * TaskRegistryUpdate
+ * Task registry update request model
+ */
+export interface TaskRegistryUpdate {
+  /** Human Readable Name */
+  human_readable_name?: string | null;
+  /** Description */
+  description?: string | null;
+  /** Tags */
+  tags?: string[] | null;
 }
 
 /** ValidationError */
@@ -390,23 +502,7 @@ export class Api<
 > extends HttpClient<SecurityDataType> {
   api = {
     /**
-     * @description Get current task statistics.
-     *
-     * @tags tasks
-     * @name GetTaskStatsApiStatsGet
-     * @summary Get Task Stats
-     * @request GET:/api/stats
-     */
-    getTaskStatsApiStatsGet: (params: RequestParams = {}) =>
-      this.request<TaskStats, any>({
-        path: `/api/stats`,
-        method: "GET",
-        format: "json",
-        ...params,
-      }),
-
-    /**
-     * @description Get recent task events with filtering and pagination.
+     * @description Get recent task events with filtering and pagination. Filters can be provided in two ways: 1. New format: filters="state:is:success,worker:contains:celery@host" 2. Legacy format: filter_state=success&filter_worker=celery (deprecated) Filter syntax: field:operator:value(s) - Fields: state, worker, task, queue, id - Operators: is, not, in, not_in, contains, starts - Multiple values: comma-separated for in/not_in operators
      *
      * @tags tasks
      * @name GetRecentEventsApiEventsRecentGet
@@ -439,6 +535,8 @@ export class Api<
         sort_order?: string;
         /** Search */
         search?: string | null;
+        /** Filters */
+        filters?: string | null;
         /** Filter State */
         filter_state?: string | null;
         /** Filter Worker */
@@ -494,6 +592,22 @@ export class Api<
       }),
 
     /**
+     * @description Get tasks that have been marked as orphaned and NOT yet retried.
+     *
+     * @tags tasks
+     * @name GetOrphanedTasksApiTasksOrphanedGet
+     * @summary Get Orphaned Tasks
+     * @request GET:/api/tasks/orphaned
+     */
+    getOrphanedTasksApiTasksOrphanedGet: (params: RequestParams = {}) =>
+      this.request<TaskEventResponse[], any>({
+        path: `/api/tasks/orphaned`,
+        method: "GET",
+        format: "json",
+        ...params,
+      }),
+
+    /**
      * @description Retry a failed task by creating a new task with the same parameters.
      *
      * @tags tasks
@@ -508,22 +622,6 @@ export class Api<
       this.request<any, HTTPValidationError>({
         path: `/api/tasks/${taskId}/retry`,
         method: "POST",
-        format: "json",
-        ...params,
-      }),
-
-    /**
-     * @description Get tasks that have been marked as orphaned.
-     *
-     * @tags tasks
-     * @name GetOrphanedTasksApiTasksOrphanedGet
-     * @summary Get Orphaned Tasks
-     * @request GET:/api/tasks/orphaned
-     */
-    getOrphanedTasksApiTasksOrphanedGet: (params: RequestParams = {}) =>
-      this.request<TaskEventResponse[], any>({
-        path: `/api/tasks/orphaned`,
-        method: "GET",
         format: "json",
         ...params,
       }),
@@ -608,35 +706,215 @@ export class Api<
       }),
 
     /**
-     * @description Get all registered Celery tasks with their documentation.
+     * @description Receive log messages from frontend and write to unified log file (only in development mode).
+     *
+     * @tags logs
+     * @name LogFrontendMessageApiLogsFrontendPost
+     * @summary Log Frontend Message
+     * @request POST:/api/logs/frontend
+     */
+    logFrontendMessageApiLogsFrontendPost: (
+      data: LogEntry,
+      params: RequestParams = {},
+    ) =>
+      this.request<any, HTTPValidationError>({
+        path: `/api/logs/frontend`,
+        method: "POST",
+        body: data,
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description List all registered tasks with optional filters. Args: tag: Filter by tag (case-insensitive partial match) name: Filter by task name (case-insensitive partial match)
      *
      * @tags registry
-     * @name GetRegisteredTasksApiRegistryTasksGet
-     * @summary Get Registered Tasks
+     * @name ListTasksApiRegistryTasksGet
+     * @summary List Tasks
      * @request GET:/api/registry/tasks
      */
-    getRegisteredTasksApiRegistryTasksGet: (params: RequestParams = {}) =>
-      this.request<RegisteredTask[], any>({
+    listTasksApiRegistryTasksGet: (
+      query?: {
+        /** Tag */
+        tag?: string | null;
+        /** Name */
+        name?: string | null;
+      },
+      params: RequestParams = {},
+    ) =>
+      this.request<TaskRegistryResponse[], HTTPValidationError>({
         path: `/api/registry/tasks`,
+        method: "GET",
+        query: query,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Get details about a specific task. Args: task_name: The name of the task to retrieve
+     *
+     * @tags registry
+     * @name GetTaskApiRegistryTasksTaskNameGet
+     * @summary Get Task
+     * @request GET:/api/registry/tasks/{task_name}
+     */
+    getTaskApiRegistryTasksTaskNameGet: (
+      taskName: string,
+      params: RequestParams = {},
+    ) =>
+      this.request<TaskRegistryResponse, HTTPValidationError>({
+        path: `/api/registry/tasks/${taskName}`,
         method: "GET",
         format: "json",
         ...params,
       }),
 
     /**
-     * @description Get detailed information about a specific registered task.
+     * @description Update task metadata (human_readable_name, description, tags). Args: task_name: The name of the task to update update_data: The fields to update
      *
      * @tags registry
-     * @name GetTaskDetailsApiRegistryTasksTaskNameGet
-     * @summary Get Task Details
-     * @request GET:/api/registry/tasks/{task_name}
+     * @name UpdateTaskApiRegistryTasksTaskNamePut
+     * @summary Update Task
+     * @request PUT:/api/registry/tasks/{task_name}
      */
-    getTaskDetailsApiRegistryTasksTaskNameGet: (
+    updateTaskApiRegistryTasksTaskNamePut: (
       taskName: string,
+      data: TaskRegistryUpdate,
+      params: RequestParams = {},
+    ) =>
+      this.request<TaskRegistryResponse, HTTPValidationError>({
+        path: `/api/registry/tasks/${taskName}`,
+        method: "PUT",
+        body: data,
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Get statistics for a specific task. Args: task_name: The name of the task hours: Number of hours to look back (default: 24)
+     *
+     * @tags registry
+     * @name GetTaskStatsApiRegistryTasksTaskNameStatsGet
+     * @summary Get Task Stats
+     * @request GET:/api/registry/tasks/{task_name}/stats
+     */
+    getTaskStatsApiRegistryTasksTaskNameStatsGet: (
+      taskName: string,
+      query?: {
+        /**
+         * Hours
+         * @default 24
+         */
+        hours?: number;
+      },
+      params: RequestParams = {},
+    ) =>
+      this.request<TaskRegistryStats, HTTPValidationError>({
+        path: `/api/registry/tasks/${taskName}/stats`,
+        method: "GET",
+        query: query,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Get all unique tags across all tasks.
+     *
+     * @tags registry
+     * @name GetAllTagsApiRegistryTagsGet
+     * @summary Get All Tags
+     * @request GET:/api/registry/tags
+     */
+    getAllTagsApiRegistryTagsGet: (params: RequestParams = {}) =>
+      this.request<string[], any>({
+        path: `/api/registry/tags`,
+        method: "GET",
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Get daily statistics for a task. Args: task_name: The name of the task start_date: Optional start date end_date: Optional end date days: Number of days to look back (default: 30, used if no dates specified)
+     *
+     * @tags registry
+     * @name GetTaskDailyStatsApiRegistryTasksTaskNameDailyStatsGet
+     * @summary Get Task Daily Stats
+     * @request GET:/api/registry/tasks/{task_name}/daily-stats
+     */
+    getTaskDailyStatsApiRegistryTasksTaskNameDailyStatsGet: (
+      taskName: string,
+      query?: {
+        /**
+         * Start Date
+         * Start date (YYYY-MM-DD)
+         */
+        start_date?: string | null;
+        /**
+         * End Date
+         * End date (YYYY-MM-DD)
+         */
+        end_date?: string | null;
+        /**
+         * Days
+         * Number of days to look back (if no dates specified)
+         * @default 30
+         */
+        days?: number | null;
+      },
+      params: RequestParams = {},
+    ) =>
+      this.request<TaskDailyStatsResponse[], HTTPValidationError>({
+        path: `/api/registry/tasks/${taskName}/daily-stats`,
+        method: "GET",
+        query: query,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Get trend summary for a task over the last N days. Returns: Summary with success rates, failure rates, and average runtime
+     *
+     * @tags registry
+     * @name GetTaskTrendApiRegistryTasksTaskNameTrendGet
+     * @summary Get Task Trend
+     * @request GET:/api/registry/tasks/{task_name}/trend
+     */
+    getTaskTrendApiRegistryTasksTaskNameTrendGet: (
+      taskName: string,
+      query?: {
+        /**
+         * Days
+         * Number of days to analyze
+         * @default 7
+         */
+        days?: number;
+      },
       params: RequestParams = {},
     ) =>
       this.request<object, HTTPValidationError>({
-        path: `/api/registry/tasks/${taskName}`,
+        path: `/api/registry/tasks/${taskName}/trend`,
+        method: "GET",
+        query: query,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Get statistics for all tasks on a specific date. Args: target_date: The date to get stats for (YYYY-MM-DD)
+     *
+     * @tags registry
+     * @name GetAllTasksStatsForDateApiRegistryDailyStatsTargetDateGet
+     * @summary Get All Tasks Stats For Date
+     * @request GET:/api/registry/daily-stats/{target_date}
+     */
+    getAllTasksStatsForDateApiRegistryDailyStatsTargetDateGet: (
+      targetDate: string,
+      params: RequestParams = {},
+    ) =>
+      this.request<TaskDailyStatsResponse[], HTTPValidationError>({
+        path: `/api/registry/daily-stats/${targetDate}`,
         method: "GET",
         format: "json",
         ...params,

@@ -23,8 +23,15 @@ class ApiService {
 
   // Task-related endpoints
   async getTaskStats(): Promise<TaskStats> {
-    const response = await this.api.api.getTaskStatsApiStatsGet()
-    return response.data
+    // Stats endpoint removed - return empty stats
+    return {
+      total_tasks: 0,
+      succeeded: 0,
+      failed: 0,
+      pending: 0,
+      retried: 0,
+      active: 0
+    } as TaskStats
   }
 
   async getRecentEvents(params?: {
@@ -34,6 +41,10 @@ class ApiService {
     sort_by?: string | null
     sort_order?: string
     search?: string | null
+    filters?: string | null
+    start_time?: string | null
+    end_time?: string | null
+    // Legacy parameters (deprecated)
     filter_state?: string | null
     filter_worker?: string | null
     filter_task?: string | null

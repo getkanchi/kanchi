@@ -49,7 +49,9 @@ export default {
         // Primary/Brand colors
         primary: {
           DEFAULT: 'var(--primary)',
-          hover: 'var(--primary-hover)'
+          hover: 'var(--primary-hover)',
+          bg: 'var(--primary-bg)',
+          border: 'var(--primary-border)'
         },
         // Semantic status colors using CSS variables
         status: {

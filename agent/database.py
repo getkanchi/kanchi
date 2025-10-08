@@ -2,10 +2,10 @@
 
 from datetime import datetime, timezone
 from typing import Dict, Any
-from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, DateTime, JSON, Text, Index
+from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, DateTime, Date, JSON, Text, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import StaticPool, NullPool
 from contextlib import contextmanager
 import json
 
@@ -33,12 +33,12 @@ def ensure_utc_isoformat(dt: datetime) -> str:
 class TaskEventDB(Base):
     """SQLAlchemy model for task events."""
     __tablename__ = 'task_events'
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     task_id = Column(String(255), nullable=False, index=True)
     task_name = Column(String(255), index=True)
     event_type = Column(String(50), nullable=False, index=True)
-    timestamp = Column(DateTime, nullable=False, index=True)
+    timestamp = Column(DateTime(timezone=True), nullable=False, index=True)
     hostname = Column(String(255))
     worker_name = Column(String(255))
     queue = Column(String(255))
@@ -66,7 +66,7 @@ class TaskEventDB(Base):
     retry_count = Column(Integer, default=0)
     
     is_orphan = Column(Boolean, default=False, index=True)
-    orphaned_at = Column(DateTime)
+    orphaned_at = Column(DateTime(timezone=True))
     
     __table_args__ = (
         Index('idx_task_timestamp', 'task_id', 'timestamp'),
@@ -121,7 +121,7 @@ class WorkerEventDB(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     hostname = Column(String(255), nullable=False, index=True)
     event_type = Column(String(50), nullable=False)
-    timestamp = Column(DateTime, nullable=False, index=True)
+    timestamp = Column(DateTime(timezone=True), nullable=False, index=True)
     status = Column(String(50))
     active_tasks = Column(JSON)
     processed = Column(Integer, default=0)
@@ -143,32 +143,6 @@ class WorkerEventDB(Base):
         }
 
 
-class TaskStatsDB(Base):
-    """SQLAlchemy model for task statistics."""
-    __tablename__ = 'task_stats'
-
-    id = Column(Integer, primary_key=True, default=1)  # Single row for global stats
-    total_tasks = Column(Integer, default=0)
-    succeeded = Column(Integer, default=0)
-    failed = Column(Integer, default=0)
-    pending = Column(Integer, default=0)
-    retried = Column(Integer, default=0)
-    active = Column(Integer, default=0)
-    last_updated = Column(DateTime, default=utc_now)
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for API responses."""
-        return {
-            'total_tasks': self.total_tasks,
-            'succeeded': self.succeeded,
-            'failed': self.failed,
-            'pending': self.pending,
-            'retried': self.retried,
-            'active': self.active,
-            'last_updated': ensure_utc_isoformat(self.last_updated),
-        }
-
-
 class RetryRelationshipDB(Base):
     """SQLAlchemy model for retry relationships."""
     __tablename__ = 'retry_relationships'
@@ -178,12 +152,108 @@ class RetryRelationshipDB(Base):
     original_id = Column(String(255), nullable=False, index=True)
     retry_chain = Column(JSON)  # List of task IDs in retry chain
     total_retries = Column(Integer, default=0)
-    created_at = Column(DateTime, default=utc_now)
-    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
     __table_args__ = (
         Index('idx_retry_bulk_lookup', 'task_id', 'original_id'),
     )
+
+
+class TaskRegistryDB(Base):
+    """SQLAlchemy model for task registry."""
+    __tablename__ = 'task_registry'
+
+    id = Column(String(36), primary_key=True)  # UUID
+    name = Column(String(255), unique=True, nullable=False, index=True)
+    human_readable_name = Column(String(255))
+    description = Column(Text)
+    tags = Column(JSON)  # Array of strings
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+    first_seen = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    last_seen = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    __table_args__ = (
+        Index('idx_task_name_lookup', 'name'),
+        Index('idx_last_seen', 'last_seen'),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for API responses."""
+        return {
+            'id': self.id,
+            'name': self.name,
+            'human_readable_name': self.human_readable_name,
+            'description': self.description,
+            'tags': self.tags or [],
+            'created_at': ensure_utc_isoformat(self.created_at),
+            'updated_at': ensure_utc_isoformat(self.updated_at),
+            'first_seen': ensure_utc_isoformat(self.first_seen),
+            'last_seen': ensure_utc_isoformat(self.last_seen),
+        }
+
+
+class TaskDailyStatsDB(Base):
+    """Daily aggregated statistics per task."""
+    __tablename__ = 'task_daily_stats'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    task_name = Column(String(255), nullable=False, index=True)
+    date = Column(Date, nullable=False, index=True)
+
+    # Execution counts
+    total_executions = Column(Integer, default=0)
+    succeeded = Column(Integer, default=0)
+    failed = Column(Integer, default=0)
+    pending = Column(Integer, default=0)
+    retried = Column(Integer, default=0)
+    revoked = Column(Integer, default=0)
+    orphaned = Column(Integer, default=0)
+
+    # Performance metrics
+    avg_runtime = Column(Float)
+    min_runtime = Column(Float)
+    max_runtime = Column(Float)
+    p50_runtime = Column(Float)  # Median
+    p95_runtime = Column(Float)  # 95th percentile
+    p99_runtime = Column(Float)  # 99th percentile
+
+    # Timestamps
+    first_execution = Column(DateTime(timezone=True))
+    last_execution = Column(DateTime(timezone=True))
+
+    # Metadata
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+    __table_args__ = (
+        Index('idx_unique_task_date', 'task_name', 'date', unique=True),
+        Index('idx_task_name_date_range', 'task_name', 'date'),
+        Index('idx_date_lookup', 'date'),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for API responses."""
+        return {
+            'task_name': self.task_name,
+            'date': self.date.isoformat() if self.date else None,
+            'total_executions': self.total_executions,
+            'succeeded': self.succeeded,
+            'failed': self.failed,
+            'pending': self.pending,
+            'retried': self.retried,
+            'revoked': self.revoked,
+            'orphaned': self.orphaned,
+            'avg_runtime': self.avg_runtime,
+            'min_runtime': self.min_runtime,
+            'max_runtime': self.max_runtime,
+            'p50_runtime': self.p50_runtime,
+            'p95_runtime': self.p95_runtime,
+            'p99_runtime': self.p99_runtime,
+            'first_execution': ensure_utc_isoformat(self.first_execution),
+            'last_execution': ensure_utc_isoformat(self.last_execution),
+        }
 
 
 class DatabaseManager:
@@ -194,13 +264,19 @@ class DatabaseManager:
         is_sqlite = database_url.startswith('sqlite')
 
         if is_sqlite:
+            # Use NullPool to create a new connection per thread
+            # This prevents thread-safety issues and segfaults with SQLite
             self.engine = create_engine(
                 database_url,
-                poolclass=StaticPool,
+                poolclass=NullPool,  # No connection pooling - new connection per use
                 pool_pre_ping=True,
                 echo=False,
-                connect_args={"check_same_thread": False},
-                isolation_level="READ UNCOMMITTED"
+                connect_args={
+                    "check_same_thread": False,  # Allow cross-thread usage
+                    "timeout": 30.0,  # Wait up to 30s for database locks
+                },
+                # Use SQLite's default isolation level (DEFERRED)
+                # READ UNCOMMITTED is not properly supported by SQLite
             )
         else:
             self.engine = create_engine(

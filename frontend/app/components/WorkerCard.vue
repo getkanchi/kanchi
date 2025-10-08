@@ -148,17 +148,19 @@ const toggleExpand = () => {
 
 const cardClasses = computed(() => {
   const classes = ['bg-background-surface']
-  
-  if (props.worker.status === 'offline') {
-    classes.push('bg-gradient-to-br from-card-base to-status-error/5', 'border-status-error/20')
-  }
-  else if (props.worker.error_count && props.worker.error_count > 0) {
+
+  // Only highlight actual problems (errors, high load)
+  if (props.worker.error_count && props.worker.error_count > 0) {
     classes.push('bg-gradient-to-br from-card-base to-status-warning/5', 'border-status-warning/20')
   }
   else if (props.worker.loadavg && props.worker.loadavg[0] > 4) {
     classes.push('bg-gradient-to-br from-card-base to-status-warning/3', 'border-status-warning/10')
   }
-  
+  // Offline workers get subtle muted styling (not alarming)
+  else if (props.worker.status === 'offline') {
+    classes.push('opacity-75')
+  }
+
   return classes.join(' ')
 })
 

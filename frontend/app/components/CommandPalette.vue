@@ -189,12 +189,7 @@ const lookupTask = async (taskId: string) => {
     const response = await fetch(`http://localhost:8765/api/events/recent?limit=1000`)
     if (response.ok) {
       const responseData = await response.json()
-      
-      // Debug: log the structure to see what we're working with
-      console.log('API Response:', responseData)
-      console.log('Response type:', typeof responseData)
-      console.log('Looking for task ID:', cleanTaskId)
-      
+
       // Handle different response formats
       let events = []
       if (Array.isArray(responseData)) {
@@ -204,22 +199,18 @@ const lookupTask = async (taskId: string) => {
       } else if (responseData.events && Array.isArray(responseData.events)) {
         events = responseData.events
       } else {
-        console.log('Unexpected response format:', responseData)
         selectedTask.value = null
         return
       }
-      
-      console.log('Events array:', events.slice(0, 3))
-      
+
       const task = events.find((event: any) => {
         // Try multiple possible field names and matching strategies
         const taskIdFields = [event.task_id, event.taskId, event.id, event.task]
-        return taskIdFields.some(field => 
+        return taskIdFields.some(field =>
           field && field.toString().toLowerCase().includes(cleanTaskId.toLowerCase())
         )
       })
-      
-      console.log('Found task:', task)
+
       selectedTask.value = task || null
     }
   } catch (error) {

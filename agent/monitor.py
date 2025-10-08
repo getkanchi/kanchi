@@ -64,7 +64,10 @@ class CeleryEventMonitor:
         """Handle worker events."""
         try:
             hostname = event.get("hostname", "unknown")
-            timestamp = datetime.fromtimestamp(event.get("timestamp", datetime.now(timezone.utc).timestamp()), tz=timezone.utc)
+            # Use current server time (UTC) instead of worker timestamp to avoid timezone issues
+            # Worker clocks may be misconfigured or in different timezones (e.g., Docker containers)
+            # The receive time is more reliable for monitoring purposes
+            timestamp = datetime.now(timezone.utc)
 
             # Update worker state
             if hostname not in self.workers:
