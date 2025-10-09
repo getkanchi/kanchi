@@ -46,7 +46,7 @@ import json
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, asc, or_, and_, func
+from sqlalchemy import desc, asc, or_, and_, func, String
 
 from database import TaskEventDB, RetryRelationshipDB
 from models import TaskEvent, TaskEventResponse
@@ -60,9 +60,16 @@ class TaskService:
     
     def save_task_event(self, task_event: TaskEvent) -> TaskEventDB:
         """Save a task event to the database."""
+        import logging
+        logger = logging.getLogger(__name__)
+
         # Handle queue information: preserve from task-sent events for subsequent events
         routing_key = task_event.routing_key
         queue = task_event.queue
+
+        # DEBUG: Log before lookup
+        if task_event.event_type == 'task-sent':
+            logger.warning(f"[DEBUG] Saving task-sent {task_event.task_id[:8]}: routing_key={repr(routing_key)}, queue={repr(queue)}")
 
         # If this event doesn't have queue info, try to get it from a previous task-sent event
         if not routing_key or routing_key == 'default':
@@ -236,7 +243,10 @@ class TaskService:
                     TaskEventDB.task_name.ilike(search_pattern),
                     TaskEventDB.task_id.ilike(search_pattern),
                     TaskEventDB.hostname.ilike(search_pattern),
-                    TaskEventDB.event_type.ilike(search_pattern)
+                    TaskEventDB.event_type.ilike(search_pattern),
+                    # Search in JSON args and kwargs by casting to text
+                    func.cast(TaskEventDB.args, String).ilike(search_pattern),
+                    func.cast(TaskEventDB.kwargs, String).ilike(search_pattern)
                 )
             )
 
@@ -732,17 +742,14 @@ class TaskService:
         """
 
         # Use a subquery to find the latest timestamp for each task_id
+        # IMPORTANT: Do NOT apply state/worker/task/queue/search filters here!
+        # Those must be applied AFTER aggregation to filter by current state, not historical states
         latest_subquery = self.session.query(
             TaskEventDB.task_id,
             func.max(TaskEventDB.timestamp).label('max_timestamp')
         )
 
-        # Parse and apply new filter format
-        parsed_filters = self._parse_filters(filters) if filters else []
-        for filter_obj in parsed_filters:
-            latest_subquery = self._apply_filter(latest_subquery, filter_obj)
-
-        # Apply time range filter
+        # Only apply time range filters to subquery (affects which events are considered)
         if start_time:
             try:
                 from dateutil import parser
@@ -769,32 +776,8 @@ class TaskService:
                 logger = logging.getLogger(__name__)
                 logger.error(f"Aggregated query - Failed to parse end_time: {end_time}, error: {e}")
 
-        # Apply legacy filters (for backward compatibility)
-        if filter_state:
-            latest_subquery = self._apply_state_filter(latest_subquery, 'is', [filter_state])
-
-        if filter_worker:
-            latest_subquery = self._apply_worker_filter(latest_subquery, 'contains', [filter_worker])
-
-        if filter_task:
-            latest_subquery = self._apply_task_filter(latest_subquery, 'contains', [filter_task])
-
-        if filter_queue:
-            latest_subquery = self._apply_queue_filter(latest_subquery, 'contains', [filter_queue])
-
-        if search:
-            search_pattern = f"%{search}%"
-            latest_subquery = latest_subquery.filter(
-                or_(
-                    TaskEventDB.task_name.ilike(search_pattern),
-                    TaskEventDB.task_id.ilike(search_pattern),
-                    TaskEventDB.hostname.ilike(search_pattern),
-                    TaskEventDB.event_type.ilike(search_pattern)
-                )
-            )
-        
         latest_subquery = latest_subquery.group_by(TaskEventDB.task_id).subquery()
-        
+
         # Join with the main table to get the full event data
         main_query = self.session.query(TaskEventDB).join(
             latest_subquery,
@@ -803,6 +786,39 @@ class TaskService:
                 TaskEventDB.timestamp == latest_subquery.c.max_timestamp
             )
         )
+
+        # NOW apply filters AFTER aggregation to filter by CURRENT state
+        # Parse and apply new filter format
+        parsed_filters = self._parse_filters(filters) if filters else []
+        for filter_obj in parsed_filters:
+            main_query = self._apply_filter(main_query, filter_obj)
+
+        # Apply legacy filters (for backward compatibility)
+        if filter_state:
+            main_query = self._apply_state_filter(main_query, 'is', [filter_state])
+
+        if filter_worker:
+            main_query = self._apply_worker_filter(main_query, 'contains', [filter_worker])
+
+        if filter_task:
+            main_query = self._apply_task_filter(main_query, 'contains', [filter_task])
+
+        if filter_queue:
+            main_query = self._apply_queue_filter(main_query, 'contains', [filter_queue])
+
+        if search:
+            search_pattern = f"%{search}%"
+            main_query = main_query.filter(
+                or_(
+                    TaskEventDB.task_name.ilike(search_pattern),
+                    TaskEventDB.task_id.ilike(search_pattern),
+                    TaskEventDB.hostname.ilike(search_pattern),
+                    TaskEventDB.event_type.ilike(search_pattern),
+                    # Search in JSON args and kwargs by casting to text
+                    func.cast(TaskEventDB.args, String).ilike(search_pattern),
+                    func.cast(TaskEventDB.kwargs, String).ilike(search_pattern)
+                )
+            )
         
         # Apply sorting
         if sort_by:

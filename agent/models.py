@@ -117,11 +117,18 @@ class TaskEvent:
         because worker clocks may be misconfigured or out of sync. The receive time is more reliable
         for monitoring purposes.
         """
+        import logging
+        logger = logging.getLogger(__name__)
+
         # Extract event type from the event
         event_type = event.get('type', 'unknown')
 
         # Get task info
         task_id = event.get('uuid', '')
+
+        # DEBUG: Log what Celery actually sends
+        if event_type == 'task-sent':
+            logger.warning(f"[DEBUG] task-sent event for {task_id[:8]}: routing_key={repr(event.get('routing_key'))}, queue={repr(event.get('queue'))}, ALL_FIELDS={list(event.keys())}")
 
         # Handle different event types
         # Celery sends args/kwargs as STRING representations of Python objects
@@ -173,6 +180,7 @@ class TaskEvent:
             eta=event.get('eta'),
             expires=event.get('expires'),
             hostname=event.get('hostname'),
+            queue=event.get('queue'),
             exchange=event.get('exchange', ''),
             routing_key=event.get('routing_key') or event.get('queue') or 'default',
             root_id=event.get('root_id', task_id),
@@ -261,7 +269,7 @@ class TaskEventResponse(BaseModel):
     expires: Optional[str] = None
     hostname: Optional[str] = None
     exchange: str = ""
-    routing_key: str = ""
+    routing_key: str = "default"
     root_id: Optional[str] = None
     parent_id: Optional[str] = None
     result: Optional[Any] = None
