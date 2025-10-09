@@ -44,7 +44,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: python run_worker.py --queues default,high_priority --concurrency 4 --events --hostname worker1@%h
+    command: python run_worker.py --queues celery-test,high_priority --concurrency 4 --events --hostname worker1@%h
 
   # Celery Worker 2
   worker2:
@@ -58,7 +58,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: python run_worker.py --queues default,low_priority,cpu_intensive --concurrency 2 --events --hostname worker2@%h
+    command: python run_worker.py --queues celery-test,low_priority,cpu_intensive --concurrency 2 --events --hostname worker2@%h
 
   # Celery Worker 3 (IO tasks)
   worker3:

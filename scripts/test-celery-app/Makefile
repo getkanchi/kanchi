@@ -64,7 +64,7 @@ monitor: ## Open monitoring UIs
 	@open http://localhost:5555 2>/dev/null || xdg-open http://localhost:5555 2>/dev/null || echo "Flower: http://localhost:5555"
 
 worker-local: ## Run a local worker (requires local RabbitMQ/Redis)
-	poetry run python run_worker.py --queues default,high_priority --events --hostname local-worker@%h
+	poetry run python run_worker.py --queues celery-test,high_priority --events --hostname local-worker@%h
 
 producer-local: ## Run local producer (requires local RabbitMQ/Redis)
 	poetry run python test_producer.py --mode mixed --duration 30

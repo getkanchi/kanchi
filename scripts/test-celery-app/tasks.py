@@ -251,6 +251,299 @@ def dynamic_task(**kwargs):
     return result
 
 
+@app.task(name='tasks.data_processing_task')
+def data_processing_task(data_size=1000):
+    """Process and transform a large dataset.
+
+    Simulates data transformation operations like filtering, mapping, and aggregation.
+    Useful for testing data pipeline monitoring.
+    """
+    data = [random.randint(1, 100) for _ in range(data_size)]
+
+    # Filter
+    filtered = [x for x in data if x > 50]
+
+    # Map
+    squared = [x ** 2 for x in filtered]
+
+    # Aggregate
+    result = {
+        'total': sum(squared),
+        'count': len(squared),
+        'average': sum(squared) / len(squared) if squared else 0,
+        'max': max(squared) if squared else 0,
+        'min': min(squared) if squared else 0
+    }
+
+    return result
+
+
+@app.task(name='tasks.image_processing_task')
+def image_processing_task(width=100, height=100, filters=5):
+    """Simulate image processing operations.
+
+    Mimics image manipulation tasks like resizing, filtering, and transformations.
+    Good for testing media processing workflows.
+    """
+    # Simulate creating an image matrix
+    image = [[random.randint(0, 255) for _ in range(width)] for _ in range(height)]
+
+    # Apply filters
+    for _ in range(filters):
+        time.sleep(0.1)  # Simulate processing time
+
+    # Calculate some statistics
+    flat_image = [pixel for row in image for pixel in row]
+
+    return {
+        'dimensions': f'{width}x{height}',
+        'filters_applied': filters,
+        'brightness': sum(flat_image) / len(flat_image),
+        'processed_at': datetime.utcnow().isoformat()
+    }
+
+
+@app.task(name='tasks.api_request_task')
+def api_request_task(endpoint='example.com', retries=0):
+    """Simulate an API request with random delays.
+
+    Mimics external API calls with variable response times.
+    Perfect for testing integration monitoring and timeout handling.
+    """
+    delay = random.uniform(0.5, 2.0)
+    time.sleep(delay)
+
+    # Simulate occasional failures
+    if random.random() < 0.1:  # 10% failure rate
+        raise Exception(f"API request to {endpoint} failed")
+
+    return {
+        'endpoint': endpoint,
+        'status_code': 200,
+        'response_time': delay,
+        'timestamp': datetime.utcnow().isoformat()
+    }
+
+
+@app.task(name='tasks.database_query_task')
+def database_query_task(query_type='SELECT', record_count=100):
+    """Simulate database query operations.
+
+    Mimics database operations like SELECT, INSERT, UPDATE.
+    Useful for testing database-heavy application monitoring.
+    """
+    # Simulate query execution time based on record count
+    execution_time = record_count / 1000 + random.uniform(0.1, 0.5)
+    time.sleep(execution_time)
+
+    return {
+        'query_type': query_type,
+        'records_affected': record_count,
+        'execution_time': execution_time,
+        'timestamp': datetime.utcnow().isoformat()
+    }
+
+
+@app.task(name='tasks.email_send_task')
+def email_send_task(recipient='user@example.com', template='welcome'):
+    """Simulate sending an email.
+
+    Mimics email delivery with template rendering.
+    Good for testing notification system monitoring.
+    """
+    time.sleep(random.uniform(0.5, 1.5))
+
+    return {
+        'recipient': recipient,
+        'template': template,
+        'sent_at': datetime.utcnow().isoformat(),
+        'message_id': hashlib.md5(f"{recipient}{datetime.utcnow()}".encode()).hexdigest()
+    }
+
+
+@app.task(name='tasks.report_generation_task', bind=True)
+def report_generation_task(self, report_type='daily', sections=5):
+    """Generate a report with progress tracking.
+
+    Simulates report generation with multiple sections and progress updates.
+    Perfect for testing long-running document generation monitoring.
+    """
+    for i in range(sections):
+        time.sleep(1)
+        self.update_state(
+            state='PROGRESS',
+            meta={
+                'current': i + 1,
+                'total': sections,
+                'status': f'Generating section {i + 1}/{sections}'
+            }
+        )
+
+    return {
+        'report_type': report_type,
+        'sections': sections,
+        'size_kb': sections * random.randint(100, 500),
+        'generated_at': datetime.utcnow().isoformat()
+    }
+
+
+@app.task(name='tasks.cache_warmup_task')
+def cache_warmup_task(cache_entries=50):
+    """Warm up cache with pre-computed data.
+
+    Simulates cache population operations.
+    Useful for testing cache management and startup procedures.
+    """
+    cache_data = {}
+    for i in range(cache_entries):
+        key = f'cache_key_{i}'
+        value = hashlib.sha256(str(random.random()).encode()).hexdigest()
+        cache_data[key] = value
+        time.sleep(0.05)
+
+    return {
+        'entries_cached': len(cache_data),
+        'sample_keys': list(cache_data.keys())[:5],
+        'timestamp': datetime.utcnow().isoformat()
+    }
+
+
+@app.task(name='tasks.ml_prediction_task')
+def ml_prediction_task(model='simple', features=10):
+    """Simulate machine learning prediction.
+
+    Mimics ML model inference with feature processing.
+    Good for testing ML pipeline monitoring.
+    """
+    # Simulate feature extraction
+    feature_vector = [random.random() for _ in range(features)]
+
+    # Simulate prediction time
+    time.sleep(random.uniform(0.3, 1.0))
+
+    # Generate fake prediction
+    prediction = sum(feature_vector) / len(feature_vector)
+    confidence = random.uniform(0.7, 0.99)
+
+    return {
+        'model': model,
+        'prediction': prediction,
+        'confidence': confidence,
+        'features_used': features,
+        'timestamp': datetime.utcnow().isoformat()
+    }
+
+
+@app.task(name='tasks.file_conversion_task')
+def file_conversion_task(input_format='json', output_format='csv', size_mb=5):
+    """Simulate file format conversion.
+
+    Mimics converting files between different formats.
+    Useful for testing file processing pipelines.
+    """
+    # Simulate conversion time based on file size
+    conversion_time = size_mb * 0.2 + random.uniform(0.5, 1.5)
+    time.sleep(conversion_time)
+
+    return {
+        'input_format': input_format,
+        'output_format': output_format,
+        'input_size_mb': size_mb,
+        'output_size_mb': size_mb * random.uniform(0.8, 1.2),
+        'conversion_time': conversion_time,
+        'timestamp': datetime.utcnow().isoformat()
+    }
+
+
+@app.task(name='tasks.notification_fanout_task')
+def notification_fanout_task(user_count=10, notification_type='update'):
+    """Send notifications to multiple users.
+
+    Simulates fanout pattern for broadcasting notifications.
+    Perfect for testing bulk notification systems.
+    """
+    results = []
+    for i in range(user_count):
+        time.sleep(0.1)
+        results.append({
+            'user_id': i,
+            'status': 'sent',
+            'notification_type': notification_type
+        })
+
+    return {
+        'total_sent': user_count,
+        'notification_type': notification_type,
+        'timestamp': datetime.utcnow().isoformat()
+    }
+
+
+@app.task(name='tasks.validation_task')
+def validation_task(data_points=100, strict_mode=True):
+    """Validate data against business rules.
+
+    Simulates data validation with configurable strictness.
+    Useful for testing data quality monitoring.
+    """
+    valid_count = 0
+    invalid_count = 0
+    errors = []
+
+    for i in range(data_points):
+        # Simulate validation
+        is_valid = random.random() > 0.1  # 90% valid
+
+        if is_valid:
+            valid_count += 1
+        else:
+            invalid_count += 1
+            if strict_mode:
+                errors.append(f"Validation error at index {i}")
+
+    if strict_mode and errors:
+        raise ValueError(f"Validation failed: {len(errors)} errors found")
+
+    return {
+        'total_validated': data_points,
+        'valid': valid_count,
+        'invalid': invalid_count,
+        'strict_mode': strict_mode,
+        'timestamp': datetime.utcnow().isoformat()
+    }
+
+
+@app.task(name='tasks.batch_import_task', bind=True)
+def batch_import_task(self, batch_size=1000, batches=5):
+    """Import data in batches with progress tracking.
+
+    Simulates batch data import operations.
+    Good for testing ETL pipeline monitoring.
+    """
+    total_imported = 0
+
+    for batch_num in range(batches):
+        time.sleep(1)
+        imported = random.randint(int(batch_size * 0.9), batch_size)
+        total_imported += imported
+
+        self.update_state(
+            state='PROGRESS',
+            meta={
+                'current_batch': batch_num + 1,
+                'total_batches': batches,
+                'imported_so_far': total_imported,
+                'status': f'Processing batch {batch_num + 1}/{batches}'
+            }
+        )
+
+    return {
+        'total_imported': total_imported,
+        'batches_processed': batches,
+        'average_batch_size': total_imported / batches,
+        'timestamp': datetime.utcnow().isoformat()
+    }
+
+
 def create_workflow_examples():
     workflow_chain = chain(
         chain_task_start.s(5),

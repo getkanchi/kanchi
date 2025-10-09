@@ -111,11 +111,15 @@ class TaskEvent:
     
     @classmethod
     def from_celery_event(cls, event: dict, task_name: Optional[str] = None) -> 'TaskEvent':
-        """Create TaskEvent from Celery event data
+        """Create TaskEvent from Celery event data.
 
         NOTE: We use the current server time (UTC) instead of the timestamp from the Celery event
         because worker clocks may be misconfigured or out of sync. The receive time is more reliable
         for monitoring purposes.
+
+        NOTE: Only task-sent events contain routing information (queue, exchange, routing_key).
+        All other event types will have these fields as None/empty. Use a JOIN query to get
+        routing info from the task-sent event when querying other event types.
         """
         import logging
         logger = logging.getLogger(__name__)
@@ -125,10 +129,6 @@ class TaskEvent:
 
         # Get task info
         task_id = event.get('uuid', '')
-
-        # DEBUG: Log what Celery actually sends
-        if event_type == 'task-sent':
-            logger.warning(f"[DEBUG] task-sent event for {task_id[:8]}: routing_key={repr(event.get('routing_key'))}, queue={repr(event.get('queue'))}, ALL_FIELDS={list(event.keys())}")
 
         # Handle different event types
         # Celery sends args/kwargs as STRING representations of Python objects
@@ -180,9 +180,10 @@ class TaskEvent:
             eta=event.get('eta'),
             expires=event.get('expires'),
             hostname=event.get('hostname'),
+            # Routing info: only present in task-sent events, None/empty for others
             queue=event.get('queue'),
-            exchange=event.get('exchange', ''),
-            routing_key=event.get('routing_key') or event.get('queue') or 'default',
+            exchange=event.get('exchange') or '',
+            routing_key=event.get('routing_key') or '',
             root_id=event.get('root_id', task_id),
             parent_id=event.get('parent_id'),
             result=event.get('result'),

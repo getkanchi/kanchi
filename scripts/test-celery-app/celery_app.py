@@ -22,9 +22,10 @@ app.conf.update(
     task_track_started=True,
     task_send_sent_event=True,
     worker_send_task_events=True,
-    task_default_queue='default',
+    task_default_queue='celery-test',
     task_queues=(
-        Queue('default', routing_key='task.#'),
+        Queue('celery-test', routing_key='task.#'),
+        Queue('default', routing_key='default.#'),
         Queue('high_priority', routing_key='high.#'),
         Queue('low_priority', routing_key='low.#'),
         Queue('cpu_intensive', routing_key='cpu.#'),

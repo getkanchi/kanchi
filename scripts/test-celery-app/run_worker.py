@@ -13,8 +13,8 @@ import tasks  # noqa: F401
 
 def main():
     parser = argparse.ArgumentParser(description='Run Celery worker with custom configuration')
-    parser.add_argument('--queues', '-Q', 
-                       default='default',
+    parser.add_argument('--queues', '-Q',
+                       default='celery-test',
                        help='Comma-separated list of queues to consume from')
     parser.add_argument('--concurrency', '-c',
                        type=int,
