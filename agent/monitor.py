@@ -16,7 +16,7 @@ class CeleryEventMonitor:
 
     def __init__(self, broker_url: str = "amqp://guest@localhost//"):
         self.broker_url = broker_url
-        self.app = Celery(broker=broker_url)
+        self.app = Celery(broker=broker_url, task_send_sent_event=True)
         self.state = None
         self.task_callback: Optional[Callable] = None
         self.worker_callback: Optional[Callable] = None

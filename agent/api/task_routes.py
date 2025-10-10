@@ -175,7 +175,7 @@ def create_router(app_state) -> APIRouter:
             args = ()
             kwargs = {}
 
-        queue_name = original_task.routing_key if original_task.routing_key else 'default'
+        queue_name = original_task.queue if original_task.queue else 'default'
 
         new_task_id = str(uuid.uuid4())
 
