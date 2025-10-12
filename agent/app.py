@@ -5,6 +5,9 @@ import threading
 from typing import Optional
 import uvicorn
 from contextlib import asynccontextmanager
+import sys
+import platform
+from datetime import datetime, timezone
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,6 +20,9 @@ from monitor import CeleryEventMonitor
 from worker_health_monitor import WorkerHealthMonitor
 
 logger = logging.getLogger(__name__)
+
+# Track application start time for uptime calculation
+APP_START_TIME = datetime.now(timezone.utc)
 
 
 class ApplicationState:
@@ -70,23 +76,103 @@ def create_app() -> FastAPI:
     from api.websocket_routes import create_router as create_websocket_router
     from api.log_routes import create_router as create_log_router
     from api.registry_routes import create_router as create_registry_router
+    from api.environment_routes import create_router as create_environment_router
 
     app.include_router(create_task_router(app_state))
     app.include_router(create_worker_router(app_state))
     app.include_router(create_websocket_router(app_state))
     app.include_router(create_log_router(app_state))
     app.include_router(create_registry_router(app_state))
+    app.include_router(create_environment_router(app_state))
 
     @app.get("/api/health")
     async def health_check():
-        """Health check endpoint."""
+        """Health check endpoint with detailed system information."""
+        from sqlalchemy import text
+
         workers_count = len(app_state.monitor_instance.get_workers_info()) if app_state.monitor_instance else 0
+
+        # Calculate uptime
+        uptime_seconds = (datetime.now(timezone.utc) - APP_START_TIME).total_seconds()
+
+        # Get task statistics
+        total_tasks = 0
+        first_task_timestamp = None
+        if app_state.db_manager:
+            try:
+                with app_state.db_manager.get_session() as session:
+                    # Count unique tasks that have completed (succeeded, failed, or revoked)
+                    result = session.execute(
+                        text("""
+                            SELECT COUNT(DISTINCT task_id)
+                            FROM task_events
+                            WHERE event_type IN ('task-succeeded', 'task-failed', 'task-revoked')
+                        """)
+                    )
+                    total_tasks = result.scalar() or 0
+
+                    # Get first task timestamp from the earliest event
+                    result = session.execute(
+                        text("SELECT MIN(timestamp) FROM task_events")
+                    )
+                    first_task_timestamp = result.scalar()
+            except Exception as e:
+                logger.error(f"Error fetching task statistics: {e}")
+
+        # Get configuration
+        config = Config.from_env()
+
+        # Get broker URL from monitor instance (which has the actual connection)
+        # If monitor_instance has broker_url, use it; otherwise use config; otherwise use default
+        broker_url_full = None
+        if app_state.monitor_instance and app_state.monitor_instance.broker_url:
+            broker_url_full = app_state.monitor_instance.broker_url
+        elif config.broker_url:
+            broker_url_full = config.broker_url
+        else:
+            # Default broker URL used by CeleryEventMonitor
+            broker_url_full = "amqp://guest@localhost//"
+
+        # Mask broker URL credentials
+        broker_url_masked = None
+        if broker_url_full:
+            if '@' in broker_url_full:
+                # Extract the credentials part (between :// and @)
+                try:
+                    parts = broker_url_full.split('://')
+                    if len(parts) == 2:
+                        protocol = parts[0]
+                        rest = parts[1]
+                        if '@' in rest:
+                            credentials, host_part = rest.split('@', 1)
+                            broker_url_masked = f"{protocol}://***@{host_part}"
+                        else:
+                            broker_url_masked = broker_url_full
+                    else:
+                        broker_url_masked = broker_url_full
+                except:
+                    broker_url_masked = broker_url_full
+            else:
+                broker_url_masked = broker_url_full
+
         return {
             "status": "healthy",
             "monitor_running": app_state.monitor_thread.is_alive() if app_state.monitor_thread else False,
             "connections": len(app_state.connection_manager.active_connections) if app_state.connection_manager else 0,
             "workers": workers_count,
-            "database_url": app_state.db_manager.engine.url.render_as_string(hide_password=True) if app_state.db_manager else None
+            "database_url": app_state.db_manager.engine.url.render_as_string(hide_password=True) if app_state.db_manager else None,
+            "database_url_full": str(app_state.db_manager.engine.url) if app_state.db_manager else None,
+            "broker_url": broker_url_masked,
+            "broker_url_full": broker_url_full,
+            "uptime_seconds": int(uptime_seconds),
+            "python_version": sys.version.split()[0],
+            "platform": platform.platform(),
+            "system": platform.system(),
+            "api_version": app.version,
+            "development_mode": config.development_mode,
+            "log_level": config.log_level,
+            "total_tasks_processed": total_tasks,
+            "first_task_at": first_task_timestamp if first_task_timestamp else None,
         }
 
     return app

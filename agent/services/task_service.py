@@ -54,9 +54,10 @@ from models import TaskEvent, TaskEventResponse
 
 class TaskService:
     """Service for managing task events and statistics."""
-    
-    def __init__(self, session: Session):
+
+    def __init__(self, session: Session, active_env=None):
         self.session = session
+        self.active_env = active_env
     
     def save_task_event(self, task_event: TaskEvent) -> TaskEventDB:
         """Save a task event to the database."""
@@ -189,6 +190,9 @@ class TaskService:
         """Get recent task events with filtering and pagination."""
         query = self.session.query(TaskEventDB)
 
+        # Apply environment filter FIRST
+        query = self._apply_environment_filter(query)
+
         # Parse new filter format if provided
         parsed_filters = self._parse_filters(filters) if filters else []
 
@@ -299,10 +303,19 @@ class TaskService:
     def get_active_tasks(self) -> List[TaskEvent]:
         """Get currently active tasks."""
         # Find active tasks: latest event is started/received/sent and not finished
-        latest_events = self.session.query(
+        latest_events_query = self.session.query(
             TaskEventDB.task_id,
             func.max(TaskEventDB.timestamp).label('max_timestamp')
-        ).group_by(TaskEventDB.task_id).subquery()
+        )
+
+        # Apply environment filter
+        latest_events_query_base = self.session.query(TaskEventDB.task_id)
+        latest_events_query_base = self._apply_environment_filter(latest_events_query_base)
+        env_conditions = latest_events_query_base.whereclause
+        if env_conditions is not None:
+            latest_events_query = latest_events_query.filter(env_conditions)
+
+        latest_events = latest_events_query.group_by(TaskEventDB.task_id).subquery()
         
         active_events_db = self.session.query(TaskEventDB).join(
             latest_events,
@@ -393,7 +406,7 @@ class TaskService:
             worker_name=event_db.worker_name,
             queue=event_db.queue,
             exchange=event_db.exchange or "",
-            routing_key=event_db.routing_key,
+            routing_key=event_db.routing_key or "",
             root_id=event_db.root_id,
             parent_id=event_db.parent_id,
             args=args_str,
@@ -701,6 +714,41 @@ class TaskService:
 
         return query
 
+    def _apply_environment_filter(self, query):
+        """Apply environment filtering using wildcard patterns."""
+        if not self.active_env:
+            return query
+
+        conditions = []
+
+        # Apply queue pattern filters
+        if self.active_env.queue_patterns:
+            queue_conditions = []
+            for pattern in self.active_env.queue_patterns:
+                # Convert fnmatch wildcards to SQL LIKE wildcards
+                # fnmatch uses * for any chars, ? for single char
+                # SQL LIKE uses % for any chars, _ for single char
+                sql_pattern = pattern.replace('*', '%').replace('?', '_')
+                queue_conditions.append(TaskEventDB.queue.like(sql_pattern))
+            if queue_conditions:
+                conditions.append(or_(*queue_conditions))
+
+        # Apply worker pattern filters
+        if self.active_env.worker_patterns:
+            worker_conditions = []
+            for pattern in self.active_env.worker_patterns:
+                sql_pattern = pattern.replace('*', '%').replace('?', '_')
+                worker_conditions.append(TaskEventDB.hostname.like(sql_pattern))
+            if worker_conditions:
+                conditions.append(or_(*worker_conditions))
+
+        # If we have any conditions, apply them with OR logic
+        # (match if EITHER queue OR worker matches)
+        if conditions:
+            query = query.filter(or_(*conditions))
+
+        return query
+
     def _get_recent_events_aggregated_sqlalchemy(
         self,
         limit: int,
@@ -748,6 +796,15 @@ class TaskService:
             TaskEventDB.task_id,
             func.max(TaskEventDB.timestamp).label('max_timestamp')
         )
+
+        # Apply environment filter to subquery
+        latest_subquery_base = self.session.query(TaskEventDB.task_id)
+        latest_subquery_base = self._apply_environment_filter(latest_subquery_base)
+
+        # Extract the WHERE clause from the environment-filtered query
+        env_conditions = latest_subquery_base.whereclause
+        if env_conditions is not None:
+            latest_subquery = latest_subquery.filter(env_conditions)
 
         # Only apply time range filters to subquery (affects which events are considered)
         if start_time:

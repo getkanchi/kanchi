@@ -228,7 +228,7 @@ const mapTaskToRetryChainFormat = (task: any) => {
             </TableRow>
             
             
-            <TableRow v-if="expandedRows.has(row.original.task_id)" class="bg-muted/30 border-border">
+            <TableRow v-if="expandedRows.has(row.original.task_id)" class="bg-background-raised border-border">
               <TableCell :colspan="columns.length + 1" class="p-0">
                 <div class="px-8 py-6">
 

@@ -256,6 +256,46 @@ class TaskDailyStatsDB(Base):
         }
 
 
+class EnvironmentDB(Base):
+    """SQLAlchemy model for environment filters."""
+    __tablename__ = 'environments'
+
+    id = Column(String(36), primary_key=True)  # UUID
+    name = Column(String(255), unique=True, nullable=False, index=True)
+    description = Column(Text)
+
+    # Filter patterns (JSON arrays of wildcard patterns)
+    queue_patterns = Column(JSON)  # e.g., ["prod-*", "staging-queue-?"]
+    worker_patterns = Column(JSON)  # e.g., ["worker-*.prod.com", "celery@prod-*"]
+
+    # State
+    is_active = Column(Boolean, default=False, index=True)
+    is_default = Column(Boolean, default=False)
+
+    # Metadata
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+    __table_args__ = (
+        Index('idx_env_active', 'is_active'),
+        Index('idx_env_default', 'is_default'),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for API responses."""
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'queue_patterns': self.queue_patterns or [],
+            'worker_patterns': self.worker_patterns or [],
+            'is_active': self.is_active,
+            'is_default': self.is_default,
+            'created_at': ensure_utc_isoformat(self.created_at),
+            'updated_at': ensure_utc_isoformat(self.updated_at),
+        }
+
+
 class DatabaseManager:
     """Manage database connections and sessions."""
 

@@ -11,7 +11,8 @@ from services import (
     TaskService,
     WorkerService,
     TaskRegistryService,
-    DailyStatsService
+    DailyStatsService,
+    EnvironmentService
 )
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,18 @@ class EventHandler:
         """Handle task event: save to DB and broadcast to WebSocket."""
         try:
             with self.db_manager.get_session() as session:
+                # Check environment filter
+                env_service = EnvironmentService(session)
+                if not env_service.should_include_event(
+                    queue_name=task_event.queue,
+                    worker_hostname=task_event.hostname
+                ):
+                    logger.debug(
+                        f"Task event {task_event.task_id} filtered out by environment "
+                        f"(queue={task_event.queue}, worker={task_event.hostname})"
+                    )
+                    return
+
                 # Ensure task is registered (auto-discovery)
                 registry_service = TaskRegistryService(session)
                 registry_service.ensure_task_registered(task_event.task_name)
@@ -54,15 +67,23 @@ class EventHandler:
     def handle_worker_event(self, worker_event: WorkerEvent):
         """Handle worker event: broadcast to WebSocket and handle orphan detection."""
         try:
-            # If worker went offline, mark its running tasks as orphaned
-            if worker_event.event_type == 'worker-offline':
-                logger.info(
-                    f"Worker {worker_event.hostname} went offline, "
-                    f"marking tasks as orphaned"
-                )
-                # Use current server time, not worker timestamp (worker clock may be wrong)
-                orphaned_at = datetime.now(timezone.utc)
-                with self.db_manager.get_session() as session:
+            # Check environment filter
+            with self.db_manager.get_session() as session:
+                env_service = EnvironmentService(session)
+                if not env_service.should_include_event(worker_hostname=worker_event.hostname):
+                    logger.debug(
+                        f"Worker event for {worker_event.hostname} filtered out by environment"
+                    )
+                    return
+
+                # If worker went offline, mark its running tasks as orphaned
+                if worker_event.event_type == 'worker-offline':
+                    logger.info(
+                        f"Worker {worker_event.hostname} went offline, "
+                        f"marking tasks as orphaned"
+                    )
+                    # Use current server time, not worker timestamp (worker clock may be wrong)
+                    orphaned_at = datetime.now(timezone.utc)
                     self._mark_tasks_as_orphaned(session, worker_event.hostname, orphaned_at)
 
             # Broadcast to WebSocket

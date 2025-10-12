@@ -5,11 +5,13 @@ from .worker_service import WorkerService
 from .orphan_detection_service import OrphanDetectionService
 from .task_registry_service import TaskRegistryService
 from .daily_stats_service import DailyStatsService
+from .environment_service import EnvironmentService
 
 __all__ = [
     'TaskService',
     'WorkerService',
     'OrphanDetectionService',
     'TaskRegistryService',
-    'DailyStatsService'
+    'DailyStatsService',
+    'EnvironmentService'
 ]

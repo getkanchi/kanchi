@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from services import TaskService
+from services import TaskService, EnvironmentService
 from database import TaskEventDB
 from models import TaskEventResponse
 
@@ -61,7 +61,11 @@ def create_router(app_state) -> APIRouter:
         logger = logging.getLogger(__name__)
         logger.info(f"API /events/recent called with start_time={start_time}, end_time={end_time}")
 
-        task_service = TaskService(session)
+        # Get active environment and pass to TaskService
+        env_service = EnvironmentService(session)
+        active_env = env_service.get_active_environment()
+
+        task_service = TaskService(session, active_env=active_env)
 
         return task_service.get_recent_events(
             limit=limit,
@@ -95,7 +99,10 @@ def create_router(app_state) -> APIRouter:
     @router.get("/tasks/active", response_model=List[TaskEventResponse])
     async def get_active_tasks(session: Session = Depends(get_db)):
         """Get currently active tasks."""
-        task_service = TaskService(session)
+        env_service = EnvironmentService(session)
+        active_env = env_service.get_active_environment()
+
+        task_service = TaskService(session, active_env=active_env)
         active_events = task_service.get_active_tasks()
         return [TaskEventResponse.from_task_event(event) for event in active_events]
 

@@ -97,6 +97,55 @@ class TaskRegistryService:
             logger.error(f"Error updating last_seen for task '{task_name}': {e}")
             self.session.rollback()
 
+    def _apply_environment_filter(self, query):
+        """
+        Apply environment filtering to a TaskEventDB query.
+
+        Args:
+            query: SQLAlchemy query on TaskEventDB
+
+        Returns:
+            Filtered query
+        """
+        # Import here to avoid circular dependency
+        from services.environment_service import EnvironmentService
+
+        env_service = EnvironmentService(self.session)
+        active_env = env_service.get_active_environment()
+
+        # No active environment = no filtering
+        if not active_env:
+            return query
+
+        # Build filter conditions
+        filter_conditions = []
+
+        # Filter by queue patterns
+        if active_env.queue_patterns:
+            queue_conditions = []
+            for pattern in active_env.queue_patterns:
+                # Convert wildcard pattern to SQL LIKE pattern
+                like_pattern = pattern.replace('*', '%').replace('?', '_')
+                queue_conditions.append(TaskEventDB.queue.like(like_pattern))
+            if queue_conditions:
+                filter_conditions.append(or_(*queue_conditions))
+
+        # Filter by worker patterns
+        if active_env.worker_patterns:
+            worker_conditions = []
+            for pattern in active_env.worker_patterns:
+                # Convert wildcard pattern to SQL LIKE pattern
+                like_pattern = pattern.replace('*', '%').replace('?', '_')
+                worker_conditions.append(TaskEventDB.hostname.like(like_pattern))
+            if worker_conditions:
+                filter_conditions.append(or_(*worker_conditions))
+
+        # Apply filters (OR logic: match queue OR worker pattern)
+        if filter_conditions:
+            query = query.filter(or_(*filter_conditions))
+
+        return query
+
     def list_tasks(
         self,
         tag: Optional[str] = None,
@@ -178,12 +227,16 @@ class TaskRegistryService:
         since = datetime.now(timezone.utc) - timedelta(hours=hours)
 
         # Get all events for this task in the time window
-        events = self.session.query(TaskEventDB).filter(
+        query = self.session.query(TaskEventDB).filter(
             and_(
                 TaskEventDB.task_name == task_name,
                 TaskEventDB.timestamp >= since
             )
-        ).all()
+        )
+
+        # Apply environment filtering
+        query = self._apply_environment_filter(query)
+        events = query.all()
 
         # Calculate stats
         total_executions = 0
@@ -239,3 +292,118 @@ class TaskRegistryService:
                 all_tags.update(tags)
 
         return sorted(list(all_tags))
+
+    def get_task_timeline(
+        self,
+        task_name: str,
+        hours: int = 24,
+        bucket_size_minutes: int = 60
+    ):
+        """
+        Get execution timeline with time buckets for visualizing task frequency.
+
+        Args:
+            task_name: The task name to get timeline for
+            hours: Number of hours to look back (default: 24)
+            bucket_size_minutes: Size of each time bucket in minutes (default: 60)
+
+        Returns:
+            Dict with timeline data including bucketed execution counts
+        """
+        from models import TaskTimelineResponse, TimelineBucket
+
+        end_time = datetime.now(timezone.utc)
+        start_time = end_time - timedelta(hours=hours)
+
+        # Get all events for this task in the time window
+        query = self.session.query(TaskEventDB).filter(
+            and_(
+                TaskEventDB.task_name == task_name,
+                TaskEventDB.timestamp >= start_time,
+                TaskEventDB.timestamp <= end_time
+            )
+        ).order_by(TaskEventDB.timestamp)
+
+        # Apply environment filtering
+        query = self._apply_environment_filter(query)
+        events = query.all()
+
+        logger.info(f"Timeline for {task_name}: Found {len(events)} events in time window ({start_time} to {end_time})")
+
+        # Create time buckets
+        bucket_delta = timedelta(minutes=bucket_size_minutes)
+        num_buckets = int((hours * 60) / bucket_size_minutes)
+
+        # Initialize buckets
+        buckets = []
+        current_bucket_start = start_time
+
+        for i in range(num_buckets):
+            buckets.append({
+                'timestamp': current_bucket_start,
+                'total_executions': 0,
+                'succeeded': 0,
+                'failed': 0,
+                'retried': 0,
+                'task_ids': set()  # Track unique task IDs per bucket
+            })
+            current_bucket_start += bucket_delta
+
+        # Assign events to buckets
+        event_type_counts = {}
+        bucketed_events = 0
+        for event in events:
+            # Track event types
+            event_type_counts[event.event_type] = event_type_counts.get(event.event_type, 0) + 1
+
+            # Normalize timestamp to UTC if naive (SQLite compatibility)
+            event_ts = event.timestamp
+            if event_ts.tzinfo is None:
+                event_ts = event_ts.replace(tzinfo=timezone.utc)
+
+            # Find which bucket this event belongs to
+            time_diff = event_ts - start_time
+            bucket_index = int(time_diff.total_seconds() / (bucket_size_minutes * 60))
+
+            if 0 <= bucket_index < num_buckets:
+                bucketed_events += 1
+                bucket = buckets[bucket_index]
+
+                # Count unique task executions (task-received events)
+                if event.event_type == 'task-received':
+                    bucket['task_ids'].add(event.task_id)
+                    bucket['total_executions'] += 1
+
+                # Count outcomes
+                if event.event_type == 'task-succeeded':
+                    bucket['succeeded'] += 1
+                elif event.event_type == 'task-failed':
+                    bucket['failed'] += 1
+                elif event.event_type == 'task-retried':
+                    bucket['retried'] += 1
+
+        logger.info(f"Timeline for {task_name}: Event types: {event_type_counts}, Bucketed: {bucketed_events}/{len(events)}")
+
+        # Convert to response format (remove task_ids set)
+        timeline_buckets = [
+            TimelineBucket(
+                timestamp=bucket['timestamp'],
+                total_executions=bucket['total_executions'],
+                succeeded=bucket['succeeded'],
+                failed=bucket['failed'],
+                retried=bucket['retried']
+            )
+            for bucket in buckets
+        ]
+
+        # Log summary of buckets with data
+        non_empty_buckets = [b for b in timeline_buckets if b.total_executions > 0]
+        logger.info(f"Timeline for {task_name}: Returning {len(non_empty_buckets)}/{len(timeline_buckets)} non-empty buckets")
+
+        return TaskTimelineResponse(
+            task_name=task_name,
+            start_time=start_time,
+            end_time=end_time,
+            bucket_size_minutes=bucket_size_minutes,
+            buckets=timeline_buckets
+        )

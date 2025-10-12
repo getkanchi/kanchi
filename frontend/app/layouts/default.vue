@@ -9,12 +9,21 @@
     <Navbar />
     
     <!-- Main Content -->
-    <main class="relative z-10">
+    <main class="relative z-10 p-6">
       <slot />
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import Navbar from '~/components/navbar.vue'
+import { useEnvironmentStore } from '~/stores/environment'
+
+const environmentStore = useEnvironmentStore()
+
+// Initialize environment store on mount
+onMounted(async () => {
+  await environmentStore.initialize()
+})
 </script>

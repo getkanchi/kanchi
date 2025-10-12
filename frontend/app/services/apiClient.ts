@@ -102,6 +102,155 @@ class ApiService {
     return response.data
   }
 
+  // Registry endpoints
+  async getRegistryTasks(params?: { tag?: string; name?: string }): Promise<any> {
+    const response = await this.api.request({
+      path: '/api/registry/tasks',
+      method: 'GET',
+      query: params
+    })
+    return response.data
+  }
+
+  async getRegistryTask(taskName: string): Promise<any> {
+    const response = await this.api.request({
+      path: `/api/registry/tasks/${encodeURIComponent(taskName)}`,
+      method: 'GET'
+    })
+    return response.data
+  }
+
+  async updateRegistryTask(taskName: string, update: any): Promise<any> {
+    const response = await this.api.request({
+      path: `/api/registry/tasks/${encodeURIComponent(taskName)}`,
+      method: 'PUT',
+      body: update
+    })
+    return response.data
+  }
+
+  async getRegistryTaskStats(taskName: string, hours: number = 24): Promise<any> {
+    const response = await this.api.request({
+      path: `/api/registry/tasks/${encodeURIComponent(taskName)}/stats`,
+      method: 'GET',
+      query: { hours }
+    })
+    return response.data
+  }
+
+  async getRegistryTaskTimeline(taskName: string, hours: number = 24, bucketSizeMinutes: number = 60): Promise<any> {
+    const response = await this.api.request({
+      path: `/api/registry/tasks/${encodeURIComponent(taskName)}/timeline`,
+      method: 'GET',
+      query: { hours, bucket_size_minutes: bucketSizeMinutes }
+    })
+    return response.data
+  }
+
+  async getRegistryTaskDailyStats(taskName: string, params?: { start_date?: string; end_date?: string; days?: number }): Promise<any> {
+    const response = await this.api.request({
+      path: `/api/registry/tasks/${encodeURIComponent(taskName)}/daily-stats`,
+      method: 'GET',
+      query: params
+    })
+    return response.data
+  }
+
+  async getRegistryTaskTrend(taskName: string, days: number = 7): Promise<any> {
+    const response = await this.api.request({
+      path: `/api/registry/tasks/${encodeURIComponent(taskName)}/trend`,
+      method: 'GET',
+      query: { days }
+    })
+    return response.data
+  }
+
+  async getRegistryTags(): Promise<string[]> {
+    const response = await this.api.request({
+      path: '/api/registry/tags',
+      method: 'GET'
+    })
+    return response.data
+  }
+
+  async getTaskFailures(taskName: string, hours: number = 24, limit: number = 10): Promise<TaskEventResponse[]> {
+    const startTime = new Date(Date.now() - hours * 3600000).toISOString()
+    const response = await this.getRecentEvents({
+      filters: `task:is:${taskName};state:is:FAILED`,
+      start_time: startTime,
+      sort_by: 'timestamp',
+      sort_order: 'desc',
+      limit,
+      aggregate: false
+    })
+    return response.data?.events || response.data || []
+  }
+
+  // Environment endpoints
+  async getEnvironments(): Promise<any[]> {
+    const response = await this.api.request({
+      path: '/api/environments',
+      method: 'GET'
+    })
+    return response.data
+  }
+
+  async getActiveEnvironment(): Promise<any> {
+    const response = await this.api.request({
+      path: '/api/environments/active',
+      method: 'GET'
+    })
+    return response.data
+  }
+
+  async getEnvironment(id: string): Promise<any> {
+    const response = await this.api.request({
+      path: `/api/environments/${id}`,
+      method: 'GET'
+    })
+    return response.data
+  }
+
+  async createEnvironment(data: any): Promise<any> {
+    const response = await this.api.request({
+      path: '/api/environments',
+      method: 'POST',
+      body: data
+    })
+    return response.data
+  }
+
+  async updateEnvironment(id: string, data: any): Promise<any> {
+    const response = await this.api.request({
+      path: `/api/environments/${id}`,
+      method: 'PATCH',
+      body: data
+    })
+    return response.data
+  }
+
+  async deleteEnvironment(id: string): Promise<void> {
+    await this.api.request({
+      path: `/api/environments/${id}`,
+      method: 'DELETE'
+    })
+  }
+
+  async activateEnvironment(id: string): Promise<any> {
+    const response = await this.api.request({
+      path: `/api/environments/${id}/activate`,
+      method: 'POST'
+    })
+    return response.data
+  }
+
+  async deactivateAllEnvironments(): Promise<void> {
+    await this.api.request({
+      path: '/api/environments/deactivate-all',
+      method: 'POST'
+    })
+  }
+
 }
 
 // Create singleton instance with runtime config
@@ -116,3 +265,14 @@ export function useApiService(): ApiService {
 }
 
 export type { TaskStats, TaskEventResponse, WorkerInfo }
+
+// Re-export registry types
+export type {
+  TaskRegistryResponse,
+  TaskRegistryUpdate,
+  TaskRegistryStats,
+  TaskDailyStatsResponse,
+  TaskTimelineResponse,
+  TaskTrendSummary,
+  TimelineBucket
+} from '~/types/taskRegistry'

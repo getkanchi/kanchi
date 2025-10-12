@@ -51,6 +51,14 @@ class TaskEvent:
                 return dt.isoformat()
             return dt
 
+        # Ensure routing_key is never None (TaskEventResponse expects a string)
+        if data.get('routing_key') is None:
+            data['routing_key'] = 'default'
+
+        # Ensure queue is never None
+        if data.get('queue') is None:
+            data['queue'] = None  # Keep as None, TaskEventResponse allows Optional[str]
+
         # Convert datetime to ISO format string with timezone
         data['timestamp'] = ensure_utc_iso(data['timestamp'])
         data['orphaned_at'] = ensure_utc_iso(data.get('orphaned_at'))
@@ -73,6 +81,10 @@ class TaskEvent:
             data['retry_of']['timestamp'] = ensure_utc_iso(data['retry_of'].get('timestamp'))
             data['retry_of']['orphaned_at'] = ensure_utc_iso(data['retry_of'].get('orphaned_at'))
 
+            # Ensure routing_key is never None for nested objects
+            if data['retry_of'].get('routing_key') is None:
+                data['retry_of']['routing_key'] = 'default'
+
             # Parse nested retry_of args/kwargs too
             if isinstance(data['retry_of'].get('args'), str):
                 try:
@@ -90,6 +102,10 @@ class TaskEvent:
                 if isinstance(retry_task, dict):
                     retry_task['timestamp'] = ensure_utc_iso(retry_task.get('timestamp'))
                     retry_task['orphaned_at'] = ensure_utc_iso(retry_task.get('orphaned_at'))
+
+                    # Ensure routing_key is never None for nested objects
+                    if retry_task.get('routing_key') is None:
+                        retry_task['routing_key'] = 'default'
 
                     # Parse nested retried_by args/kwargs too
                     if isinstance(retry_task.get('args'), str):
@@ -288,7 +304,7 @@ class TaskEventResponse(BaseModel):
     class Config:
         from_attributes = True
         json_encoders = {
-            datetime: lambda v: v.isoformat()
+            datetime: lambda v: v.replace(tzinfo=timezone.utc).isoformat() if v and v.tzinfo is None else (v.isoformat() if v else None)
         }
 
     @classmethod
@@ -312,11 +328,11 @@ class WorkerInfo(BaseModel):
     sw_sys: Optional[str] = None
     loadavg: Optional[List[float]] = None
     freq: Optional[float] = None
-    
+
     class Config:
         from_attributes = True
         json_encoders = {
-            datetime: lambda v: v.isoformat()
+            datetime: lambda v: v.replace(tzinfo=timezone.utc).isoformat() if v.tzinfo is None else v.isoformat()
         }
 
 
@@ -333,11 +349,11 @@ class WorkerEvent(BaseModel):
     sw_ident: Optional[str] = None
     sw_ver: Optional[str] = None
     sw_sys: Optional[str] = None
-    
+
     class Config:
         from_attributes = True
         json_encoders = {
-            datetime: lambda v: v.isoformat()
+            datetime: lambda v: v.replace(tzinfo=timezone.utc).isoformat() if v.tzinfo is None else v.isoformat()
         }
     
     @classmethod
@@ -404,7 +420,7 @@ class TaskRegistryResponse(BaseModel):
     class Config:
         from_attributes = True
         json_encoders = {
-            datetime: lambda v: v.isoformat()
+            datetime: lambda v: v.replace(tzinfo=timezone.utc).isoformat() if v.tzinfo is None else v.isoformat()
         }
 
 
@@ -428,7 +444,7 @@ class TaskRegistryStats(BaseModel):
 
     class Config:
         json_encoders = {
-            datetime: lambda v: v.isoformat()
+            datetime: lambda v: v.replace(tzinfo=timezone.utc).isoformat() if v and v.tzinfo is None else (v.isoformat() if v else None)
         }
 
 
@@ -455,8 +471,73 @@ class TaskDailyStatsResponse(BaseModel):
     class Config:
         from_attributes = True
         json_encoders = {
-            datetime: lambda v: v.isoformat(),
+            datetime: lambda v: v.replace(tzinfo=timezone.utc).isoformat() if v and v.tzinfo is None else (v.isoformat() if v else None),
             date: lambda v: v.isoformat()
+        }
+
+
+class EnvironmentResponse(BaseModel):
+    """Environment API response model"""
+    id: str
+    name: str
+    description: Optional[str] = None
+    queue_patterns: List[str] = Field(default_factory=list)
+    worker_patterns: List[str] = Field(default_factory=list)
+    is_active: bool = False
+    is_default: bool = False
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.replace(tzinfo=timezone.utc).isoformat() if v.tzinfo is None else v.isoformat()
+        }
+
+
+class EnvironmentCreate(BaseModel):
+    """Environment creation request model"""
+    name: str
+    description: Optional[str] = None
+    queue_patterns: List[str] = Field(default_factory=list)
+    worker_patterns: List[str] = Field(default_factory=list)
+    is_default: bool = False
+
+
+class EnvironmentUpdate(BaseModel):
+    """Environment update request model"""
+    name: Optional[str] = None
+    description: Optional[str] = None
+    queue_patterns: Optional[List[str]] = None
+    worker_patterns: Optional[List[str]] = None
+    is_default: Optional[bool] = None
+
+
+class TimelineBucket(BaseModel):
+    """Single time bucket in timeline"""
+    timestamp: datetime
+    total_executions: int = 0
+    succeeded: int = 0
+    failed: int = 0
+    retried: int = 0
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.replace(tzinfo=timezone.utc).isoformat() if v.tzinfo is None else v.isoformat()
+        }
+
+
+class TaskTimelineResponse(BaseModel):
+    """Timeline response showing execution frequency over time"""
+    task_name: str
+    start_time: datetime
+    end_time: datetime
+    bucket_size_minutes: int
+    buckets: List[TimelineBucket]
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.replace(tzinfo=timezone.utc).isoformat() if v.tzinfo is None else v.isoformat()
         }
 
 

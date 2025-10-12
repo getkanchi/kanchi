@@ -1,5 +1,5 @@
 <template>
-  <div class="relative z-10">
+  <div class="sticky top-0 z-50 bg-background-surface border-b border-border backdrop-blur-sm bg-opacity-95">
     <div class="px-6">
       <div class="flex h-14 items-center justify-between">
         <div class="flex items-center gap-8">
@@ -10,10 +10,45 @@
 
           <!-- Navigation Menu -->
           <NavigationMenu>
-            <NavigationMenuList>
+            <NavigationMenuList class="flex items-center gap-2">
               <NavigationMenuItem>
-              <!-- Right side: Agent Connection Status -->
-              <div class="flex items-center">
+                <NavigationMenuLink
+                  as-child
+                  :active="$route.path === '/'"
+                >
+                  <NuxtLink
+                    to="/"
+                    class="px-4 py-2 text-sm font-medium rounded-md transition-colors"
+                    :class="$route.path === '/'
+                      ? 'bg-background-active text-text-primary'
+                      : 'text-text-secondary hover:bg-background-hover hover:text-text-primary'"
+                  >
+                    Dashboard
+                  </NuxtLink>
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+
+              <NavigationMenuItem>
+                <NavigationMenuLink
+                  as-child
+                  :active="$route.path === '/tasks'"
+                >
+                  <NuxtLink
+                    to="/tasks"
+                    class="px-4 py-2 text-sm font-medium rounded-md transition-colors"
+                    :class="$route.path === '/tasks'
+                      ? 'bg-background-active text-text-primary'
+                      : 'text-text-secondary hover:bg-background-hover hover:text-text-primary'"
+                  >
+                    Tasks
+                  </NuxtLink>
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+
+              <div class="h-4 w-px bg-border mx-2"></div>
+
+              <NavigationMenuItem>
+                <!-- Agent Connection Status -->
                 <Popover>
                   <PopoverTrigger as-child>
                     <Badge
@@ -25,28 +60,28 @@
                         :pulse="displayConnected"
                         class="mr-2"
                       />
-                      {{ displayConnected ? "Agent Connected" : "Agent Disconnected" }}
+                      {{ displayConnected ? "Connected" : "Disconnected" }}
                     </Badge>
                   </PopoverTrigger>
-                  <PopoverContent class="w-80 bg-background-surface border-border text-text-primary">
-                    <div class="space-y-2">
-                      <h4 class="font-medium text-text-primary">Agent Connection Details</h4>
-                      <div class="text-sm text-text-secondary space-y-1.5">
-                        <p><strong class="text-text-primary">Status:</strong> <span class="font-bold">{{ displayConnected ? "Connected" : "Disconnected" }}</span></p>
-                        <p><strong class="text-text-primary">WebSocket URL:</strong> <code class="text-xs bg-background-surface px-1 py-0.5 rounded">{{ wsUrl }}</code></p>
-                        <p><strong class="text-text-primary">Last Update:</strong> <code class="text-xs bg-background-surface px-1 py-0.5 rounded">{{ new Date().toLocaleTimeString() }}</code></p>
-                      </div>
+                  <PopoverContent class="w-[420px] bg-background-surface border-border text-text-primary p-4">
+                    <div class="mb-3">
+                      <h3 class="font-semibold text-sm text-text-primary">Agent Connection Details</h3>
                     </div>
+                    <AgentConnectionDetails ref="connectionDetailsRef" />
                   </PopoverContent>
                 </Popover>
-              </div>
-                </NavigationMenuItem>
+              </NavigationMenuItem>
             </NavigationMenuList>
           </NavigationMenu>
         </div>
 
-        <!-- Theme Toggle -->
-        <ThemeToggle />
+        <div class="flex items-center gap-3">
+          <!-- Environment Switcher -->
+          <EnvironmentSwitcher />
+
+          <!-- Theme Toggle -->
+          <ThemeToggle />
+        </div>
         </div>
     </div>
   </div>
@@ -64,11 +99,14 @@ import { Badge } from "~/components/ui/badge"
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover"
 import StatusDot from "~/components/StatusDot.vue"
 import ThemeToggle from "~/components/ThemeToggle.vue"
+import EnvironmentSwitcher from "~/components/EnvironmentSwitcher.vue"
+import AgentConnectionDetails from "~/components/AgentConnectionDetails.vue"
 
 // Use the WebSocket store instead of the composable
 const wsStore = useWebSocketStore()
 const config = useRuntimeConfig()
 const wsUrl = config.public.wsUrl
+const connectionDetailsRef = ref<InstanceType<typeof AgentConnectionDetails> | null>(null)
 
 // Force client-side only rendering to avoid hydration mismatch
 const isClientSide = ref(false)

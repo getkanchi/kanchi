@@ -6,7 +6,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from services import TaskRegistryService, DailyStatsService
-from models import TaskRegistryResponse, TaskRegistryUpdate, TaskRegistryStats, TaskDailyStatsResponse
+from models import (
+    TaskRegistryResponse,
+    TaskRegistryUpdate,
+    TaskRegistryStats,
+    TaskDailyStatsResponse,
+    TaskTimelineResponse
+)
 
 
 def create_router(app_state) -> APIRouter:
@@ -97,6 +103,34 @@ def create_router(app_state) -> APIRouter:
             raise HTTPException(status_code=404, detail=f"Task '{task_name}' not found")
 
         return registry_service.get_task_stats(task_name, hours=hours)
+
+    @router.get("/tasks/{task_name}/timeline", response_model=TaskTimelineResponse)
+    async def get_task_timeline(
+        task_name: str,
+        hours: int = Query(24, description="Number of hours to look back"),
+        bucket_size_minutes: int = Query(60, description="Bucket size in minutes (e.g., 60 for 1-hour buckets)"),
+        session: Session = Depends(get_db)
+    ):
+        """
+        Get execution timeline for visualizing task frequency over time.
+
+        Args:
+            task_name: The name of the task
+            hours: Number of hours to look back (default: 24)
+            bucket_size_minutes: Size of each time bucket in minutes (default: 60)
+        """
+        registry_service = TaskRegistryService(session)
+
+        # Verify task exists
+        task = registry_service.get_task(task_name)
+        if not task:
+            raise HTTPException(status_code=404, detail=f"Task '{task_name}' not found")
+
+        return registry_service.get_task_timeline(
+            task_name,
+            hours=hours,
+            bucket_size_minutes=bucket_size_minutes
+        )
 
     @router.get("/tags", response_model=List[str])
     async def get_all_tags(session: Session = Depends(get_db)):
