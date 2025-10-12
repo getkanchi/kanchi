@@ -40,7 +40,7 @@ import type { HTMLAttributes } from "vue"
 import type { TagVariants } from "."
 import { cn } from "~/lib/utils"
 import { tagVariants } from "."
-import { getTagColor } from "~/lib/tagColors"
+import { getTagColor } from "~/lib/tagColors.ts"
 
 const props = defineProps<{
   variant?: TagVariants["variant"]
