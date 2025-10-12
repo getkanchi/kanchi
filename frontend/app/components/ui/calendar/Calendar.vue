@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { CalendarRoot, type CalendarRootEmits, type CalendarRootProps, useForwardPropsEmits } from 'reka-ui'
 import { Calendar, type DateValue } from '@internationalized/date'
-import { cn } from '~/lib/utils'
+import { cn } from '@/lib/utils'
 
 const props = withDefaults(
   defineProps<CalendarRootProps>(),

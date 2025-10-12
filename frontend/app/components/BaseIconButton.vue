@@ -17,7 +17,7 @@
 import { computed } from 'vue'
 import { Button } from '~/components/ui/button'
 import type { ButtonVariants } from '~/components/ui/button'
-import { cn } from '~/lib/utils'
+import { cn } from '@/lib/utils'
 import type { LucideIcon } from 'lucide-vue-next'
 
 interface Props {

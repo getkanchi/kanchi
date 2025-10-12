@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { Input } from '~/components/ui/input'
-import { cn } from '~/lib/utils'
+import { cn } from '@/lib/utils'
 
 interface TimePickerProps {
   modelValue?: { hour: number; minute: number }

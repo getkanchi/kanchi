@@ -19,7 +19,7 @@ import {
   RangeCalendarPrev
 } from 'reka-ui'
 import { CalendarDate } from '@internationalized/date'
-import { cn } from '~/lib/utils'
+import { cn } from '@/lib/utils'
 
 const route = useRoute()
 const router = useRouter()
