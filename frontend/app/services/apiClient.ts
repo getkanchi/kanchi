@@ -10,7 +10,7 @@ import type {
 
 class ApiService {
   private api: Api<unknown>
-  
+
   constructor(baseURL: string) {
     // The axios-generated Api class expects configuration directly
     this.api = new Api({
@@ -18,6 +18,15 @@ class ApiService {
       headers: {
         'Content-Type': 'application/json',
       },
+    })
+
+    // Add request interceptor to include session ID
+    this.api.instance.interceptors.request.use((config) => {
+      const sessionId = localStorage.getItem('kanchi_session_id')
+      if (sessionId) {
+        config.headers['X-Session-Id'] = sessionId
+      }
+      return config
     })
   }
 
@@ -251,6 +260,184 @@ class ApiService {
     })
   }
 
+  // Session endpoints
+  async initializeSession(sessionId: string): Promise<any> {
+    const response = await this.api.api.initializeSessionApiSessionsInitPost({
+      headers: {
+        'X-Session-Id': sessionId
+      }
+    })
+    return response.data
+  }
+
+  async getCurrentSession(sessionId: string): Promise<any> {
+    const response = await this.api.api.getCurrentSessionApiSessionsMeGet({
+      headers: {
+        'X-Session-Id': sessionId
+      }
+    })
+    return response.data
+  }
+
+  async updateSession(sessionId: string, data: any): Promise<any> {
+    const response = await this.api.api.updateCurrentSessionApiSessionsMePatch(data, {
+      headers: {
+        'X-Session-Id': sessionId
+      }
+    })
+    return response.data
+  }
+
+  async setSessionEnvironment(sessionId: string, environmentId: string): Promise<any> {
+    const response = await this.api.api.setSessionEnvironmentApiSessionsMeEnvironmentEnvironmentIdPost(
+      environmentId,
+      {
+        headers: {
+          'X-Session-Id': sessionId
+        }
+      }
+    )
+    return response.data
+  }
+
+  async clearSessionEnvironment(sessionId: string): Promise<any> {
+    const response = await this.api.api.clearSessionEnvironmentApiSessionsMeEnvironmentDelete({
+      headers: {
+        'X-Session-Id': sessionId
+      }
+    })
+    return response.data
+  }
+
+  // Workflow endpoints
+  async getWorkflows(params?: {
+    enabled_only?: boolean
+    trigger_type?: string
+    limit?: number
+    offset?: number
+  }): Promise<any[]> {
+    const response = await this.api.request({
+      path: '/api/workflows',
+      method: 'GET',
+      query: params
+    })
+    return response.data
+  }
+
+  async getWorkflow(workflowId: string): Promise<any> {
+    const response = await this.api.request({
+      path: `/api/workflows/${workflowId}`,
+      method: 'GET'
+    })
+    return response.data
+  }
+
+  async createWorkflow(data: any): Promise<any> {
+    const response = await this.api.request({
+      path: '/api/workflows',
+      method: 'POST',
+      body: data
+    })
+    return response.data
+  }
+
+  async updateWorkflow(workflowId: string, data: any): Promise<any> {
+    const response = await this.api.request({
+      path: `/api/workflows/${workflowId}`,
+      method: 'PUT',
+      body: data
+    })
+    return response.data
+  }
+
+  async deleteWorkflow(workflowId: string): Promise<void> {
+    await this.api.request({
+      path: `/api/workflows/${workflowId}`,
+      method: 'DELETE'
+    })
+  }
+
+  async getWorkflowExecutions(workflowId: string, params?: {
+    limit?: number
+    offset?: number
+  }): Promise<any[]> {
+    const response = await this.api.request({
+      path: `/api/workflows/${workflowId}/executions`,
+      method: 'GET',
+      query: params
+    })
+    return response.data
+  }
+
+  async getRecentWorkflowExecutions(params?: {
+    status?: string
+    limit?: number
+    offset?: number
+  }): Promise<any[]> {
+    const response = await this.api.request({
+      path: '/api/workflows/executions/recent',
+      method: 'GET',
+      query: params
+    })
+    return response.data
+  }
+
+  async testWorkflow(workflowId: string, testContext: any): Promise<any> {
+    const response = await this.api.request({
+      path: `/api/workflows/${workflowId}/test`,
+      method: 'POST',
+      body: testContext
+    })
+    return response.data
+  }
+
+  // Action Config endpoints
+  async getActionConfigs(params?: {
+    action_type?: string
+    limit?: number
+    offset?: number
+  }): Promise<any[]> {
+    const response = await this.api.request({
+      path: '/api/action-configs',
+      method: 'GET',
+      query: params
+    })
+    return response.data
+  }
+
+  async getActionConfig(configId: string): Promise<any> {
+    const response = await this.api.request({
+      path: `/api/action-configs/${configId}`,
+      method: 'GET'
+    })
+    return response.data
+  }
+
+  async createActionConfig(data: any): Promise<any> {
+    const response = await this.api.request({
+      path: '/api/action-configs',
+      method: 'POST',
+      body: data
+    })
+    return response.data
+  }
+
+  async updateActionConfig(configId: string, data: any): Promise<any> {
+    const response = await this.api.request({
+      path: `/api/action-configs/${configId}`,
+      method: 'PUT',
+      body: data
+    })
+    return response.data
+  }
+
+  async deleteActionConfig(configId: string): Promise<void> {
+    await this.api.request({
+      path: `/api/action-configs/${configId}`,
+      method: 'DELETE'
+    })
+  }
+
 }
 
 // Create singleton instance with runtime config
@@ -265,6 +452,9 @@ export function useApiService(): ApiService {
 }
 
 export type { TaskStats, TaskEventResponse, WorkerInfo }
+
+// Re-export session types from auto-generated API
+export type { UserSessionResponse, UserSessionUpdate } from '../src/types/api'
 
 // Re-export registry types
 export type {

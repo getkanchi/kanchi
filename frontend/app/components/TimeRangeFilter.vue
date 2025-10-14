@@ -3,7 +3,8 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { CalendarDays, X } from 'lucide-vue-next'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
 import { Button } from '~/components/ui/button'
-import BaseIconButton from '~/components/BaseIconButton.vue'
+import IconButton from '~/components/common/IconButton.vue'
+import { TimeInput } from '~/components/common'
 import {
   RangeCalendarRoot,
   RangeCalendarCell,
@@ -376,18 +377,18 @@ onMounted(() => {
         <div class="flex items-center gap-3 pt-2">
           <div class="flex-1">
             <label class="text-xs text-text-muted mb-1 block">Start</label>
-            <input
+            <TimeInput
               v-model="startTime"
-              type="time"
-              class="w-full px-3 py-2 text-sm border border-border rounded-md bg-background-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary font-mono"
+              size="sm"
+              class="w-full"
             />
           </div>
           <div class="flex-1">
             <label class="text-xs text-text-muted mb-1 block">End</label>
-            <input
+            <TimeInput
               v-model="endTime"
-              type="time"
-              class="w-full px-3 py-2 text-sm border border-border rounded-md bg-background-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary font-mono"
+              size="sm"
+              class="w-full"
             />
           </div>
         </div>
@@ -405,7 +406,7 @@ onMounted(() => {
     </PopoverContent>
   </Popover>
 
-  <BaseIconButton
+  <IconButton
     v-if="modelValue.start && modelValue.end"
     :icon="X"
     size="sm"

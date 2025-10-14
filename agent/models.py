@@ -1,6 +1,7 @@
 from typing import Any, Dict, Optional, List, Union, Literal
 from dataclasses import dataclass, asdict, field
 from datetime import datetime, timezone, date
+from enum import Enum
 import json
 from pydantic import BaseModel, Field
 
@@ -513,6 +514,34 @@ class EnvironmentUpdate(BaseModel):
     is_default: Optional[bool] = None
 
 
+class UserSessionResponse(BaseModel):
+    """User session API response model"""
+    session_id: str
+    active_environment_id: Optional[str] = None
+    preferences: Dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+    last_active: datetime
+
+    class Config:
+        from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.replace(tzinfo=timezone.utc).isoformat() if v.tzinfo is None else v.isoformat()
+        }
+
+
+class UserSessionCreate(BaseModel):
+    """User session creation request model"""
+    session_id: str
+    active_environment_id: Optional[str] = None
+    preferences: Dict[str, Any] = Field(default_factory=dict)
+
+
+class UserSessionUpdate(BaseModel):
+    """User session update request model"""
+    active_environment_id: Optional[str] = None
+    preferences: Optional[Dict[str, Any]] = None
+
+
 class TimelineBucket(BaseModel):
     """Single time bucket in timeline"""
     timestamp: datetime
@@ -603,3 +632,164 @@ WebSocketResponse = Union[
     ConnectionInfo,
     TaskEventResponse
 ]
+
+
+# ==================== Workflow Models ====================
+
+
+class ConditionOperator(str, Enum):
+    """Supported condition operators."""
+    EQUALS = "equals"
+    NOT_EQUALS = "not_equals"
+    IN = "in"
+    NOT_IN = "not_in"
+    MATCHES = "matches"  # Regex
+    GREATER_THAN = "gt"
+    LESS_THAN = "lt"
+    GREATER_EQUAL = "gte"
+    LESS_EQUAL = "lte"
+    CONTAINS = "contains"
+    STARTS_WITH = "starts_with"
+    ENDS_WITH = "ends_with"
+
+
+class TriggerConfig(BaseModel):
+    """Base trigger configuration."""
+    type: str  # e.g., "task.failed", "task.orphaned"
+    config: Dict[str, Any] = Field(default_factory=dict)
+
+
+class Condition(BaseModel):
+    """Single condition for workflow filtering."""
+    field: str  # e.g., "task_name", "queue", "retry_count"
+    operator: ConditionOperator
+    value: Any  # String, int, float, list, etc.
+
+
+class ConditionGroup(BaseModel):
+    """Group of conditions with AND/OR logic."""
+    operator: Literal["AND", "OR"] = "AND"
+    conditions: List[Condition] = Field(default_factory=list)
+
+
+class ActionConfig(BaseModel):
+    """Configuration for a single action."""
+    type: str  # e.g., "slack.notify", "task.retry"
+    config_id: Optional[str] = None  # Reference to action_configs table
+    params: Dict[str, Any] = Field(default_factory=dict)
+    continue_on_failure: bool = True  # Continue to next action if this fails
+
+
+class ActionResult(BaseModel):
+    """Result of action execution."""
+    action_type: str
+    status: Literal["success", "failed", "skipped"]
+    result: Optional[Dict[str, Any]] = None
+    error_message: Optional[str] = None
+    duration_ms: int = 0
+
+
+class WorkflowDefinition(BaseModel):
+    """Complete workflow definition."""
+    id: Optional[str] = None  # UUID, generated on creation
+    name: str
+    description: Optional[str] = None
+    enabled: bool = True
+
+    trigger: TriggerConfig
+    conditions: Optional[ConditionGroup] = None
+    actions: List[ActionConfig]
+
+    priority: int = 100
+    max_executions_per_hour: Optional[int] = None
+    cooldown_seconds: int = 0
+
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    created_by: Optional[str] = None
+
+    execution_count: int = 0
+    last_executed_at: Optional[datetime] = None
+    success_count: int = 0
+    failure_count: int = 0
+
+    class Config:
+        from_attributes = True
+
+
+class WorkflowCreateRequest(BaseModel):
+    """Request model for creating a workflow."""
+    name: str
+    description: Optional[str] = None
+    enabled: bool = True
+    trigger: TriggerConfig
+    conditions: Optional[ConditionGroup] = None
+    actions: List[ActionConfig]
+    priority: int = 100
+    max_executions_per_hour: Optional[int] = None
+    cooldown_seconds: int = 0
+
+
+class WorkflowUpdateRequest(BaseModel):
+    """Request model for updating a workflow."""
+    name: Optional[str] = None
+    description: Optional[str] = None
+    enabled: Optional[bool] = None
+    trigger: Optional[TriggerConfig] = None
+    conditions: Optional[ConditionGroup] = None
+    actions: Optional[List[ActionConfig]] = None
+    priority: Optional[int] = None
+    max_executions_per_hour: Optional[int] = None
+    cooldown_seconds: Optional[int] = None
+
+
+class WorkflowExecutionRecord(BaseModel):
+    """Execution history record."""
+    id: int
+    workflow_id: str
+    triggered_at: datetime
+    trigger_type: str
+    trigger_event: Dict[str, Any]
+    status: Literal["pending", "running", "completed", "failed", "rate_limited"]
+    actions_executed: Optional[List[Dict[str, Any]]] = None
+    error_message: Optional[str] = None
+    stack_trace: Optional[str] = None
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    duration_ms: Optional[int] = None
+    workflow_snapshot: Optional[Dict[str, Any]] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ActionConfigDefinition(BaseModel):
+    """Reusable action configuration."""
+    id: Optional[str] = None
+    name: str
+    description: Optional[str] = None
+    action_type: str
+    config: Dict[str, Any]
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    created_by: Optional[str] = None
+    usage_count: int = 0
+    last_used_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ActionConfigCreateRequest(BaseModel):
+    """Request model for creating action config."""
+    name: str
+    description: Optional[str] = None
+    action_type: str
+    config: Dict[str, Any]
+
+
+class ActionConfigUpdateRequest(BaseModel):
+    """Request model for updating action config."""
+    name: Optional[str] = None
+    description: Optional[str] = None
+    config: Optional[Dict[str, Any]] = None

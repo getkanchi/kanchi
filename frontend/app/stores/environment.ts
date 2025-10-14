@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useApiService } from '~/services/apiClient'
+import { useSessionStore } from '~/stores/session'
 
 export interface Environment {
   id: string
@@ -37,13 +38,29 @@ export const useEnvironmentStore = defineStore('environment', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  // Get API service
+  // Get API service and session store
   const apiService = useApiService()
+  const sessionStore = useSessionStore()
 
   // Computed
   const hasActiveEnvironment = computed(() => activeEnvironment.value !== null)
   const defaultEnvironment = computed(() =>
     environments.value.find(env => env.is_default) || null
+  )
+
+  // Watch session changes to sync active environment
+  watch(
+    () => sessionStore.session?.active_environment_id,
+    (newEnvironmentId) => {
+      if (newEnvironmentId && environments.value.length > 0) {
+        const env = environments.value.find(e => e.id === newEnvironmentId)
+        if (env) {
+          activeEnvironment.value = env
+        }
+      } else {
+        activeEnvironment.value = null
+      }
+    }
   )
 
   // Actions
@@ -147,25 +164,17 @@ export const useEnvironmentStore = defineStore('environment', () => {
     loading.value = true
     error.value = null
     try {
-      const data = await apiService.activateEnvironment(id)
+      // Set active environment via session
+      await sessionStore.setActiveEnvironment(id)
 
-      // Deactivate all environments
-      environments.value.forEach(env => {
-        env.is_active = false
-      })
-
-      // Activate the specified environment
-      const index = environments.value.findIndex(env => env.id === id)
-      if (index !== -1) {
-        environments.value[index] = data
+      // Update local state
+      const env = environments.value.find(e => e.id === id)
+      if (env) {
+        activeEnvironment.value = env
       }
 
-      activeEnvironment.value = data
-      localStorage.setItem('kanchi_active_environment', data.id)
-
       // Note: Components should watch activeEnvironment and refresh their data
-
-      return data
+      return env
     } catch (err: any) {
       error.value = err.response?.data?.detail || 'Failed to activate environment'
       console.error('Error activating environment:', err)
@@ -179,15 +188,11 @@ export const useEnvironmentStore = defineStore('environment', () => {
     loading.value = true
     error.value = null
     try {
-      await apiService.deactivateAllEnvironments()
+      // Clear active environment via session
+      await sessionStore.setActiveEnvironment(null)
 
-      // Deactivate all environments
-      environments.value.forEach(env => {
-        env.is_active = false
-      })
-
+      // Update local state
       activeEnvironment.value = null
-      localStorage.removeItem('kanchi_active_environment')
 
       // Note: Components should watch activeEnvironment and refresh their data
     } catch (err: any) {
@@ -204,15 +209,13 @@ export const useEnvironmentStore = defineStore('environment', () => {
   async function initialize() {
     await fetchEnvironments()
 
-    // Check if there's a stored active environment
-    const storedId = localStorage.getItem('kanchi_active_environment')
-    if (storedId && !activeEnvironment.value) {
-      // Activate the stored environment
-      try {
-        await activateEnvironment(storedId)
-      } catch (err) {
-        // If activation fails, clear the stored ID
-        localStorage.removeItem('kanchi_active_environment')
+    // Load active environment from session
+    if (sessionStore.session?.active_environment_id) {
+      const env = environments.value.find(
+        e => e.id === sessionStore.session?.active_environment_id
+      )
+      if (env) {
+        activeEnvironment.value = env
       }
     }
   }

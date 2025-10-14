@@ -10,6 +10,216 @@
  * ---------------------------------------------------------------
  */
 
+/**
+ * ConditionOperator
+ * Supported condition operators.
+ */
+export enum ConditionOperator {
+  Equals = "equals",
+  NotEquals = "not_equals",
+  In = "in",
+  NotIn = "not_in",
+  Matches = "matches",
+  Gt = "gt",
+  Lt = "lt",
+  Gte = "gte",
+  Lte = "lte",
+  Contains = "contains",
+  StartsWith = "starts_with",
+  EndsWith = "ends_with",
+}
+
+/**
+ * ActionConfig
+ * Configuration for a single action.
+ */
+export interface ActionConfig {
+  /** Type */
+  type: string;
+  /** Config Id */
+  config_id?: string | null;
+  /** Params */
+  params?: object;
+  /**
+   * Continue On Failure
+   * @default true
+   */
+  continue_on_failure?: boolean;
+}
+
+/**
+ * ActionConfigCreateRequest
+ * Request model for creating action config.
+ */
+export interface ActionConfigCreateRequest {
+  /** Name */
+  name: string;
+  /** Description */
+  description?: string | null;
+  /** Action Type */
+  action_type: string;
+  /** Config */
+  config: object;
+}
+
+/**
+ * ActionConfigDefinition
+ * Reusable action configuration.
+ */
+export interface ActionConfigDefinition {
+  /** Id */
+  id?: string | null;
+  /** Name */
+  name: string;
+  /** Description */
+  description?: string | null;
+  /** Action Type */
+  action_type: string;
+  /** Config */
+  config: object;
+  /** Created At */
+  created_at?: string | null;
+  /** Updated At */
+  updated_at?: string | null;
+  /** Created By */
+  created_by?: string | null;
+  /**
+   * Usage Count
+   * @default 0
+   */
+  usage_count?: number;
+  /** Last Used At */
+  last_used_at?: string | null;
+}
+
+/**
+ * ActionConfigUpdateRequest
+ * Request model for updating action config.
+ */
+export interface ActionConfigUpdateRequest {
+  /** Name */
+  name?: string | null;
+  /** Description */
+  description?: string | null;
+  /** Config */
+  config?: object | null;
+}
+
+/**
+ * Condition
+ * Single condition for workflow filtering.
+ */
+export interface Condition {
+  /** Field */
+  field: string;
+  /** Supported condition operators. */
+  operator: ConditionOperator;
+  /** Value */
+  value: any;
+}
+
+/**
+ * ConditionGroup
+ * Group of conditions with AND/OR logic.
+ */
+export interface ConditionGroupInput {
+  /**
+   * Operator
+   * @default "AND"
+   */
+  operator?: "AND" | "OR";
+  /** Conditions */
+  conditions?: Condition[];
+}
+
+/**
+ * ConditionGroup
+ * Group of conditions with AND/OR logic.
+ */
+export interface ConditionGroupOutput {
+  /**
+   * Operator
+   * @default "AND"
+   */
+  operator?: "AND" | "OR";
+  /** Conditions */
+  conditions?: Condition[];
+}
+
+/**
+ * EnvironmentCreate
+ * Environment creation request model
+ */
+export interface EnvironmentCreate {
+  /** Name */
+  name: string;
+  /** Description */
+  description?: string | null;
+  /** Queue Patterns */
+  queue_patterns?: string[];
+  /** Worker Patterns */
+  worker_patterns?: string[];
+  /**
+   * Is Default
+   * @default false
+   */
+  is_default?: boolean;
+}
+
+/**
+ * EnvironmentResponse
+ * Environment API response model
+ */
+export interface EnvironmentResponse {
+  /** Id */
+  id: string;
+  /** Name */
+  name: string;
+  /** Description */
+  description?: string | null;
+  /** Queue Patterns */
+  queue_patterns?: string[];
+  /** Worker Patterns */
+  worker_patterns?: string[];
+  /**
+   * Is Active
+   * @default false
+   */
+  is_active?: boolean;
+  /**
+   * Is Default
+   * @default false
+   */
+  is_default?: boolean;
+  /**
+   * Created At
+   * @format date-time
+   */
+  created_at: string;
+  /**
+   * Updated At
+   * @format date-time
+   */
+  updated_at: string;
+}
+
+/**
+ * EnvironmentUpdate
+ * Environment update request model
+ */
+export interface EnvironmentUpdate {
+  /** Name */
+  name?: string | null;
+  /** Description */
+  description?: string | null;
+  /** Queue Patterns */
+  queue_patterns?: string[] | null;
+  /** Worker Patterns */
+  worker_patterns?: string[] | null;
+  /** Is Default */
+  is_default?: boolean | null;
+}
+
 /** HTTPValidationError */
 export interface HTTPValidationError {
   /** Detail */
@@ -114,14 +324,11 @@ export interface TaskEventResponse {
   timestamp: string;
   /**
    * Args
-   * @default "()"
+   * @default []
    */
-  args?: string;
-  /**
-   * Kwargs
-   * @default "{}"
-   */
-  kwargs?: string;
+  args?: any;
+  /** Kwargs */
+  kwargs?: object;
   /**
    * Retries
    * @default 0
@@ -140,7 +347,7 @@ export interface TaskEventResponse {
   exchange?: string;
   /**
    * Routing Key
-   * @default ""
+   * @default "default"
    */
   routing_key?: string;
   /** Root Id */
@@ -270,6 +477,106 @@ export interface TaskRegistryUpdate {
   tags?: string[] | null;
 }
 
+/**
+ * TaskTimelineResponse
+ * Timeline response showing execution frequency over time
+ */
+export interface TaskTimelineResponse {
+  /** Task Name */
+  task_name: string;
+  /**
+   * Start Time
+   * @format date-time
+   */
+  start_time: string;
+  /**
+   * End Time
+   * @format date-time
+   */
+  end_time: string;
+  /** Bucket Size Minutes */
+  bucket_size_minutes: number;
+  /** Buckets */
+  buckets: TimelineBucket[];
+}
+
+/**
+ * TimelineBucket
+ * Single time bucket in timeline
+ */
+export interface TimelineBucket {
+  /**
+   * Timestamp
+   * @format date-time
+   */
+  timestamp: string;
+  /**
+   * Total Executions
+   * @default 0
+   */
+  total_executions?: number;
+  /**
+   * Succeeded
+   * @default 0
+   */
+  succeeded?: number;
+  /**
+   * Failed
+   * @default 0
+   */
+  failed?: number;
+  /**
+   * Retried
+   * @default 0
+   */
+  retried?: number;
+}
+
+/**
+ * TriggerConfig
+ * Base trigger configuration.
+ */
+export interface TriggerConfig {
+  /** Type */
+  type: string;
+  /** Config */
+  config?: object;
+}
+
+/**
+ * UserSessionResponse
+ * User session API response model
+ */
+export interface UserSessionResponse {
+  /** Session Id */
+  session_id: string;
+  /** Active Environment Id */
+  active_environment_id?: string | null;
+  /** Preferences */
+  preferences?: object;
+  /**
+   * Created At
+   * @format date-time
+   */
+  created_at: string;
+  /**
+   * Last Active
+   * @format date-time
+   */
+  last_active: string;
+}
+
+/**
+ * UserSessionUpdate
+ * User session update request model
+ */
+export interface UserSessionUpdate {
+  /** Active Environment Id */
+  active_environment_id?: string | null;
+  /** Preferences */
+  preferences?: object | null;
+}
+
 /** ValidationError */
 export interface ValidationError {
   /** Location */
@@ -314,6 +621,156 @@ export interface WorkerInfo {
   loadavg?: number[] | null;
   /** Freq */
   freq?: number | null;
+}
+
+/**
+ * WorkflowCreateRequest
+ * Request model for creating a workflow.
+ */
+export interface WorkflowCreateRequest {
+  /** Name */
+  name: string;
+  /** Description */
+  description?: string | null;
+  /**
+   * Enabled
+   * @default true
+   */
+  enabled?: boolean;
+  /** Base trigger configuration. */
+  trigger: TriggerConfig;
+  conditions?: ConditionGroupInput | null;
+  /** Actions */
+  actions: ActionConfig[];
+  /**
+   * Priority
+   * @default 100
+   */
+  priority?: number;
+  /** Max Executions Per Hour */
+  max_executions_per_hour?: number | null;
+  /**
+   * Cooldown Seconds
+   * @default 0
+   */
+  cooldown_seconds?: number;
+}
+
+/**
+ * WorkflowDefinition
+ * Complete workflow definition.
+ */
+export interface WorkflowDefinition {
+  /** Id */
+  id?: string | null;
+  /** Name */
+  name: string;
+  /** Description */
+  description?: string | null;
+  /**
+   * Enabled
+   * @default true
+   */
+  enabled?: boolean;
+  /** Base trigger configuration. */
+  trigger: TriggerConfig;
+  conditions?: ConditionGroupOutput | null;
+  /** Actions */
+  actions: ActionConfig[];
+  /**
+   * Priority
+   * @default 100
+   */
+  priority?: number;
+  /** Max Executions Per Hour */
+  max_executions_per_hour?: number | null;
+  /**
+   * Cooldown Seconds
+   * @default 0
+   */
+  cooldown_seconds?: number;
+  /** Created At */
+  created_at?: string | null;
+  /** Updated At */
+  updated_at?: string | null;
+  /** Created By */
+  created_by?: string | null;
+  /**
+   * Execution Count
+   * @default 0
+   */
+  execution_count?: number;
+  /** Last Executed At */
+  last_executed_at?: string | null;
+  /**
+   * Success Count
+   * @default 0
+   */
+  success_count?: number;
+  /**
+   * Failure Count
+   * @default 0
+   */
+  failure_count?: number;
+}
+
+/**
+ * WorkflowExecutionRecord
+ * Execution history record.
+ */
+export interface WorkflowExecutionRecord {
+  /** Id */
+  id: number;
+  /** Workflow Id */
+  workflow_id: string;
+  /**
+   * Triggered At
+   * @format date-time
+   */
+  triggered_at: string;
+  /** Trigger Type */
+  trigger_type: string;
+  /** Trigger Event */
+  trigger_event: object;
+  /** Status */
+  status: "pending" | "running" | "completed" | "failed" | "rate_limited";
+  /** Actions Executed */
+  actions_executed?: object[] | null;
+  /** Error Message */
+  error_message?: string | null;
+  /** Stack Trace */
+  stack_trace?: string | null;
+  /** Started At */
+  started_at?: string | null;
+  /** Completed At */
+  completed_at?: string | null;
+  /** Duration Ms */
+  duration_ms?: number | null;
+  /** Workflow Snapshot */
+  workflow_snapshot?: object | null;
+}
+
+/**
+ * WorkflowUpdateRequest
+ * Request model for updating a workflow.
+ */
+export interface WorkflowUpdateRequest {
+  /** Name */
+  name?: string | null;
+  /** Description */
+  description?: string | null;
+  /** Enabled */
+  enabled?: boolean | null;
+  trigger?: TriggerConfig | null;
+  conditions?: ConditionGroupInput | null;
+  /** Actions */
+  actions?: ActionConfig[] | null;
+  /** Priority */
+  priority?: number | null;
+  /** Max Executions Per Hour */
+  max_executions_per_hour?: number | null;
+  /** Cooldown Seconds */
+  cooldown_seconds?: number | null;
 }
 
 import type {
@@ -502,7 +959,7 @@ export class Api<
 > extends HttpClient<SecurityDataType> {
   api = {
     /**
-     * @description Get recent task events with filtering and pagination. Filters can be provided in two ways: 1. New format: filters="state:is:success,worker:contains:celery@host" 2. Legacy format: filter_state=success&filter_worker=celery (deprecated) Filter syntax: field:operator:value(s) - Fields: state, worker, task, queue, id - Operators: is, not, in, not_in, contains, starts - Multiple values: comma-separated for in/not_in operators
+     * @description Get recent task events with filtering and pagination.
      *
      * @tags tasks
      * @name GetRecentEventsApiEventsRecentGet
@@ -537,6 +994,10 @@ export class Api<
         search?: string | null;
         /** Filters */
         filters?: string | null;
+        /** Start Time */
+        start_time?: string | null;
+        /** End Time */
+        end_time?: string | null;
         /** Filter State */
         filter_state?: string | null;
         /** Filter Worker */
@@ -584,7 +1045,7 @@ export class Api<
      * @request GET:/api/tasks/active
      */
     getActiveTasksApiTasksActiveGet: (params: RequestParams = {}) =>
-      this.request<TaskEventResponse[], any>({
+      this.request<TaskEventResponse[], HTTPValidationError>({
         path: `/api/tasks/active`,
         method: "GET",
         format: "json",
@@ -600,7 +1061,7 @@ export class Api<
      * @request GET:/api/tasks/orphaned
      */
     getOrphanedTasksApiTasksOrphanedGet: (params: RequestParams = {}) =>
-      this.request<TaskEventResponse[], any>({
+      this.request<TaskEventResponse[], HTTPValidationError>({
         path: `/api/tasks/orphaned`,
         method: "GET",
         format: "json",
@@ -820,6 +1281,40 @@ export class Api<
       }),
 
     /**
+     * @description Get execution timeline for visualizing task frequency over time. Args: task_name: The name of the task hours: Number of hours to look back (default: 24) bucket_size_minutes: Size of each time bucket in minutes (default: 60)
+     *
+     * @tags registry
+     * @name GetTaskTimelineApiRegistryTasksTaskNameTimelineGet
+     * @summary Get Task Timeline
+     * @request GET:/api/registry/tasks/{task_name}/timeline
+     */
+    getTaskTimelineApiRegistryTasksTaskNameTimelineGet: (
+      taskName: string,
+      query?: {
+        /**
+         * Hours
+         * Number of hours to look back
+         * @default 24
+         */
+        hours?: number;
+        /**
+         * Bucket Size Minutes
+         * Bucket size in minutes (e.g., 60 for 1-hour buckets)
+         * @default 60
+         */
+        bucket_size_minutes?: number;
+      },
+      params: RequestParams = {},
+    ) =>
+      this.request<TaskTimelineResponse, HTTPValidationError>({
+        path: `/api/registry/tasks/${taskName}/timeline`,
+        method: "GET",
+        query: query,
+        format: "json",
+        ...params,
+      }),
+
+    /**
      * @description Get all unique tags across all tasks.
      *
      * @tags registry
@@ -921,7 +1416,565 @@ export class Api<
       }),
 
     /**
-     * @description Health check endpoint.
+     * @description List all environments.
+     *
+     * @tags environments
+     * @name ListEnvironmentsApiEnvironmentsGet
+     * @summary List Environments
+     * @request GET:/api/environments
+     */
+    listEnvironmentsApiEnvironmentsGet: (params: RequestParams = {}) =>
+      this.request<EnvironmentResponse[], any>({
+        path: `/api/environments`,
+        method: "GET",
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Create a new environment.
+     *
+     * @tags environments
+     * @name CreateEnvironmentApiEnvironmentsPost
+     * @summary Create Environment
+     * @request POST:/api/environments
+     */
+    createEnvironmentApiEnvironmentsPost: (
+      data: EnvironmentCreate,
+      params: RequestParams = {},
+    ) =>
+      this.request<EnvironmentResponse, HTTPValidationError>({
+        path: `/api/environments`,
+        method: "POST",
+        body: data,
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Get the currently active environment.
+     *
+     * @tags environments
+     * @name GetActiveEnvironmentApiEnvironmentsActiveGet
+     * @summary Get Active Environment
+     * @request GET:/api/environments/active
+     */
+    getActiveEnvironmentApiEnvironmentsActiveGet: (
+      params: RequestParams = {},
+    ) =>
+      this.request<EnvironmentResponse | null, any>({
+        path: `/api/environments/active`,
+        method: "GET",
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Get environment by ID.
+     *
+     * @tags environments
+     * @name GetEnvironmentApiEnvironmentsEnvIdGet
+     * @summary Get Environment
+     * @request GET:/api/environments/{env_id}
+     */
+    getEnvironmentApiEnvironmentsEnvIdGet: (
+      envId: string,
+      params: RequestParams = {},
+    ) =>
+      this.request<EnvironmentResponse, HTTPValidationError>({
+        path: `/api/environments/${envId}`,
+        method: "GET",
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Update an environment.
+     *
+     * @tags environments
+     * @name UpdateEnvironmentApiEnvironmentsEnvIdPatch
+     * @summary Update Environment
+     * @request PATCH:/api/environments/{env_id}
+     */
+    updateEnvironmentApiEnvironmentsEnvIdPatch: (
+      envId: string,
+      data: EnvironmentUpdate,
+      params: RequestParams = {},
+    ) =>
+      this.request<EnvironmentResponse, HTTPValidationError>({
+        path: `/api/environments/${envId}`,
+        method: "PATCH",
+        body: data,
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Delete an environment.
+     *
+     * @tags environments
+     * @name DeleteEnvironmentApiEnvironmentsEnvIdDelete
+     * @summary Delete Environment
+     * @request DELETE:/api/environments/{env_id}
+     */
+    deleteEnvironmentApiEnvironmentsEnvIdDelete: (
+      envId: string,
+      params: RequestParams = {},
+    ) =>
+      this.request<void, HTTPValidationError>({
+        path: `/api/environments/${envId}`,
+        method: "DELETE",
+        ...params,
+      }),
+
+    /**
+     * @description Activate an environment (deactivates all others).
+     *
+     * @tags environments
+     * @name ActivateEnvironmentApiEnvironmentsEnvIdActivatePost
+     * @summary Activate Environment
+     * @request POST:/api/environments/{env_id}/activate
+     */
+    activateEnvironmentApiEnvironmentsEnvIdActivatePost: (
+      envId: string,
+      params: RequestParams = {},
+    ) =>
+      this.request<EnvironmentResponse, HTTPValidationError>({
+        path: `/api/environments/${envId}/activate`,
+        method: "POST",
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Deactivate all environments (show all data).
+     *
+     * @tags environments
+     * @name DeactivateAllEnvironmentsApiEnvironmentsDeactivateAllPost
+     * @summary Deactivate All Environments
+     * @request POST:/api/environments/deactivate-all
+     */
+    deactivateAllEnvironmentsApiEnvironmentsDeactivateAllPost: (
+      params: RequestParams = {},
+    ) =>
+      this.request<void, any>({
+        path: `/api/environments/deactivate-all`,
+        method: "POST",
+        ...params,
+      }),
+
+    /**
+     * @description Initialize or retrieve a session. If session_id is provided in header, retrieves existing or creates new.
+     *
+     * @tags sessions
+     * @name InitializeSessionApiSessionsInitPost
+     * @summary Initialize Session
+     * @request POST:/api/sessions/init
+     */
+    initializeSessionApiSessionsInitPost: (params: RequestParams = {}) =>
+      this.request<UserSessionResponse, HTTPValidationError>({
+        path: `/api/sessions/init`,
+        method: "POST",
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Get current session info.
+     *
+     * @tags sessions
+     * @name GetCurrentSessionApiSessionsMeGet
+     * @summary Get Current Session
+     * @request GET:/api/sessions/me
+     */
+    getCurrentSessionApiSessionsMeGet: (params: RequestParams = {}) =>
+      this.request<UserSessionResponse, HTTPValidationError>({
+        path: `/api/sessions/me`,
+        method: "GET",
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Update current session preferences.
+     *
+     * @tags sessions
+     * @name UpdateCurrentSessionApiSessionsMePatch
+     * @summary Update Current Session
+     * @request PATCH:/api/sessions/me
+     */
+    updateCurrentSessionApiSessionsMePatch: (
+      data: UserSessionUpdate,
+      params: RequestParams = {},
+    ) =>
+      this.request<UserSessionResponse, HTTPValidationError>({
+        path: `/api/sessions/me`,
+        method: "PATCH",
+        body: data,
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Set active environment for current session.
+     *
+     * @tags sessions
+     * @name SetSessionEnvironmentApiSessionsMeEnvironmentEnvironmentIdPost
+     * @summary Set Session Environment
+     * @request POST:/api/sessions/me/environment/{environment_id}
+     */
+    setSessionEnvironmentApiSessionsMeEnvironmentEnvironmentIdPost: (
+      environmentId: string,
+      params: RequestParams = {},
+    ) =>
+      this.request<UserSessionResponse, HTTPValidationError>({
+        path: `/api/sessions/me/environment/${environmentId}`,
+        method: "POST",
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Clear active environment for current session (show all).
+     *
+     * @tags sessions
+     * @name ClearSessionEnvironmentApiSessionsMeEnvironmentDelete
+     * @summary Clear Session Environment
+     * @request DELETE:/api/sessions/me/environment
+     */
+    clearSessionEnvironmentApiSessionsMeEnvironmentDelete: (
+      params: RequestParams = {},
+    ) =>
+      this.request<UserSessionResponse, HTTPValidationError>({
+        path: `/api/sessions/me/environment`,
+        method: "DELETE",
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Create a new workflow.
+     *
+     * @tags workflows
+     * @name CreateWorkflowApiWorkflowsPost
+     * @summary Create Workflow
+     * @request POST:/api/workflows
+     */
+    createWorkflowApiWorkflowsPost: (
+      data: WorkflowCreateRequest,
+      params: RequestParams = {},
+    ) =>
+      this.request<WorkflowDefinition, HTTPValidationError>({
+        path: `/api/workflows`,
+        method: "POST",
+        body: data,
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description List all workflows with optional filtering.
+     *
+     * @tags workflows
+     * @name ListWorkflowsApiWorkflowsGet
+     * @summary List Workflows
+     * @request GET:/api/workflows
+     */
+    listWorkflowsApiWorkflowsGet: (
+      query?: {
+        /**
+         * Enabled Only
+         * @default false
+         */
+        enabled_only?: boolean;
+        /** Trigger Type */
+        trigger_type?: string | null;
+        /**
+         * Limit
+         * @default 100
+         */
+        limit?: number;
+        /**
+         * Offset
+         * @default 0
+         */
+        offset?: number;
+      },
+      params: RequestParams = {},
+    ) =>
+      this.request<WorkflowDefinition[], HTTPValidationError>({
+        path: `/api/workflows`,
+        method: "GET",
+        query: query,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Get a specific workflow by ID.
+     *
+     * @tags workflows
+     * @name GetWorkflowApiWorkflowsWorkflowIdGet
+     * @summary Get Workflow
+     * @request GET:/api/workflows/{workflow_id}
+     */
+    getWorkflowApiWorkflowsWorkflowIdGet: (
+      workflowId: string,
+      params: RequestParams = {},
+    ) =>
+      this.request<WorkflowDefinition, HTTPValidationError>({
+        path: `/api/workflows/${workflowId}`,
+        method: "GET",
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Update an existing workflow.
+     *
+     * @tags workflows
+     * @name UpdateWorkflowApiWorkflowsWorkflowIdPut
+     * @summary Update Workflow
+     * @request PUT:/api/workflows/{workflow_id}
+     */
+    updateWorkflowApiWorkflowsWorkflowIdPut: (
+      workflowId: string,
+      data: WorkflowUpdateRequest,
+      params: RequestParams = {},
+    ) =>
+      this.request<WorkflowDefinition, HTTPValidationError>({
+        path: `/api/workflows/${workflowId}`,
+        method: "PUT",
+        body: data,
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Delete a workflow.
+     *
+     * @tags workflows
+     * @name DeleteWorkflowApiWorkflowsWorkflowIdDelete
+     * @summary Delete Workflow
+     * @request DELETE:/api/workflows/{workflow_id}
+     */
+    deleteWorkflowApiWorkflowsWorkflowIdDelete: (
+      workflowId: string,
+      params: RequestParams = {},
+    ) =>
+      this.request<void, HTTPValidationError>({
+        path: `/api/workflows/${workflowId}`,
+        method: "DELETE",
+        ...params,
+      }),
+
+    /**
+     * @description Get execution history for a workflow.
+     *
+     * @tags workflows
+     * @name GetWorkflowExecutionsApiWorkflowsWorkflowIdExecutionsGet
+     * @summary Get Workflow Executions
+     * @request GET:/api/workflows/{workflow_id}/executions
+     */
+    getWorkflowExecutionsApiWorkflowsWorkflowIdExecutionsGet: (
+      workflowId: string,
+      query?: {
+        /**
+         * Limit
+         * @default 100
+         */
+        limit?: number;
+        /**
+         * Offset
+         * @default 0
+         */
+        offset?: number;
+      },
+      params: RequestParams = {},
+    ) =>
+      this.request<WorkflowExecutionRecord[], HTTPValidationError>({
+        path: `/api/workflows/${workflowId}/executions`,
+        method: "GET",
+        query: query,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Get recent workflow executions across all workflows.
+     *
+     * @tags workflows
+     * @name GetRecentExecutionsApiWorkflowsExecutionsRecentGet
+     * @summary Get Recent Executions
+     * @request GET:/api/workflows/executions/recent
+     */
+    getRecentExecutionsApiWorkflowsExecutionsRecentGet: (
+      query?: {
+        /** Status */
+        status?: string | null;
+        /**
+         * Limit
+         * @default 100
+         */
+        limit?: number;
+        /**
+         * Offset
+         * @default 0
+         */
+        offset?: number;
+      },
+      params: RequestParams = {},
+    ) =>
+      this.request<WorkflowExecutionRecord[], HTTPValidationError>({
+        path: `/api/workflows/executions/recent`,
+        method: "GET",
+        query: query,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Test a workflow with sample data. This simulates workflow execution without actually triggering actions. Useful for debugging condition evaluation.
+     *
+     * @tags workflows
+     * @name TestWorkflowApiWorkflowsWorkflowIdTestPost
+     * @summary Test Workflow
+     * @request POST:/api/workflows/{workflow_id}/test
+     */
+    testWorkflowApiWorkflowsWorkflowIdTestPost: (
+      workflowId: string,
+      data: object,
+      params: RequestParams = {},
+    ) =>
+      this.request<any, HTTPValidationError>({
+        path: `/api/workflows/${workflowId}/test`,
+        method: "POST",
+        body: data,
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Create a new action configuration (e.g., Slack webhook).
+     *
+     * @tags action-configs
+     * @name CreateActionConfigApiActionConfigsPost
+     * @summary Create Action Config
+     * @request POST:/api/action-configs
+     */
+    createActionConfigApiActionConfigsPost: (
+      data: ActionConfigCreateRequest,
+      params: RequestParams = {},
+    ) =>
+      this.request<ActionConfigDefinition, HTTPValidationError>({
+        path: `/api/action-configs`,
+        method: "POST",
+        body: data,
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description List all action configurations.
+     *
+     * @tags action-configs
+     * @name ListActionConfigsApiActionConfigsGet
+     * @summary List Action Configs
+     * @request GET:/api/action-configs
+     */
+    listActionConfigsApiActionConfigsGet: (
+      query?: {
+        /** Action Type */
+        action_type?: string | null;
+        /**
+         * Limit
+         * @default 100
+         */
+        limit?: number;
+        /**
+         * Offset
+         * @default 0
+         */
+        offset?: number;
+      },
+      params: RequestParams = {},
+    ) =>
+      this.request<ActionConfigDefinition[], HTTPValidationError>({
+        path: `/api/action-configs`,
+        method: "GET",
+        query: query,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Get a specific action configuration.
+     *
+     * @tags action-configs
+     * @name GetActionConfigApiActionConfigsConfigIdGet
+     * @summary Get Action Config
+     * @request GET:/api/action-configs/{config_id}
+     */
+    getActionConfigApiActionConfigsConfigIdGet: (
+      configId: string,
+      params: RequestParams = {},
+    ) =>
+      this.request<ActionConfigDefinition, HTTPValidationError>({
+        path: `/api/action-configs/${configId}`,
+        method: "GET",
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Update an action configuration.
+     *
+     * @tags action-configs
+     * @name UpdateActionConfigApiActionConfigsConfigIdPut
+     * @summary Update Action Config
+     * @request PUT:/api/action-configs/{config_id}
+     */
+    updateActionConfigApiActionConfigsConfigIdPut: (
+      configId: string,
+      data: ActionConfigUpdateRequest,
+      params: RequestParams = {},
+    ) =>
+      this.request<ActionConfigDefinition, HTTPValidationError>({
+        path: `/api/action-configs/${configId}`,
+        method: "PUT",
+        body: data,
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Delete an action configuration.
+     *
+     * @tags action-configs
+     * @name DeleteActionConfigApiActionConfigsConfigIdDelete
+     * @summary Delete Action Config
+     * @request DELETE:/api/action-configs/{config_id}
+     */
+    deleteActionConfigApiActionConfigsConfigIdDelete: (
+      configId: string,
+      params: RequestParams = {},
+    ) =>
+      this.request<void, HTTPValidationError>({
+        path: `/api/action-configs/${configId}`,
+        method: "DELETE",
+        ...params,
+      }),
+
+    /**
+     * @description Health check endpoint with detailed system information.
      *
      * @name HealthCheckApiHealthGet
      * @summary Health Check

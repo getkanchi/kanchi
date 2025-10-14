@@ -296,6 +296,197 @@ class EnvironmentDB(Base):
         }
 
 
+class UserSessionDB(Base):
+    """SQLAlchemy model for anonymous user sessions."""
+    __tablename__ = 'user_sessions'
+
+    session_id = Column(String(36), primary_key=True)  # UUID
+
+    # User preferences
+    active_environment_id = Column(String(36), index=True)  # FK to environments.id (nullable)
+    preferences = Column(JSON, default=dict)  # Flexible JSON for various settings
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    last_active = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False, index=True)
+
+    __table_args__ = (
+        Index('idx_session_last_active', 'last_active'),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for API responses."""
+        return {
+            'session_id': self.session_id,
+            'active_environment_id': self.active_environment_id,
+            'preferences': self.preferences or {},
+            'created_at': ensure_utc_isoformat(self.created_at),
+            'last_active': ensure_utc_isoformat(self.last_active),
+        }
+
+
+class WorkflowDB(Base):
+    """SQLAlchemy model for workflows."""
+    __tablename__ = 'workflows'
+
+    id = Column(String(36), primary_key=True)  # UUID
+    name = Column(String(255), nullable=False)
+    description = Column(Text)
+    enabled = Column(Boolean, default=True)
+
+    # Trigger configuration
+    trigger_type = Column(String(50), nullable=False, index=True)
+    trigger_config = Column(JSON)
+
+    # Condition filters (JSON)
+    conditions = Column(JSON)
+
+    # Actions to execute (JSON array)
+    actions = Column(JSON, nullable=False)
+
+    # Execution settings
+    priority = Column(Integer, default=100, index=True)
+    max_executions_per_hour = Column(Integer)
+    cooldown_seconds = Column(Integer, default=0)
+
+    # Metadata
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+    created_by = Column(String(255))
+
+    # Statistics (denormalized for performance)
+    execution_count = Column(Integer, default=0)
+    last_executed_at = Column(DateTime(timezone=True))
+    success_count = Column(Integer, default=0)
+    failure_count = Column(Integer, default=0)
+
+    __table_args__ = (
+        Index('idx_workflows_enabled', 'enabled'),
+        Index('idx_workflows_enabled_trigger', 'enabled', 'trigger_type'),
+        Index('idx_workflows_priority', 'priority'),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for API responses."""
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'enabled': self.enabled,
+            'trigger_type': self.trigger_type,
+            'trigger_config': self.trigger_config or {},
+            'conditions': self.conditions,
+            'actions': self.actions,
+            'priority': self.priority,
+            'max_executions_per_hour': self.max_executions_per_hour,
+            'cooldown_seconds': self.cooldown_seconds,
+            'created_at': ensure_utc_isoformat(self.created_at),
+            'updated_at': ensure_utc_isoformat(self.updated_at),
+            'created_by': self.created_by,
+            'execution_count': self.execution_count,
+            'last_executed_at': ensure_utc_isoformat(self.last_executed_at),
+            'success_count': self.success_count,
+            'failure_count': self.failure_count,
+        }
+
+
+class WorkflowExecutionDB(Base):
+    """SQLAlchemy model for workflow executions."""
+    __tablename__ = 'workflow_executions'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    workflow_id = Column(String(36), nullable=False, index=True)
+
+    # Trigger context
+    triggered_at = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+    trigger_type = Column(String(50), nullable=False, index=True)
+    trigger_event = Column(JSON, nullable=False)
+
+    # Execution status
+    status = Column(String(20), nullable=False, index=True)  # "pending", "running", "completed", "failed", "rate_limited"
+
+    # Results
+    actions_executed = Column(JSON)
+    error_message = Column(Text)
+    stack_trace = Column(Text)
+
+    # Performance
+    started_at = Column(DateTime(timezone=True))
+    completed_at = Column(DateTime(timezone=True))
+    duration_ms = Column(Integer)
+
+    # Context for debugging
+    workflow_snapshot = Column(JSON)
+
+    __table_args__ = (
+        Index('idx_workflow_exec_workflow_id', 'workflow_id'),
+        Index('idx_workflow_exec_workflow_time', 'workflow_id', 'triggered_at'),
+        Index('idx_workflow_exec_status', 'status', 'triggered_at'),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for API responses."""
+        return {
+            'id': self.id,
+            'workflow_id': self.workflow_id,
+            'triggered_at': ensure_utc_isoformat(self.triggered_at),
+            'trigger_type': self.trigger_type,
+            'trigger_event': self.trigger_event,
+            'status': self.status,
+            'actions_executed': self.actions_executed,
+            'error_message': self.error_message,
+            'stack_trace': self.stack_trace,
+            'started_at': ensure_utc_isoformat(self.started_at),
+            'completed_at': ensure_utc_isoformat(self.completed_at),
+            'duration_ms': self.duration_ms,
+            'workflow_snapshot': self.workflow_snapshot,
+        }
+
+
+class ActionConfigDB(Base):
+    """SQLAlchemy model for action configurations."""
+    __tablename__ = 'action_configs'
+
+    id = Column(String(36), primary_key=True)  # UUID
+    name = Column(String(255), unique=True, nullable=False, index=True)
+    description = Column(Text)
+
+    # Action type
+    action_type = Column(String(50), nullable=False, index=True)
+
+    # Configuration (encrypted sensitive fields)
+    config = Column(JSON, nullable=False)
+
+    # Metadata
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+    created_by = Column(String(255))
+
+    # Usage tracking
+    usage_count = Column(Integer, default=0)
+    last_used_at = Column(DateTime(timezone=True))
+
+    __table_args__ = (
+        Index('idx_action_configs_action_type', 'action_type'),
+        Index('idx_action_configs_name', 'name'),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for API responses."""
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'action_type': self.action_type,
+            'config': self.config,
+            'created_at': ensure_utc_isoformat(self.created_at),
+            'updated_at': ensure_utc_isoformat(self.updated_at),
+            'created_by': self.created_by,
+            'usage_count': self.usage_count,
+            'last_used_at': ensure_utc_isoformat(self.last_used_at),
+        }
+
+
 class DatabaseManager:
     """Manage database connections and sessions."""
 

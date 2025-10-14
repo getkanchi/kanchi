@@ -103,20 +103,19 @@
         <div class="px-3 py-2 text-xs text-gray-500 border-b border-border sticky top-0 bg-background-surface">
           Filter by
         </div>
-        <button
+        <Button
           v-for="(field, index) in filteredFieldSuggestions"
           :key="field.value"
           @mousedown.prevent="selectField(field.value)"
-          :class="[
-            'w-full text-left px-3 py-2 text-sm hover:bg-background-hover-subtle flex items-center justify-between transition-colors',
-            index === selectedSuggestionIndex ? 'bg-background-hover-subtle' : ''
-          ]"
+          variant="ghost"
+          class="w-full justify-between"
+          :class="{ 'bg-background-hover-subtle': index === selectedSuggestionIndex }"
         >
           <span>
             <span class="text-gray-300">{{ field.label }}</span>
           </span>
           <span class="text-xs text-gray-500">{{ field.description }}</span>
-        </button>
+        </Button>
       </div>
 
       <!-- Operator suggestions -->
@@ -124,18 +123,17 @@
         <div class="px-3 py-2 text-xs text-gray-500 border-b border-border sticky top-0 bg-background-surface">
           Choose operator for <span class="text-gray-300">{{ currentFilter.field }}</span>
         </div>
-        <button
+        <Button
           v-for="(op, index) in filteredOperatorSuggestions"
           :key="op.value"
           @mousedown.prevent="selectOperator(op.value)"
-          :class="[
-            'w-full text-left px-3 py-2 text-sm hover:bg-background-hover-subtle flex items-center justify-between transition-colors',
-            index === selectedSuggestionIndex ? 'bg-background-hover-subtle' : ''
-          ]"
+          variant="ghost"
+          class="w-full justify-between"
+          :class="{ 'bg-background-hover-subtle': index === selectedSuggestionIndex }"
         >
           <span class="text-gray-300">{{ op.label }}</span>
           <span class="text-xs text-gray-500">{{ op.description }}</span>
-        </button>
+        </Button>
       </div>
 
       <!-- Value suggestions -->
@@ -145,14 +143,13 @@
           <div class="px-3 py-2 text-xs text-gray-500 border-b border-border sticky top-0 bg-background-surface">
             Select value{{currentFilter.operator === 'in' || currentFilter.operator === 'not_in' ? 's' : ''}} for <span class="text-gray-300">{{ currentFilter.field }}</span>
           </div>
-          <button
+          <Button
             v-for="(value, index) in filteredValueSuggestions"
             :key="value"
             @mousedown.prevent="selectValue(value)"
-            :class="[
-              'w-full text-left px-3 py-2 text-sm hover:bg-background-hover-subtle flex items-center transition-colors',
-              index === selectedSuggestionIndex ? 'bg-background-hover-subtle' : ''
-            ]"
+            variant="ghost"
+            class="w-full justify-start"
+            :class="{ 'bg-background-hover-subtle': index === selectedSuggestionIndex }"
           >
             <Badge
               v-if="currentFilter.field === 'state'"
@@ -162,7 +159,7 @@
               {{ formatStatus(value) }}
             </Badge>
             <span v-else class="text-gray-300">{{ value }}</span>
-          </button>
+          </Button>
         </div>
         <!-- Show hint if no suggestions available -->
         <div v-else class="px-3 py-2 text-xs text-gray-400">
@@ -179,6 +176,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Search } from 'lucide-vue-next'
 import FilterBadge from '~/components/FilterBadge.vue'
 import type { ParsedFilter, FilterField, FilterOperator } from '~/composables/useFilterParser'

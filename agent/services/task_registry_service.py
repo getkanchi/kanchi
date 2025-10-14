@@ -219,6 +219,7 @@ class TaskRegistryService:
     ) -> TaskRegistryStats:
         """
         Get statistics for a specific task over the last N hours.
+        Uses database aggregation for optimal performance.
 
         Args:
             task_name: The task name to get stats for
@@ -226,8 +227,8 @@ class TaskRegistryService:
         """
         since = datetime.now(timezone.utc) - timedelta(hours=hours)
 
-        # Get all events for this task in the time window
-        query = self.session.query(TaskEventDB).filter(
+        # Build base query with filters
+        base_query = self.session.query(TaskEventDB).filter(
             and_(
                 TaskEventDB.task_name == task_name,
                 TaskEventDB.timestamp >= since
@@ -235,51 +236,33 @@ class TaskRegistryService:
         )
 
         # Apply environment filtering
-        query = self._apply_environment_filter(query)
-        events = query.all()
+        base_query = self._apply_environment_filter(base_query)
 
-        # Calculate stats
-        total_executions = 0
-        succeeded = 0
-        failed = 0
-        pending = 0
-        retried = 0
-        runtimes = []
-        last_execution = None
+        # Use database aggregation to calculate stats in a single query
+        # This is much faster than fetching all rows and processing in Python
+        from sqlalchemy import case
 
-        # Track unique task IDs to count executions
-        task_ids = set()
+        stats_query = base_query.with_entities(
+            func.count(func.distinct(TaskEventDB.task_id)).label('total_executions'),
+            func.sum(case((TaskEventDB.event_type == 'task-succeeded', 1), else_=0)).label('succeeded'),
+            func.sum(case((TaskEventDB.event_type == 'task-failed', 1), else_=0)).label('failed'),
+            func.sum(case((TaskEventDB.event_type == 'task-received', 1), else_=0)).label('pending'),
+            func.sum(case((TaskEventDB.event_type == 'task-retried', 1), else_=0)).label('retried'),
+            func.avg(case((TaskEventDB.runtime.isnot(None), TaskEventDB.runtime), else_=None)).label('avg_runtime'),
+            func.max(TaskEventDB.timestamp).label('last_execution')
+        )
 
-        for event in events:
-            task_ids.add(event.task_id)
-
-            if event.event_type == 'task-succeeded':
-                succeeded += 1
-                if event.runtime:
-                    runtimes.append(event.runtime)
-            elif event.event_type == 'task-failed':
-                failed += 1
-            elif event.event_type == 'task-received':
-                pending += 1
-            elif event.event_type == 'task-retried':
-                retried += 1
-
-            # Track last execution
-            if last_execution is None or event.timestamp > last_execution:
-                last_execution = event.timestamp
-
-        total_executions = len(task_ids)
-        avg_runtime = sum(runtimes) / len(runtimes) if runtimes else None
+        result = stats_query.one()
 
         return TaskRegistryStats(
             task_name=task_name,
-            total_executions=total_executions,
-            succeeded=succeeded,
-            failed=failed,
-            pending=pending,
-            retried=retried,
-            avg_runtime=avg_runtime,
-            last_execution=last_execution
+            total_executions=result.total_executions or 0,
+            succeeded=result.succeeded or 0,
+            failed=result.failed or 0,
+            pending=result.pending or 0,
+            retried=result.retried or 0,
+            avg_runtime=float(result.avg_runtime) if result.avg_runtime else None,
+            last_execution=result.last_execution
         )
 
     def get_all_tags(self) -> List[str]:
@@ -301,6 +284,7 @@ class TaskRegistryService:
     ):
         """
         Get execution timeline with time buckets for visualizing task frequency.
+        Uses database aggregation for optimal performance.
 
         Args:
             task_name: The task name to get timeline for
@@ -311,92 +295,107 @@ class TaskRegistryService:
             Dict with timeline data including bucketed execution counts
         """
         from models import TaskTimelineResponse, TimelineBucket
+        from sqlalchemy import cast, Integer, literal
 
         end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(hours=hours)
+        bucket_seconds = bucket_size_minutes * 60
+        num_buckets = int((hours * 60) / bucket_size_minutes)
 
-        # Get all events for this task in the time window
-        query = self.session.query(TaskEventDB).filter(
+        # Build base query with filters
+        base_query = self.session.query(TaskEventDB).filter(
             and_(
                 TaskEventDB.task_name == task_name,
                 TaskEventDB.timestamp >= start_time,
                 TaskEventDB.timestamp <= end_time
             )
-        ).order_by(TaskEventDB.timestamp)
+        )
 
         # Apply environment filtering
-        query = self._apply_environment_filter(query)
-        events = query.all()
+        base_query = self._apply_environment_filter(base_query)
 
-        logger.info(f"Timeline for {task_name}: Found {len(events)} events in time window ({start_time} to {end_time})")
+        # Calculate bucket index for each event in the database
+        # SQLite: Use strftime to get Unix timestamp, then calculate bucket
+        # PostgreSQL: Use extract(epoch from timestamp)
 
-        # Create time buckets
-        bucket_delta = timedelta(minutes=bucket_size_minutes)
-        num_buckets = int((hours * 60) / bucket_size_minutes)
+        # For SQLite compatibility, we use a simpler approach:
+        # Cast timestamp difference to seconds and divide by bucket size
+        base_query_cte = base_query.add_columns(
+            # Calculate seconds from start_time
+            cast(
+                (func.julianday(TaskEventDB.timestamp) - func.julianday(literal(start_time))) * 86400,
+                Integer
+            ).label('seconds_from_start')
+        ).subquery()
 
-        # Initialize buckets
-        buckets = []
+        # Now aggregate by bucket
+        from sqlalchemy import case as sql_case
+
+        bucket_query = self.session.query(
+            # Calculate bucket index
+            cast(base_query_cte.c.seconds_from_start / bucket_seconds, Integer).label('bucket_index'),
+            # Count unique task_ids for task-received events
+            func.sum(
+                sql_case(
+                    (base_query_cte.c.event_type == 'task-received', 1),
+                    else_=0
+                )
+            ).label('total_executions'),
+            func.sum(
+                sql_case(
+                    (base_query_cte.c.event_type == 'task-succeeded', 1),
+                    else_=0
+                )
+            ).label('succeeded'),
+            func.sum(
+                sql_case(
+                    (base_query_cte.c.event_type == 'task-failed', 1),
+                    else_=0
+                )
+            ).label('failed'),
+            func.sum(
+                sql_case(
+                    (base_query_cte.c.event_type == 'task-retried', 1),
+                    else_=0
+                )
+            ).label('retried')
+        ).group_by('bucket_index').all()
+
+        # Create a mapping of bucket_index to stats
+        bucket_stats = {
+            result.bucket_index: {
+                'total_executions': result.total_executions or 0,
+                'succeeded': result.succeeded or 0,
+                'failed': result.failed or 0,
+                'retried': result.retried or 0
+            }
+            for result in bucket_query
+        }
+
+        # Initialize all buckets (including empty ones)
+        timeline_buckets = []
         current_bucket_start = start_time
+        bucket_delta = timedelta(minutes=bucket_size_minutes)
 
         for i in range(num_buckets):
-            buckets.append({
-                'timestamp': current_bucket_start,
+            stats = bucket_stats.get(i, {
                 'total_executions': 0,
                 'succeeded': 0,
                 'failed': 0,
-                'retried': 0,
-                'task_ids': set()  # Track unique task IDs per bucket
+                'retried': 0
             })
+
+            timeline_buckets.append(
+                TimelineBucket(
+                    timestamp=current_bucket_start,
+                    total_executions=stats['total_executions'],
+                    succeeded=stats['succeeded'],
+                    failed=stats['failed'],
+                    retried=stats['retried']
+                )
+            )
             current_bucket_start += bucket_delta
 
-        # Assign events to buckets
-        event_type_counts = {}
-        bucketed_events = 0
-        for event in events:
-            # Track event types
-            event_type_counts[event.event_type] = event_type_counts.get(event.event_type, 0) + 1
-
-            # Normalize timestamp to UTC if naive (SQLite compatibility)
-            event_ts = event.timestamp
-            if event_ts.tzinfo is None:
-                event_ts = event_ts.replace(tzinfo=timezone.utc)
-
-            # Find which bucket this event belongs to
-            time_diff = event_ts - start_time
-            bucket_index = int(time_diff.total_seconds() / (bucket_size_minutes * 60))
-
-            if 0 <= bucket_index < num_buckets:
-                bucketed_events += 1
-                bucket = buckets[bucket_index]
-
-                # Count unique task executions (task-received events)
-                if event.event_type == 'task-received':
-                    bucket['task_ids'].add(event.task_id)
-                    bucket['total_executions'] += 1
-
-                # Count outcomes
-                if event.event_type == 'task-succeeded':
-                    bucket['succeeded'] += 1
-                elif event.event_type == 'task-failed':
-                    bucket['failed'] += 1
-                elif event.event_type == 'task-retried':
-                    bucket['retried'] += 1
-
-        logger.info(f"Timeline for {task_name}: Event types: {event_type_counts}, Bucketed: {bucketed_events}/{len(events)}")
-
-        # Convert to response format (remove task_ids set)
-        timeline_buckets = [
-            TimelineBucket(
-                timestamp=bucket['timestamp'],
-                total_executions=bucket['total_executions'],
-                succeeded=bucket['succeeded'],
-                failed=bucket['failed'],
-                retried=bucket['retried']
-            )
-            for bucket in buckets
-        ]
-
-        # Log summary of buckets with data
         non_empty_buckets = [b for b in timeline_buckets if b.total_executions > 0]
         logger.info(f"Timeline for {task_name}: Returning {len(non_empty_buckets)}/{len(timeline_buckets)} non-empty buckets")
 

@@ -7,23 +7,24 @@
       <!-- Search and Filters -->
       <div class="mb-6 flex items-center gap-4">
         <div class="flex-1">
-          <input
+          <Input
             v-model="searchQuery"
             type="text"
             placeholder="Search tasks..."
-            class="w-full px-4 py-2 bg-background-surface border border-border rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-border-highlight transition-colors"
+            class="w-full"
           />
         </div>
 
         <!-- Tags Dropdown -->
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <button
-              class="px-4 py-2 bg-background-surface border border-border rounded-lg text-text-primary hover:bg-background-hover transition-colors flex items-center gap-2 min-w-[150px]"
+            <Button
+              variant="outline"
+              class="flex items-center gap-2 min-w-[150px]"
             >
               <Filter class="h-4 w-4" />
               <span v-if="selectedTags.length > 0" class="flex-1 text-left flex items-center gap-1 overflow-hidden">
-                <BaseTag
+                <Tag
                   v-for="tag in selectedTags.slice(0, 2)"
                   :key="tag"
                   size="xs"
@@ -31,14 +32,14 @@
                   :text="tag"
                 >
                   {{ tag }}
-                </BaseTag>
+                </Tag>
                 <span v-if="selectedTags.length > 2" class="text-xs text-text-muted">
                   +{{ selectedTags.length - 2 }}
                 </span>
               </span>
               <span v-else class="flex-1 text-left text-sm">All Tags</span>
               <ChevronDown class="h-4 w-4 text-text-muted" />
-            </button>
+            </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="end"
@@ -67,7 +68,7 @@
               @select.prevent
             >
               <div class="flex items-center justify-between w-full gap-2">
-                <BaseTag size="xs" colored :text="tag">{{ tag }}</BaseTag>
+                <Tag size="xs" colored :text="tag">{{ tag }}</Tag>
                 <Check v-if="selectedTags.includes(tag)" class="h-4 w-4 text-primary flex-shrink-0" />
               </div>
             </DropdownMenuItem>
@@ -108,7 +109,9 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { Filter, ChevronDown, Check, X } from 'lucide-vue-next'
 import TaskCard from '~/components/tasks/TaskCard.vue'
 import TaskDetailSheet from '~/components/tasks/TaskDetailSheet.vue'
-import { BaseTag } from '~/components/ui/tag'
+import Tag from '~/components/common/Tag.vue'
+import { Input } from '~/components/ui/input'
+import { Button } from '~/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,

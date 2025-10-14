@@ -78,7 +78,7 @@
     <!-- Tags & View Details -->
     <div class="flex items-center justify-between">
       <div class="flex flex-wrap gap-1">
-        <BaseTag
+        <Tag
           v-for="tag in task.tags"
           :key="tag"
           size="xs"
@@ -86,13 +86,15 @@
           :text="tag"
         >
           {{ tag }}
-        </BaseTag>
+        </Tag>
       </div>
-      <button
-        class="text-xs text-text-secondary group-hover:text-text-primary transition-colors font-medium"
+      <Button
+        variant="ghost"
+        size="sm"
+        class="text-xs group-hover:text-text-primary"
       >
         → Details
-      </button>
+      </Button>
     </div>
   </div>
 </template>
@@ -101,7 +103,8 @@
 import { ref, onMounted, computed } from 'vue'
 import { Clock } from 'lucide-vue-next'
 import TaskFrequencyTimeline from './TaskFrequencyTimeline.vue'
-import { BaseTag } from '~/components/ui/tag'
+import Tag from '~/components/common/Tag.vue'
+import { Button } from '~/components/ui/button'
 import { Alert } from '~/components/alert'
 import type { TaskRegistryResponse, TaskRegistryStats, TaskTimelineResponse } from '~/services/apiClient'
 

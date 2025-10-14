@@ -8,7 +8,7 @@
         <span v-if="failure.hostname" class="text-text-muted truncate text-[10px]">@ {{ failure.hostname }}</span>
       </div>
       <div class="flex items-center gap-0.5 flex-shrink-0">
-        <BaseIconButton
+        <IconButton
           :icon="RefreshCw"
           size="xs"
           variant="ghost"
@@ -61,7 +61,7 @@ import { ref } from 'vue'
 import { RefreshCw, ChevronRight, ChevronDown } from 'lucide-vue-next'
 import UuidDisplay from './UuidDisplay.vue'
 import CopyButton from './CopyButton.vue'
-import BaseIconButton from './BaseIconButton.vue'
+import IconButton from '~/components/common/IconButton.vue'
 import type { TaskEventResponse } from '~/services/apiClient'
 
 interface Props {

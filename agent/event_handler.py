@@ -11,8 +11,7 @@ from services import (
     TaskService,
     WorkerService,
     TaskRegistryService,
-    DailyStatsService,
-    EnvironmentService
+    DailyStatsService
 )
 
 logger = logging.getLogger(__name__)
@@ -21,26 +20,15 @@ logger = logging.getLogger(__name__)
 class EventHandler:
     """Simple, synchronous event handler for Celery events."""
 
-    def __init__(self, db_manager: DatabaseManager, connection_manager: ConnectionManager):
+    def __init__(self, db_manager: DatabaseManager, connection_manager: ConnectionManager, workflow_engine=None):
         self.db_manager = db_manager
         self.connection_manager = connection_manager
+        self.workflow_engine = workflow_engine
 
     def handle_task_event(self, task_event: TaskEvent):
         """Handle task event: save to DB and broadcast to WebSocket."""
         try:
             with self.db_manager.get_session() as session:
-                # Check environment filter
-                env_service = EnvironmentService(session)
-                if not env_service.should_include_event(
-                    queue_name=task_event.queue,
-                    worker_hostname=task_event.hostname
-                ):
-                    logger.debug(
-                        f"Task event {task_event.task_id} filtered out by environment "
-                        f"(queue={task_event.queue}, worker={task_event.hostname})"
-                    )
-                    return
-
                 # Ensure task is registered (auto-discovery)
                 registry_service = TaskRegistryService(session)
                 registry_service.ensure_task_registered(task_event.task_name)
@@ -54,12 +42,20 @@ class EventHandler:
                 else:
                     logger.warning(f"✗ Task {task_event.task_id[:8]} enriched but NO parent found: is_retry={task_event.is_retry}")
 
+                # Always save to DB regardless of environment filter
+                # Environment filtering is applied only on read operations
                 task_service.save_task_event(task_event)
 
                 # Update daily statistics
                 daily_stats_service.update_daily_stats(task_event)
 
+            # Broadcast to all WebSocket clients
+            # Clients can filter based on their active environment
             self.connection_manager.queue_broadcast(task_event)
+
+            # Trigger workflow evaluation
+            if self.workflow_engine:
+                self.workflow_engine.process_event(task_event)
 
         except Exception as e:
             logger.error(f"Error handling task event {task_event.task_id}: {e}", exc_info=True)
@@ -67,16 +63,9 @@ class EventHandler:
     def handle_worker_event(self, worker_event: WorkerEvent):
         """Handle worker event: broadcast to WebSocket and handle orphan detection."""
         try:
-            # Check environment filter
             with self.db_manager.get_session() as session:
-                env_service = EnvironmentService(session)
-                if not env_service.should_include_event(worker_hostname=worker_event.hostname):
-                    logger.debug(
-                        f"Worker event for {worker_event.hostname} filtered out by environment"
-                    )
-                    return
-
                 # If worker went offline, mark its running tasks as orphaned
+                # Always process worker events regardless of environment filter
                 if worker_event.event_type == 'worker-offline':
                     logger.info(
                         f"Worker {worker_event.hostname} went offline, "
@@ -86,8 +75,13 @@ class EventHandler:
                     orphaned_at = datetime.now(timezone.utc)
                     self._mark_tasks_as_orphaned(session, worker_event.hostname, orphaned_at)
 
-            # Broadcast to WebSocket
+            # Broadcast to all WebSocket clients
+            # Clients can filter based on their active environment
             self.connection_manager.queue_worker_broadcast(worker_event)
+
+            # Trigger workflow evaluation
+            if self.workflow_engine:
+                self.workflow_engine.process_event(worker_event)
 
         except Exception as e:
             logger.error(f"Error handling worker event {worker_event.hostname}: {e}", exc_info=True)

@@ -231,7 +231,25 @@ export const useTasksStore = defineStore('tasks', () => {
   // Handle live events from WebSocket - SIMPLE SOLUTION
   function handleLiveEvent(event: TaskEventResponse) {
     if (!isLiveMode.value) return
-    
+
+    // Check if event matches active filters (only show matching events in live mode)
+    const { matchesFilters } = useEventMatcher()
+    const { queryStringToFilters } = useFilterParser()
+
+    const parsedFilters = filters.value.filters
+      ? queryStringToFilters(filters.value.filters)
+      : []
+
+    if (!matchesFilters(
+      event,
+      parsedFilters,
+      filters.value.search || undefined,
+      { start: filters.value.start_time, end: filters.value.end_time }
+    )) {
+      // Event doesn't match active filters - silently ignore it
+      return
+    }
+
     // Find if we have any event for this task_id
     const existingTaskIndex = events.value.findIndex(e => e.task_id === event.task_id)
     

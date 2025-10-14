@@ -1,20 +1,15 @@
 <template>
   <DropdownMenu>
     <DropdownMenuTrigger as-child>
-      <button
-        class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-colors border border-border bg-background-surface hover:bg-background-hover text-text-primary"
+      <Button
+        variant="outline"
+        size="sm"
+        class="gap-2"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 3v18h18"/>
-          <path d="M18 17V9"/>
-          <path d="M13 17V5"/>
-          <path d="M8 17v-3"/>
-        </svg>
+        <BarChart3 class="h-3.5 w-3.5" />
         <span>{{ displayName }}</span>
-        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="6 9 12 15 18 9"/>
-        </svg>
-      </button>
+        <ChevronDown class="h-3 w-3" />
+      </Button>
     </DropdownMenuTrigger>
 
     <DropdownMenuContent class="w-64 bg-background-surface border-border" align="end">
@@ -40,13 +35,13 @@
         v-for="env in environmentStore.environments"
         :key="env.id"
         class="cursor-pointer text-text-primary hover:bg-background-hover focus:bg-background-hover"
-        :class="{ 'bg-background-active': env.is_active }"
+        :class="{ 'bg-background-active': environmentStore.activeEnvironment?.id === env.id }"
         @click="activateEnvironment(env.id)"
       >
         <div class="flex flex-col w-full">
           <div class="flex items-center justify-between">
             <span class="font-medium">{{ env.name }}</span>
-            <Badge v-if="env.is_active" variant="online" class="ml-2">Active</Badge>
+            <Badge v-if="environmentStore.activeEnvironment?.id === env.id" variant="online" class="ml-2">Active</Badge>
             <Badge v-else-if="env.is_default" variant="default" class="ml-2">Default</Badge>
           </div>
           <div v-if="env.description" class="text-xs text-text-secondary mt-0.5">
@@ -88,6 +83,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useEnvironmentStore } from '~/stores/environment'
+import { BarChart3, ChevronDown } from 'lucide-vue-next'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -96,6 +92,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '~/components/ui/dropdown-menu'
+import { Button } from '~/components/ui/button'
 import { Badge } from '~/components/ui/badge'
 import EnvironmentManagementDialog from '~/components/EnvironmentManagementDialog.vue'
 

@@ -6,6 +6,7 @@ from .orphan_detection_service import OrphanDetectionService
 from .task_registry_service import TaskRegistryService
 from .daily_stats_service import DailyStatsService
 from .environment_service import EnvironmentService
+from .session_service import SessionService
 
 __all__ = [
     'TaskService',
@@ -13,5 +14,6 @@ __all__ = [
     'OrphanDetectionService',
     'TaskRegistryService',
     'DailyStatsService',
-    'EnvironmentService'
+    'EnvironmentService',
+    'SessionService'
 ]

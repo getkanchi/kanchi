@@ -3,10 +3,10 @@
 import uuid
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 
-from services import TaskService, EnvironmentService
+from services import TaskService, EnvironmentService, SessionService
 from database import TaskEventDB
 from models import TaskEventResponse
 
@@ -22,6 +22,23 @@ def create_router(app_state) -> APIRouter:
         with app_state.db_manager.get_session() as session:
             yield session
 
+    async def get_active_env(
+        session: Session = Depends(get_db),
+        x_session_id: Optional[str] = Header(None)
+    ):
+        """Dependency to get active environment from session."""
+        if not x_session_id:
+            return None
+
+        session_service = SessionService(session)
+        env_id = session_service.get_active_environment_id(x_session_id)
+
+        if not env_id:
+            return None
+
+        env_service = EnvironmentService(session)
+        return env_service.get_environment(env_id)
+
 
     @router.get("/events/recent", response_model=Dict[str, Any])
     async def get_recent_events(
@@ -34,39 +51,19 @@ def create_router(app_state) -> APIRouter:
         filters: Optional[str] = None,
         start_time: Optional[str] = None,
         end_time: Optional[str] = None,
-        # Legacy filter parameters (deprecated but kept for backward compatibility)
         filter_state: Optional[str] = None,
         filter_worker: Optional[str] = None,
         filter_task: Optional[str] = None,
         filter_queue: Optional[str] = None,
-        session: Session = Depends(get_db)
+        session: Session = Depends(get_db),
+        active_env = Depends(get_active_env)
     ):
-        """
-        Get recent task events with filtering and pagination.
-
-        Filters can be provided in two ways:
-        1. New format: filters="state:is:success,worker:contains:celery@host"
-        2. Legacy format: filter_state=success&filter_worker=celery (deprecated)
-
-        Filter syntax: field:operator:value(s)
-        - Fields: state, worker, task, queue, id
-        - Operators: is, not, in, not_in, contains, starts
-        - Multiple values: comma-separated for in/not_in operators
-
-        Time range filtering:
-        - start_time: ISO 8601 timestamp (e.g., "2024-01-01T00:00:00Z")
-        - end_time: ISO 8601 timestamp (e.g., "2024-01-02T23:59:59Z")
-        """
+        """Get recent task events with filtering and pagination."""
         import logging
         logger = logging.getLogger(__name__)
-        logger.info(f"API /events/recent called with start_time={start_time}, end_time={end_time}")
-
-        # Get active environment and pass to TaskService
-        env_service = EnvironmentService(session)
-        active_env = env_service.get_active_environment()
+        logger.info(f"API /events/recent called with session env={active_env.name if active_env else 'None'}")
 
         task_service = TaskService(session, active_env=active_env)
-
         return task_service.get_recent_events(
             limit=limit,
             page=page,
@@ -97,31 +94,63 @@ def create_router(app_state) -> APIRouter:
 
 
     @router.get("/tasks/active", response_model=List[TaskEventResponse])
-    async def get_active_tasks(session: Session = Depends(get_db)):
+    async def get_active_tasks(
+        session: Session = Depends(get_db),
+        active_env = Depends(get_active_env)
+    ):
         """Get currently active tasks."""
-        env_service = EnvironmentService(session)
-        active_env = env_service.get_active_environment()
-
         task_service = TaskService(session, active_env=active_env)
         active_events = task_service.get_active_tasks()
         return [TaskEventResponse.from_task_event(event) for event in active_events]
 
 
     @router.get("/tasks/orphaned", response_model=List[TaskEventResponse])
-    async def get_orphaned_tasks(session: Session = Depends(get_db)):
+    async def get_orphaned_tasks(
+        session: Session = Depends(get_db),
+        active_env = Depends(get_active_env)
+    ):
         """Get tasks that have been marked as orphaned and NOT yet retried."""
-        from sqlalchemy import func, and_
+        from sqlalchemy import func, and_, or_
         from database import RetryRelationshipDB
 
         # Define final states - tasks in these states cannot be orphaned
         FINAL_STATES = {'task-succeeded', 'task-failed', 'task-revoked', 'task-rejected', 'task-retried'}
 
+        # Build subquery with environment filtering
         latest_orphaned_subquery = session.query(
             TaskEventDB.task_id,
             func.max(TaskEventDB.timestamp).label('max_timestamp')
         ).filter(
             TaskEventDB.is_orphan == True
-        ).group_by(TaskEventDB.task_id).subquery()
+        )
+
+        # Apply environment filter to subquery
+        if active_env:
+            env_conditions = []
+
+            # Filter by queue patterns
+            if active_env.queue_patterns:
+                queue_conditions = []
+                for pattern in active_env.queue_patterns:
+                    sql_pattern = pattern.replace('*', '%').replace('?', '_')
+                    queue_conditions.append(TaskEventDB.queue.like(sql_pattern))
+                if queue_conditions:
+                    env_conditions.append(or_(*queue_conditions))
+
+            # Filter by worker patterns
+            if active_env.worker_patterns:
+                worker_conditions = []
+                for pattern in active_env.worker_patterns:
+                    sql_pattern = pattern.replace('*', '%').replace('?', '_')
+                    worker_conditions.append(TaskEventDB.hostname.like(sql_pattern))
+                if worker_conditions:
+                    env_conditions.append(or_(*worker_conditions))
+
+            # Apply filters with OR logic
+            if env_conditions:
+                latest_orphaned_subquery = latest_orphaned_subquery.filter(or_(*env_conditions))
+
+        latest_orphaned_subquery = latest_orphaned_subquery.group_by(TaskEventDB.task_id).subquery()
 
         orphaned_events_db = session.query(TaskEventDB).join(
             latest_orphaned_subquery,

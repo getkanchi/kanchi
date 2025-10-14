@@ -1,7 +1,14 @@
-import type { VariantProps } from "class-variance-authority"
-import { cva } from "class-variance-authority"
+<template>
+  <span
+    :class="cn(pillVariants({ variant, size }), props.class)"
+  >
+    <slot />
+  </span>
+</template>
 
-export { default as Pill } from "./Pill.vue"
+<script lang="ts">
+import { cva } from "class-variance-authority"
+import type { VariantProps } from "class-variance-authority"
 
 export const pillVariants = cva(
   "inline-flex items-center justify-center font-mono transition-colors",
@@ -27,3 +34,15 @@ export const pillVariants = cva(
 )
 
 export type PillVariants = VariantProps<typeof pillVariants>
+</script>
+
+<script setup lang="ts">
+import type { HTMLAttributes } from "vue"
+import { cn } from "@/lib/utils"
+
+const props = defineProps<{
+  variant?: PillVariants["variant"]
+  size?: PillVariants["size"]
+  class?: HTMLAttributes["class"]
+}>()
+</script>

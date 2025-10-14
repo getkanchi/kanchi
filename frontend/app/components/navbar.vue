@@ -45,6 +45,23 @@
                 </NavigationMenuLink>
               </NavigationMenuItem>
 
+              <NavigationMenuItem v-if="false">
+                <NavigationMenuLink
+                  as-child
+                  :active="$route.path.startsWith('/workflows')"
+                >
+                  <NuxtLink
+                    to="/workflows"
+                    class="px-4 py-2 text-sm font-medium rounded-md transition-colors"
+                    :class="$route.path.startsWith('/workflows')
+                      ? 'bg-background-active text-text-primary'
+                      : 'text-text-secondary hover:bg-background-hover hover:text-text-primary'"
+                  >
+                    Workflows
+                  </NuxtLink>
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+
               <div class="h-4 w-px bg-border mx-2"></div>
 
               <NavigationMenuItem>

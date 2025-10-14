@@ -12,6 +12,7 @@
     "generate:api:local": "./generate-api-types.sh http://localhost:8765"
   },
   "dependencies": {
+    "@lukeed/uuid": "^2.0.1",
     "@nuxtjs/tailwindcss": "^6.14.0",
     "@pinia/nuxt": "^0.11.2",
     "@radix-ui/colors": "^3.0.0",

@@ -16,7 +16,7 @@ import {
   CommandList,
   CommandSeparator, CommandShortcut,
 } from "~/components/ui/command"
-import { Pill } from "~/components/ui/pill"
+import Pill from "~/components/common/Pill.vue"
 import StatusPill from "~/components/StatusPill.vue"
 import {Badge} from "~/components/ui/badge";
 

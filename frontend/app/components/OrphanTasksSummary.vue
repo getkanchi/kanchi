@@ -189,16 +189,16 @@
           <div class="flex items-center space-x-2">
             <div class="flex items-center space-x-2">
               <span class="text-sm text-gray-500">Show</span>
-              <select 
-                :value="table.getState().pagination.pageSize"
-                @change="(e) => table.setPageSize(parseInt((e.target as HTMLSelectElement).value))"
-                class="px-2 py-1 text-sm border border-border rounded bg-background-surface"
+              <Select
+                :model-value="table.getState().pagination.pageSize"
+                @update:model-value="(val) => table.setPageSize(parseInt(val))"
+                size="sm"
               >
                 <option value="5">5</option>
                 <option value="10">10</option>
                 <option value="20">20</option>
                 <option value="50">50</option>
-              </select>
+              </Select>
               <span class="text-sm text-gray-500">per page</span>
             </div>
             
@@ -294,6 +294,7 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Select } from '~/components/common'
 import { ChevronRight, ChevronDown, Hash, Database, Cpu, Clock, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronsLeft, ChevronsRight, CircleAlert, RefreshCw } from 'lucide-vue-next'
 import { getOrphanTaskColumns } from '~/config/tableColumns'
 import type { TaskEventResponse } from '../src/types/api'

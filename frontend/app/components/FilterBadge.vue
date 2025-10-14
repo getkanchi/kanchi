@@ -49,17 +49,19 @@
     </div>
 
     <!-- Remove button segment -->
-    <button
+    <IconButton
+      :icon="X"
+      size="xs"
+      variant="ghost"
       @click.stop="$emit('remove')"
-      class="px-2 py-1 hover:bg-status-error/10 hover:text-status-error transition-colors"
-    >
-      <X class="h-3 w-3" />
-    </button>
+      class="hover:bg-status-error/10 hover:text-status-error"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { Badge } from '@/components/ui/badge'
+import { IconButton } from '~/components/common'
 import { X } from 'lucide-vue-next'
 import { computed } from 'vue'
 import type { ParsedFilter } from '~/composables/useFilterParser'

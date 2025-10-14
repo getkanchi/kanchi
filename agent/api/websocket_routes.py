@@ -109,10 +109,14 @@ def create_router(app_state) -> APIRouter:
         
         events_sent = 0
         if mode == 'static' and app_state.db_manager:
-            from services import TaskService
+            from services import TaskService, EnvironmentService
             with app_state.db_manager.get_session() as session:
-                task_service = TaskService(session)
-                # Get recent events
+                # Get active environment for filtering
+                env_service = EnvironmentService(session)
+                active_env = env_service.get_active_environment()
+
+                task_service = TaskService(session, active_env=active_env)
+                # Get recent events (will be filtered by active environment)
                 recent_data = task_service.get_recent_events(limit=100, page=0)
                 for event_data in recent_data["data"]:
                     filters = app_state.connection_manager.client_filters.get(websocket, {})
@@ -136,11 +140,15 @@ def create_router(app_state) -> APIRouter:
         """Handle get_stored WebSocket message."""
         limit = message.get('limit', 1000)
         events_sent = 0
-        
+
         if app_state.db_manager:
-            from services import TaskService
+            from services import TaskService, EnvironmentService
             with app_state.db_manager.get_session() as session:
-                task_service = TaskService(session)
+                # Get active environment for filtering
+                env_service = EnvironmentService(session)
+                active_env = env_service.get_active_environment()
+
+                task_service = TaskService(session, active_env=active_env)
                 recent_data = task_service.get_recent_events(limit=limit, page=0)
                 for event_data in recent_data["data"]:
                     filters = app_state.connection_manager.client_filters.get(websocket, {})

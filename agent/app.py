@@ -34,6 +34,7 @@ class ApplicationState:
         self.monitor_instance: Optional[CeleryEventMonitor] = None
         self.monitor_thread: Optional[threading.Thread] = None
         self.health_monitor: Optional[WorkerHealthMonitor] = None
+        self.workflow_engine = None
 
 
 app_state = ApplicationState()
@@ -77,6 +78,9 @@ def create_app() -> FastAPI:
     from api.log_routes import create_router as create_log_router
     from api.registry_routes import create_router as create_registry_router
     from api.environment_routes import create_router as create_environment_router
+    from api.session_routes import create_router as create_session_router
+    from api.workflow_routes import create_router as create_workflow_router
+    from api.action_config_routes import create_router as create_action_config_router
 
     app.include_router(create_task_router(app_state))
     app.include_router(create_worker_router(app_state))
@@ -84,6 +88,9 @@ def create_app() -> FastAPI:
     app.include_router(create_log_router(app_state))
     app.include_router(create_registry_router(app_state))
     app.include_router(create_environment_router(app_state))
+    app.include_router(create_session_router(app_state))
+    app.include_router(create_workflow_router(app_state))
+    app.include_router(create_action_config_router(app_state))
 
     @app.get("/api/health")
     async def health_check():
@@ -219,13 +226,28 @@ async def initialize_application():
     logger.info(f"Running database migrations for: {config.database_url}")
     app_state.db_manager.run_migrations()
     logger.info(f"Database migrations completed")
-    
+
     app_state.connection_manager = ConnectionManager()
-    
-    app_state.event_handler = EventHandler(app_state.db_manager, app_state.connection_manager)
-    
+
+    # Initialize workflow engine
+    from services.workflow_engine import WorkflowEngine
+    app_state.workflow_engine = WorkflowEngine(
+        db_manager=app_state.db_manager,
+        monitor_instance=None  # Will be set after monitor starts
+    )
+
+    # Pass workflow engine to event handler
+    app_state.event_handler = EventHandler(
+        app_state.db_manager,
+        app_state.connection_manager,
+        app_state.workflow_engine
+    )
+
     start_monitor(config)
-    
+
+    # Set monitor instance on workflow engine after it's created
+    app_state.workflow_engine.monitor_instance = app_state.monitor_instance
+
     start_health_monitor()
 
 

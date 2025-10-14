@@ -25,7 +25,8 @@ import SearchInput from "~/components/SearchInput.vue";
 import TimeRangeFilter from "~/components/TimeRangeFilter.vue";
 import RetryChain from "~/components/RetryChain.vue";
 import RetryTaskConfirmDialog from "~/components/RetryTaskConfirmDialog.vue";
-import BaseIconButton from "~/components/BaseIconButton.vue";
+import IconButton from "~/components/common/IconButton.vue";
+import { Select } from '~/components/common'
 import PythonValueViewer from "~/components/PythonValueViewer.vue";
 import type { ParsedFilter } from '~/composables/useFilterParser'
 import type { TimeRange } from '~/components/TimeRangeFilter.vue'
@@ -267,7 +268,7 @@ const mapTaskToRetryChainFormat = (task: any) => {
                     </div>
 
                     <!-- Retry Button -->
-                    <BaseIconButton
+                    <IconButton
                       :icon="RefreshCw"
                       @click="() => { currentRetryTaskId = row.original.task_id; retryDialogRef?.open() }"
                       :disabled="isRetrying"
@@ -376,49 +377,49 @@ const mapTaskToRetryChainFormat = (task: any) => {
         
         <div class="flex items-center space-x-2">
           <span class="text-sm text-gray-500">Show</span>
-          <select 
-            :value="pageSize"
-            @change="(e) => emit('setPageSize', parseInt((e.target as HTMLSelectElement).value))"
-            class="px-2 py-1 text-sm border border-border rounded bg-background-surface"
+          <Select
+            :model-value="pageSize"
+            @update:model-value="(val) => emit('setPageSize', parseInt(val))"
+            size="sm"
           >
             <option value="5">5</option>
             <option value="10">10</option>
             <option value="20">20</option>
             <option value="50">50</option>
             <option value="100">100</option>
-          </select>
+          </Select>
           <span class="text-sm text-gray-500">per page</span>
         </div>
         
         
         <div class="flex items-center space-x-1">
-          <BaseIconButton
+          <IconButton
             :icon="ChevronsLeft"
             variant="ghost"
             size="md"
             @click="emit('setPageIndex', 0)"
             :disabled="!tasksStore.hasPrevPage"
           />
-          <BaseIconButton
+          <IconButton
             :icon="ChevronLeft"
             variant="ghost"
             size="md"
             @click="emit('setPageIndex', pageIndex - 1)"
             :disabled="!tasksStore.hasPrevPage"
           />
-          
+
           <span class="px-2 text-sm text-gray-500">
             Page {{ pageIndex + 1 }} of {{ pagination?.total_pages || 1 }}
           </span>
-          
-          <BaseIconButton
+
+          <IconButton
             :icon="ChevronRight"
             variant="ghost"
             size="md"
             @click="emit('setPageIndex', pageIndex + 1)"
             :disabled="!tasksStore.hasNextPage"
           />
-          <BaseIconButton
+          <IconButton
             :icon="ChevronsRight"
             variant="ghost"
             size="md"

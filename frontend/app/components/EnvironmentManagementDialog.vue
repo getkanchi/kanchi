@@ -68,13 +68,12 @@
 
               <DropdownMenu>
                 <DropdownMenuTrigger as-child @click.stop>
-                  <button class="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-md hover:bg-background-hover text-text-muted hover:text-text-primary transition-all duration-200 opacity-0 group-hover:opacity-100">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <circle cx="12" cy="12" r="1"/>
-                      <circle cx="12" cy="5" r="1"/>
-                      <circle cx="12" cy="19" r="1"/>
-                    </svg>
-                  </button>
+                  <IconButton
+                    :icon="MoreVertical"
+                    size="sm"
+                    variant="ghost"
+                    class="opacity-0 group-hover:opacity-100"
+                  />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" class="bg-background-surface border-border w-40">
                   <DropdownMenuItem @click="editEnvironment(env)" class="text-text-primary hover:bg-background-hover cursor-pointer text-sm font-mono">
@@ -239,6 +238,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useEnvironmentStore } from '~/stores/environment'
+import { MoreVertical } from 'lucide-vue-next'
 import type { Environment, EnvironmentCreate, EnvironmentUpdate } from '~/stores/environment'
 import {
   Dialog,
@@ -267,6 +267,7 @@ import {
 } from '~/components/ui/dropdown-menu'
 import { TagsInput, TagsInputInput, TagsInputItem, TagsInputItemDelete, TagsInputItemText } from '~/components/ui/tags-input'
 import { Button } from '~/components/ui/button'
+import { IconButton } from '~/components/common'
 import { Input } from '~/components/ui/input'
 import { Textarea } from '~/components/ui/textarea'
 import { Label } from '~/components/ui/label'

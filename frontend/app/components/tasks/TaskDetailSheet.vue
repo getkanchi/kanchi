@@ -40,7 +40,7 @@
             <div v-if="isEditing" class="mb-2">
               <label class="text-[10px] font-mono text-text-muted uppercase tracking-wider mb-1 block">Tags</label>
               <div class="flex flex-wrap gap-1.5 mb-2">
-                <BaseTag
+                <Tag
                   v-for="(tag, index) in editForm.tags"
                   :key="index"
                   size="xs"
@@ -50,7 +50,7 @@
                   @remove="removeTag(index)"
                 >
                   {{ tag }}
-                </BaseTag>
+                </Tag>
               </div>
               <div class="flex gap-2">
                 <input
@@ -60,16 +60,18 @@
                   placeholder="Add tag..."
                   @keyup.enter="addTag"
                 />
-                <button
+                <Button
                   @click="addTag"
-                  class="px-3 py-1 text-xs font-mono bg-background-raised border border-border rounded text-text-primary hover:bg-background-hover transition-colors"
+                  variant="outline"
+                  size="sm"
+                  class="text-xs"
                 >
                   Add
-                </button>
+                </Button>
               </div>
             </div>
             <div v-else-if="task.tags && task.tags.length > 0" class="flex flex-wrap gap-1.5">
-              <BaseTag
+              <Tag
                 v-for="tag in task.tags"
                 :key="tag"
                 size="xs"
@@ -77,43 +79,42 @@
                 :text="tag"
               >
                 {{ tag }}
-              </BaseTag>
+              </Tag>
             </div>
 
             <!-- Edit mode: action buttons -->
             <div v-if="isEditing" class="flex gap-2 mt-3">
-              <button
+              <Button
                 @click="saveChanges"
                 :disabled="isSaving"
-                class="px-3 py-1.5 text-xs font-medium bg-primary text-white rounded hover:bg-primary-hover transition-colors disabled:opacity-50"
+                variant="primary"
+                size="sm"
               >
                 {{ isSaving ? 'Saving...' : 'Save' }}
-              </button>
-              <button
+              </Button>
+              <Button
                 @click="cancelEdit"
                 :disabled="isSaving"
-                class="px-3 py-1.5 text-xs font-medium bg-background-raised border border-border text-text-primary rounded hover:bg-background-hover transition-colors"
+                variant="outline"
+                size="sm"
               >
                 Cancel
-              </button>
+              </Button>
             </div>
           </div>
           <div class="flex gap-1">
-            <BaseIconButton
+            <IconButton
               v-if="!isEditing"
               :icon="Pencil"
               size="sm"
               @click="startEdit"
             />
-            <button
+            <IconButton
+              :icon="X"
+              size="sm"
+              variant="ghost"
               @click="handleClose"
-              class="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-md text-text-muted hover:text-text-primary hover:bg-background-hover transition-colors"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
+            />
           </div>
         </div>
 
@@ -191,12 +192,14 @@
                 </h3>
                 <Badge variant="destructive" class="text-[10px] px-1 py-0">{{ failures.length }}</Badge>
               </div>
-              <button
+              <Button
                 @click="failuresExpanded = !failuresExpanded"
-                class="text-[10px] text-red-400 hover:text-red-300 transition-colors font-mono"
+                variant="ghost"
+                size="sm"
+                class="text-[10px] text-red-400 hover:text-red-300 font-mono h-auto py-0 px-2"
               >
                 {{ failuresExpanded ? 'Hide' : 'Show' }}
-              </button>
+              </Button>
             </div>
 
             <!-- Collapsed: Show only count and last error -->
@@ -213,13 +216,15 @@
                 @retry="handleRetryFailure"
               />
 
-              <button
+              <Button
                 v-if="failures.length > 3 && !showAllFailures"
                 @click="showAllFailures = true"
-                class="w-full py-1.5 text-[10px] text-red-400 hover:text-red-300 border border-red-900/30 rounded hover:bg-red-950/20 transition-colors font-mono"
+                variant="outline"
+                size="sm"
+                class="w-full text-[10px] text-red-400 hover:text-red-300 border-red-900/30 hover:bg-red-950/20 font-mono"
               >
                 Show {{ failures.length - 3 }} more →
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -276,12 +281,13 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { Pencil, AlertTriangle } from 'lucide-vue-next'
+import { Pencil, AlertTriangle, X } from 'lucide-vue-next'
 import { Sheet, SheetContent } from '~/components/ui/sheet'
+import { Button } from '~/components/ui/button'
 import TaskFrequencyTimeline from './TaskFrequencyTimeline.vue'
-import { BaseTag } from '~/components/ui/tag'
+import Tag from '~/components/common/Tag.vue'
 import { Badge } from '~/components/ui/badge'
-import BaseIconButton from '~/components/BaseIconButton.vue'
+import IconButton from '~/components/common/IconButton.vue'
 import FailureCard from '~/components/FailureCard.vue'
 import RetryTaskConfirmDialog from '~/components/RetryTaskConfirmDialog.vue'
 import type { TaskRegistryResponse, TaskRegistryStats, TaskTimelineResponse, TaskRegistryUpdate, TaskEventResponse } from '~/services/apiClient'
