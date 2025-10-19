@@ -11,6 +11,14 @@ Kanchi is a real-time Celery task monitoring (and management) system with an enj
 - Worker health monitoring
 - Auto-migrations with Alembic
 
+## Screenshots
+
+### Dashboard
+![Dashboard](.github/images/dashboard.png)
+
+### Task Registry
+![Task Registry](.github/images/task_registry.png)
+
 ## Quick Start with Docker
 
 ```bash
