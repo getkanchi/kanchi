@@ -95,7 +95,6 @@ const emit = defineEmits<{
 
 const isHovered = ref(false)
 
-// Generate colored style based on text prop with hover effect
 const coloredStyle = computed(() => {
   if (!props.colored || !props.text) return undefined
 

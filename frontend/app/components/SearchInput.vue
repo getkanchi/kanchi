@@ -231,7 +231,6 @@ const {
 
 const { getStatusVariant, formatStatus } = useTaskStatus()
 
-// Filter suggestions based on current input
 const filteredFieldSuggestions = computed(() => {
   const input = currentFilter.value.partial.toLowerCase()
   if (!input) return filterFields
@@ -276,7 +275,6 @@ watch([filteredFieldSuggestions, filteredOperatorSuggestions, filteredValueSugge
 const handleInput = (event: Event) => {
   const value = (event.target as HTMLInputElement).value
 
-  // If we're already building a filter (field is set), just update the partial
   if (currentFilter.value.field) {
     currentFilter.value.partial = value
     currentInput.value = value
@@ -468,7 +466,6 @@ const selectValue = (value: string) => {
 const addFilter = () => {
   if (!currentFilter.value.field || !currentFilter.value.operator) return
 
-  // Get values - either from values array or from partial input
   let values = currentFilter.value.values
   if (values.length === 0 && currentFilter.value.partial) {
     // Parse values from partial input (might be comma-separated)
@@ -493,7 +490,6 @@ const addFilter = () => {
     }])
   }
 
-  // Check if filter already exists
   const exists = activeFilters.value.some(f =>
     f.field === newFilter.field &&
     f.operator === newFilter.operator &&

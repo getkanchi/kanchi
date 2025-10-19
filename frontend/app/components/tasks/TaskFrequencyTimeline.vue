@@ -106,7 +106,6 @@ const maxExecutions = computed(() => {
   return Math.max(...props.buckets.map(b => b.total_executions))
 })
 
-// Get total bar height as percentage
 function getTotalBarHeight(bucket: TimelineBucket) {
   if (maxExecutions.value === 0 || bucket.total_executions === 0) {
     return '4%' // Minimum for empty state visibility
@@ -115,7 +114,6 @@ function getTotalBarHeight(bucket: TimelineBucket) {
   return `${Math.max(percentage, 4)}%` // Minimum 4% for visibility
 }
 
-// Get individual segment height within the bar
 function getSegmentHeight(bucket: TimelineBucket, count: number) {
   if (bucket.total_executions === 0) return '0%'
   const percentage = (count / bucket.total_executions) * 100

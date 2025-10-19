@@ -32,23 +32,19 @@ export interface EnvironmentUpdate {
 }
 
 export const useEnvironmentStore = defineStore('environment', () => {
-  // State
   const environments = ref<Environment[]>([])
   const activeEnvironment = ref<Environment | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  // Get API service and session store
   const apiService = useApiService()
   const sessionStore = useSessionStore()
 
-  // Computed
   const hasActiveEnvironment = computed(() => activeEnvironment.value !== null)
   const defaultEnvironment = computed(() =>
     environments.value.find(env => env.is_default) || null
   )
 
-  // Watch session changes to sync active environment
   watch(
     () => sessionStore.session?.active_environment_id,
     (newEnvironmentId) => {
@@ -63,7 +59,6 @@ export const useEnvironmentStore = defineStore('environment', () => {
     }
   )
 
-  // Actions
   async function fetchEnvironments() {
     loading.value = true
     error.value = null
@@ -71,11 +66,9 @@ export const useEnvironmentStore = defineStore('environment', () => {
       const data = await apiService.getEnvironments()
       environments.value = data
 
-      // Find active environment
       const active = environments.value.find(env => env.is_active)
       activeEnvironment.value = active || null
 
-      // Store active environment ID in localStorage
       if (active) {
         localStorage.setItem('kanchi_active_environment', active.id)
       } else {
@@ -130,7 +123,6 @@ export const useEnvironmentStore = defineStore('environment', () => {
         environments.value[index] = data
       }
 
-      // Update active environment if it was updated
       if (activeEnvironment.value?.id === id) {
         activeEnvironment.value = data
       }
@@ -164,16 +156,13 @@ export const useEnvironmentStore = defineStore('environment', () => {
     loading.value = true
     error.value = null
     try {
-      // Set active environment via session
       await sessionStore.setActiveEnvironment(id)
 
-      // Update local state
       const env = environments.value.find(e => e.id === id)
       if (env) {
         activeEnvironment.value = env
       }
 
-      // Note: Components should watch activeEnvironment and refresh their data
       return env
     } catch (err: any) {
       error.value = err.response?.data?.detail || 'Failed to activate environment'
@@ -188,13 +177,9 @@ export const useEnvironmentStore = defineStore('environment', () => {
     loading.value = true
     error.value = null
     try {
-      // Clear active environment via session
       await sessionStore.setActiveEnvironment(null)
 
-      // Update local state
       activeEnvironment.value = null
-
-      // Note: Components should watch activeEnvironment and refresh their data
     } catch (err: any) {
       error.value = err.response?.data?.detail || 'Failed to deactivate environments'
       console.error('Error deactivating environments:', err)
@@ -204,12 +189,9 @@ export const useEnvironmentStore = defineStore('environment', () => {
     }
   }
 
-
-  // Initialize store
   async function initialize() {
     await fetchEnvironments()
 
-    // Load active environment from session
     if (sessionStore.session?.active_environment_id) {
       const env = environments.value.find(
         e => e.id === sessionStore.session?.active_environment_id
@@ -221,17 +203,14 @@ export const useEnvironmentStore = defineStore('environment', () => {
   }
 
   return {
-    // State
     environments,
     activeEnvironment,
     loading,
     error,
 
-    // Computed
     hasActiveEnvironment,
     defaultEnvironment,
 
-    // Actions
     fetchEnvironments,
     fetchActiveEnvironment,
     createEnvironment,

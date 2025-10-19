@@ -190,7 +190,6 @@ function updateConditionValue(index: number, value: string) {
   if (!props.conditions) return
 
   const updated = [...props.conditions.conditions]
-  // Try to parse as number if it's a numeric operator
   const numericOperators = ['gt', 'gte', 'lt', 'lte']
   const parsedValue = numericOperators.includes(updated[index].operator) && !isNaN(Number(value))
     ? Number(value)

@@ -33,12 +33,10 @@ const valueType = computed(() => {
   return 'unknown'
 })
 
-// Check if value is complex (needs expansion)
 const isComplex = computed(() => {
   return valueType.value === 'dict' || valueType.value === 'list'
 })
 
-// Get formatted simple value
 const formattedValue = computed(() => {
   if (valueType.value === 'str') return `"${props.value}"`
   if (valueType.value === 'none') return 'None'
@@ -47,7 +45,6 @@ const formattedValue = computed(() => {
   return String(props.value)
 })
 
-// Get children for complex types
 const children = computed(() => {
   if (valueType.value === 'dict') {
     return Object.entries(props.value).map(([key, val]) => ({
@@ -64,7 +61,6 @@ const children = computed(() => {
   return []
 })
 
-// Get count for complex types
 const itemCount = computed(() => {
   if (valueType.value === 'dict') return Object.keys(props.value).length
   if (valueType.value === 'list') return props.value.length

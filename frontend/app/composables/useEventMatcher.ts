@@ -19,17 +19,14 @@ export const useEventMatcher = () => {
     searchQuery?: string,
     timeRange?: { start: string | null; end: string | null }
   ): boolean {
-    // Check search first (most common filter)
     if (searchQuery && !matchesSearch(event, searchQuery)) {
       return false
     }
 
-    // Check time range
     if (timeRange && !matchesTimeRange(event, timeRange)) {
       return false
     }
 
-    // Check each structured filter
     for (const filter of filters) {
       if (!matchesFilter(event, filter)) {
         return false
@@ -207,13 +204,11 @@ export const useEventMatcher = () => {
 
     const eventTime = new Date(event.timestamp).getTime()
 
-    // Check start time boundary
     if (timeRange.start) {
       const startTime = new Date(timeRange.start).getTime()
       if (eventTime < startTime) return false
     }
 
-    // Check end time boundary
     if (timeRange.end) {
       const endTime = new Date(timeRange.end).getTime()
       if (eventTime > endTime) return false

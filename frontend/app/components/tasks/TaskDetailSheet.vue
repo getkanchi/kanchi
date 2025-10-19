@@ -327,7 +327,6 @@ const editForm = ref<TaskRegistryUpdate>({
   tags: null
 })
 
-// Load data when task changes
 watch(() => props.task, async (newTask) => {
   if (newTask) {
     await loadTaskData(newTask)

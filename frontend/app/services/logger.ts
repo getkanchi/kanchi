@@ -74,13 +74,11 @@ class Logger {
   }
 }
 
-// Create singleton instance
 let logger: Logger | null = null
 
 export function useLogger(): Logger {
   if (!logger) {
     const config = useRuntimeConfig()
-    // Check if we're in development mode
     const isDevelopment = process.dev || import.meta.env.DEV || false
     logger = new Logger(config.public.apiUrl as string, isDevelopment)
   }

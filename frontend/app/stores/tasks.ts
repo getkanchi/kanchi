@@ -1,8 +1,3 @@
-/**
- * Pinia store for task management
- * Live mode: Real-time updates via WebSocket
- * Static mode: Manual refresh with server-side pagination
- */
 import { defineStore } from 'pinia'
 import { ref, computed, readonly } from 'vue'
 import { useApiService } from '../services/apiClient'
@@ -10,10 +5,9 @@ import type { TaskStats, TaskEventResponse } from '../services/apiClient'
 
 export interface TaskFilters {
   search?: string | null
-  filters?: string | null  // New format: field:operator:value(s)
-  start_time?: string | null  // ISO 8601 timestamp
-  end_time?: string | null    // ISO 8601 timestamp
-  // Legacy filters (deprecated)
+  filters?: string | null
+  start_time?: string | null
+  end_time?: string | null
   filter_state?: string | null
   filter_worker?: string | null
   filter_task?: string | null
@@ -39,9 +33,8 @@ export interface PaginationInfo {
 export const useTasksStore = defineStore('tasks', () => {
   const apiService = useApiService()
 
-  // State - Single source of truth
   const stats = ref<TaskStats | null>(null)
-  const events = ref<TaskEventResponse[]>([])  // Current page data
+  const events = ref<TaskEventResponse[]>([])
   const activeTasks = ref<TaskEventResponse[]>([])
   const pagination = ref<PaginationInfo>({
     page: 0,
@@ -51,15 +44,13 @@ export const useTasksStore = defineStore('tasks', () => {
     has_next: false,
     has_prev: false
   })
-  
+
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   const isLiveMode = ref(false)
-  
-  // Live mode specific state
+
   const lastRefreshTime = ref<Date | null>(null)
 
-  // Current filter and pagination state
   const filters = ref<TaskFilters>({})
   const paginationParams = ref<PaginationParams>({
     page: 0,
@@ -67,16 +58,13 @@ export const useTasksStore = defineStore('tasks', () => {
     sort_order: 'desc'
   })
 
-  // Computed - Simplified pagination
   const hasNextPage = computed(() => pagination.value.has_next)
   const hasPrevPage = computed(() => pagination.value.has_prev)
   const totalPages = computed(() => pagination.value.total_pages)
   const currentPage = computed(() => pagination.value.page)
-  
-  // Single computed property for paginated events
+
   const paginatedEvents = computed(() => events.value)
 
-  // Actions
   async function fetchStats() {
     try {
       isLoading.value = true
@@ -141,7 +129,6 @@ export const useTasksStore = defineStore('tasks', () => {
     try {
       error.value = null
       const result = await apiService.retryTask(taskId)
-      // Refresh events after retry
       await fetchRecentEvents()
       return result
     } catch (err) {
@@ -160,7 +147,6 @@ export const useTasksStore = defineStore('tasks', () => {
     }
   }
 
-  // Pagination actions
   function setPage(page: number) {
     const maxPage = Math.max(0, (pagination.value.total_pages || 1) - 1)
     const validPage = Math.max(0, Math.min(page, maxPage))
@@ -187,7 +173,6 @@ export const useTasksStore = defineStore('tasks', () => {
     }
   }
 
-  // Filter actions
   function setFilters(newFilters: TaskFilters) {
     filters.value = { ...newFilters }
     paginationParams.value.page = 0
@@ -214,13 +199,10 @@ export const useTasksStore = defineStore('tasks', () => {
     fetchRecentEvents()
   }
 
-  // Live mode management
   function setLiveMode(enabled: boolean) {
     isLiveMode.value = enabled
-    
+
     if (enabled) {
-      // In live mode, we'll receive updates via WebSocket
-      // Reset to first page to see newest events
       if (paginationParams.value.page !== 0) {
         paginationParams.value.page = 0
         fetchRecentEvents()
@@ -228,11 +210,16 @@ export const useTasksStore = defineStore('tasks', () => {
     }
   }
 
-  // Handle live events from WebSocket - SIMPLE SOLUTION
   function handleLiveEvent(event: TaskEventResponse) {
     if (!isLiveMode.value) return
 
-    // Check if event matches active filters (only show matching events in live mode)
+    const environmentStore = useEnvironmentStore()
+    const { matchesEnvironment } = useEnvironmentMatcher()
+
+    if (!matchesEnvironment(event, environmentStore.activeEnvironment)) {
+      return
+    }
+
     const { matchesFilters } = useEventMatcher()
     const { queryStringToFilters } = useFilterParser()
 
@@ -246,38 +233,30 @@ export const useTasksStore = defineStore('tasks', () => {
       filters.value.search || undefined,
       { start: filters.value.start_time, end: filters.value.end_time }
     )) {
-      // Event doesn't match active filters - silently ignore it
       return
     }
 
-    // Find if we have any event for this task_id
     const existingTaskIndex = events.value.findIndex(e => e.task_id === event.task_id)
-    
+
     if (existingTaskIndex !== -1) {
-      // Create a completely new array with the updated task
-      // This guarantees Vue detects the change
       const newEvents = [...events.value]
       newEvents[existingTaskIndex] = event
       events.value = newEvents
     } else if (paginationParams.value.page === 0) {
-      // Add new task at the beginning
-      // Create completely new array to ensure reactivity
       const newEvents = [event, ...events.value.slice(0, paginationParams.value.limit - 1)]
       events.value = newEvents
-      
-      // Update pagination total
+
       pagination.value = {
         ...pagination.value,
         total: (pagination.value.total || 0) + 1,
         total_pages: Math.ceil(((pagination.value.total || 0) + 1) / paginationParams.value.limit)
       }
     }
-    
+
     lastRefreshTime.value = new Date()
   }
 
   return {
-    // State
     stats: readonly(stats),
     events: readonly(events),
     activeTasks: readonly(activeTasks),
@@ -289,14 +268,12 @@ export const useTasksStore = defineStore('tasks', () => {
     isLiveMode: readonly(isLiveMode),
     lastRefreshTime: readonly(lastRefreshTime),
 
-    // Computed
     hasNextPage,
     hasPrevPage,
     totalPages,
     currentPage,
     paginatedEvents,
 
-    // Actions
     fetchStats,
     fetchRecentEvents,
     fetchActiveTasks,

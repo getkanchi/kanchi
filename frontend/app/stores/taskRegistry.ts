@@ -11,7 +11,6 @@ import type {
 } from '~/services/apiClient'
 
 export const useTaskRegistryStore = defineStore('taskRegistry', () => {
-  // State
   const tasks = ref<TaskRegistryResponse[]>([])
   const selectedTask = ref<TaskRegistryResponse | null>(null)
   const taskStats = ref<TaskRegistryStats | null>(null)
@@ -22,10 +21,8 @@ export const useTaskRegistryStore = defineStore('taskRegistry', () => {
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
-  // API client
   const apiClient = useApiService()
 
-  // Actions
   async function fetchTasks(tag?: string, name?: string) {
     isLoading.value = true
     error.value = null
@@ -113,7 +110,6 @@ export const useTaskRegistryStore = defineStore('taskRegistry', () => {
   async function updateTask(taskName: string, update: TaskRegistryUpdate) {
     try {
       const data = await apiClient.updateRegistryTask(taskName, update)
-      // Update in local state
       const index = tasks.value.findIndex(t => t.name === taskName)
       if (index !== -1) {
         tasks.value[index] = data
@@ -138,7 +134,6 @@ export const useTaskRegistryStore = defineStore('taskRegistry', () => {
   }
 
   return {
-    // State
     tasks,
     selectedTask,
     taskStats,
@@ -148,7 +143,6 @@ export const useTaskRegistryStore = defineStore('taskRegistry', () => {
     tags,
     isLoading,
     error,
-    // Actions
     fetchTasks,
     fetchTaskDetails,
     fetchTaskStats,

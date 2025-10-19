@@ -8,8 +8,8 @@ from typing import Dict, Any
 
 from models import (
     ConnectionInfo, PongResponse, SubscriptionResponse, ModeChangedResponse,
-    StoredEventsResponse, PingMessage, SubscribeMessage, SetModeMessage, 
-    GetStoredMessage, TaskEventResponse
+    StoredEventsResponse, PingMessage, SubscribeMessage, SetModeMessage,
+    GetStoredMessage, TaskEvent
 )
 
 logger = logging.getLogger(__name__)
@@ -109,21 +109,19 @@ def create_router(app_state) -> APIRouter:
         
         events_sent = 0
         if mode == 'static' and app_state.db_manager:
-            from services import TaskService, EnvironmentService
+            from services import TaskService
             with app_state.db_manager.get_session() as session:
-                # Get active environment for filtering
-                env_service = EnvironmentService(session)
-                active_env = env_service.get_active_environment()
-
-                task_service = TaskService(session, active_env=active_env)
-                # Get recent events (will be filtered by active environment)
+                # NOTE: WebSocket connections don't have session ID in the handshake
+                # Environment filtering is handled on the client side via useEnvironmentMatcher
+                # The backend sends all events and the frontend filters them
+                task_service = TaskService(session, active_env=None)
                 recent_data = task_service.get_recent_events(limit=100, page=0)
                 for event_data in recent_data["data"]:
                     filters = app_state.connection_manager.client_filters.get(websocket, {})
                     # Apply client filters
                     if _matches_filters(event_data, filters):
                         await app_state.connection_manager.send_personal_message(
-                            event_data.model_dump_json(), 
+                            event_data.model_dump_json(),
                             websocket
                         )
                         events_sent += 1
@@ -142,20 +140,19 @@ def create_router(app_state) -> APIRouter:
         events_sent = 0
 
         if app_state.db_manager:
-            from services import TaskService, EnvironmentService
+            from services import TaskService
             with app_state.db_manager.get_session() as session:
-                # Get active environment for filtering
-                env_service = EnvironmentService(session)
-                active_env = env_service.get_active_environment()
-
-                task_service = TaskService(session, active_env=active_env)
+                # NOTE: WebSocket connections don't have session ID in the handshake
+                # Environment filtering is handled on the client side via useEnvironmentMatcher
+                # The backend sends all events and the frontend filters them
+                task_service = TaskService(session, active_env=None)
                 recent_data = task_service.get_recent_events(limit=limit, page=0)
                 for event_data in recent_data["data"]:
                     filters = app_state.connection_manager.client_filters.get(websocket, {})
                     # Apply client filters
                     if _matches_filters(event_data, filters):
                         await app_state.connection_manager.send_personal_message(
-                            event_data.model_dump_json(), 
+                            event_data.model_dump_json(),
                             websocket
                         )
                         events_sent += 1
@@ -183,7 +180,7 @@ def create_router(app_state) -> APIRouter:
                 "mode_changed": ModeChangedResponse.model_json_schema(),
                 "stored_events_sent": StoredEventsResponse.model_json_schema(),
                 "connection_info": ConnectionInfo.model_json_schema(),
-                "task_event": TaskEventResponse.model_json_schema()
+                "task_event": TaskEvent.model_json_schema()
             }
         }
 

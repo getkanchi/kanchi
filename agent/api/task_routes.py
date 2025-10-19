@@ -1,5 +1,6 @@
 """API routes for task-related endpoints."""
 
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
@@ -8,7 +9,9 @@ from sqlalchemy.orm import Session
 
 from services import TaskService, EnvironmentService, SessionService
 from database import TaskEventDB
-from models import TaskEventResponse
+from models import TaskEvent
+
+logger = logging.getLogger(__name__)
 
 
 def create_router(app_state) -> APIRouter:
@@ -59,8 +62,6 @@ def create_router(app_state) -> APIRouter:
         active_env = Depends(get_active_env)
     ):
         """Get recent task events with filtering and pagination."""
-        import logging
-        logger = logging.getLogger(__name__)
         logger.info(f"API /events/recent called with session env={active_env.name if active_env else 'None'}")
 
         task_service = TaskService(session, active_env=active_env)
@@ -81,19 +82,19 @@ def create_router(app_state) -> APIRouter:
         )
 
 
-    @router.get("/events/{task_id}", response_model=List[TaskEventResponse])
+    @router.get("/events/{task_id}", response_model=List[TaskEvent])
     async def get_task_events(task_id: str, session: Session = Depends(get_db)):
         """Get all events for a specific task."""
         task_service = TaskService(session)
         task_events = task_service.get_task_events(task_id)
-        
+
         if not task_events:
             raise HTTPException(status_code=404, detail="Task not found")
-        
-        return [TaskEventResponse.from_task_event(event) for event in task_events]
+
+        return task_events
 
 
-    @router.get("/tasks/active", response_model=List[TaskEventResponse])
+    @router.get("/tasks/active", response_model=List[TaskEvent])
     async def get_active_tasks(
         session: Session = Depends(get_db),
         active_env = Depends(get_active_env)
@@ -101,10 +102,10 @@ def create_router(app_state) -> APIRouter:
         """Get currently active tasks."""
         task_service = TaskService(session, active_env=active_env)
         active_events = task_service.get_active_tasks()
-        return [TaskEventResponse.from_task_event(event) for event in active_events]
+        return active_events
 
 
-    @router.get("/tasks/orphaned", response_model=List[TaskEventResponse])
+    @router.get("/tasks/orphaned", response_model=List[TaskEvent])
     async def get_orphaned_tasks(
         session: Session = Depends(get_db),
         active_env = Depends(get_active_env)
@@ -113,10 +114,8 @@ def create_router(app_state) -> APIRouter:
         from sqlalchemy import func, and_, or_
         from database import RetryRelationshipDB
 
-        # Define final states - tasks in these states cannot be orphaned
         FINAL_STATES = {'task-succeeded', 'task-failed', 'task-revoked', 'task-rejected', 'task-retried'}
 
-        # Build subquery with environment filtering
         latest_orphaned_subquery = session.query(
             TaskEventDB.task_id,
             func.max(TaskEventDB.timestamp).label('max_timestamp')
@@ -124,11 +123,9 @@ def create_router(app_state) -> APIRouter:
             TaskEventDB.is_orphan == True
         )
 
-        # Apply environment filter to subquery
         if active_env:
             env_conditions = []
 
-            # Filter by queue patterns
             if active_env.queue_patterns:
                 queue_conditions = []
                 for pattern in active_env.queue_patterns:
@@ -137,7 +134,6 @@ def create_router(app_state) -> APIRouter:
                 if queue_conditions:
                     env_conditions.append(or_(*queue_conditions))
 
-            # Filter by worker patterns
             if active_env.worker_patterns:
                 worker_conditions = []
                 for pattern in active_env.worker_patterns:
@@ -146,7 +142,6 @@ def create_router(app_state) -> APIRouter:
                 if worker_conditions:
                     env_conditions.append(or_(*worker_conditions))
 
-            # Apply filters with OR logic
             if env_conditions:
                 latest_orphaned_subquery = latest_orphaned_subquery.filter(or_(*env_conditions))
 
@@ -180,7 +175,7 @@ def create_router(app_state) -> APIRouter:
             if not has_final_state:
                 unretried_orphaned.append(event)
 
-        return [TaskEventResponse.from_task_event(event) for event in unretried_orphaned]
+        return unretried_orphaned
 
 
     @router.post("/tasks/{task_id}/retry")

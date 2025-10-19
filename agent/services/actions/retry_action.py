@@ -20,7 +20,6 @@ class RetryActionHandler(ActionHandler):
         start_time = datetime.now()
 
         try:
-            # Validate parameters
             is_valid, error = self.validate_params(params)
             if not is_valid:
                 return ActionResult(
@@ -30,7 +29,6 @@ class RetryActionHandler(ActionHandler):
                     duration_ms=0
                 )
 
-            # Ensure we have a task_id in context
             task_id = context.get("task_id")
             if not task_id:
                 return ActionResult(
@@ -40,7 +38,6 @@ class RetryActionHandler(ActionHandler):
                     duration_ms=0
                 )
 
-            # Check if monitor instance is available
             if not self.monitor_instance:
                 return ActionResult(
                     action_type="task.retry",
@@ -49,7 +46,6 @@ class RetryActionHandler(ActionHandler):
                     duration_ms=0
                 )
 
-            # Get task information
             task_service = TaskService(self.session)
             task_events = task_service.get_task_events(task_id)
 
@@ -63,7 +59,6 @@ class RetryActionHandler(ActionHandler):
 
             original_task = task_events[-1]
 
-            # Parse args and kwargs
             import ast
             try:
                 args = ast.literal_eval(original_task.args) if original_task.args and original_task.args != "()" else ()
@@ -72,21 +67,15 @@ class RetryActionHandler(ActionHandler):
                 args = ()
                 kwargs = {}
 
-            # Get queue
             queue_name = original_task.queue if original_task.queue else 'default'
-
-            # Generate new task ID
             new_task_id = str(uuid.uuid4())
 
-            # Create retry relationship in database
             task_service.create_retry_relationship(task_id, new_task_id)
             self.session.commit()
 
-            # Apply delay if specified
             delay_seconds = params.get("delay_seconds", 0)
             countdown = delay_seconds if delay_seconds > 0 else None
 
-            # Send task to Celery
             result = self.monitor_instance.app.send_task(
                 original_task.task_name,
                 args=args,
@@ -124,8 +113,7 @@ class RetryActionHandler(ActionHandler):
             )
 
     def validate_params(self, params: Dict[str, Any]) -> tuple[bool, str]:
-        """Validate retry action parameters."""
-        # All parameters are optional
+        """Validate retry action parameters. All parameters are optional."""
         if "delay_seconds" in params:
             if not isinstance(params["delay_seconds"], (int, float)):
                 return False, "delay_seconds must be a number"

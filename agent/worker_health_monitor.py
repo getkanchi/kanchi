@@ -22,10 +22,9 @@ class WorkerHealthMonitor:
         self.running = False
         self.thread = None
 
-        # Configuration
-        self.check_interval = 15  # Check every 15 seconds
-        self.worker_timeout = 30  # Mark worker offline after 30 seconds of no heartbeat
-        self.orphan_grace_period = 2  # Grace period for event delivery delays (seconds)
+        self.check_interval = 15
+        self.worker_timeout = 30
+        self.orphan_grace_period = 2
 
     def start(self):
         """Start the health monitor in a background thread."""
@@ -63,9 +62,7 @@ class WorkerHealthMonitor:
         current_time = datetime.now(timezone.utc)
         timeout_threshold = current_time - timedelta(seconds=self.worker_timeout)
 
-        # Get current worker states from monitor
         workers = self.monitor_instance.get_workers_info()
-
         offline_workers = []
 
         for hostname, worker_data in workers.items():
@@ -73,15 +70,11 @@ class WorkerHealthMonitor:
             current_status = worker_data.get('status', 'unknown')
 
             if last_seen and isinstance(last_seen, datetime):
-                # Check if worker hasn't been seen for too long
                 if last_seen < timeout_threshold and current_status == 'online':
                     logger.warning(f"Worker {hostname} appears offline (last seen: {last_seen})")
 
-                    # Mark worker as offline in monitor state
                     workers[hostname]['status'] = 'offline'
                     offline_workers.append(hostname)
-
-                    # Mark tasks as orphaned
                     self._mark_worker_tasks_as_orphaned(hostname, current_time)
 
         if offline_workers:
@@ -104,17 +97,15 @@ class WorkerHealthMonitor:
             with self.db_manager.get_session() as session:
                 orphan_service = OrphanDetectionService(session)
 
-                # Find and mark orphaned tasks (grace period already handled by health monitor)
                 orphaned_tasks = orphan_service.find_and_mark_orphaned_tasks(
                     hostname=hostname,
                     orphaned_at=orphaned_at,
                     grace_period_seconds=self.orphan_grace_period
                 )
 
-                # Broadcast orphan events
                 if orphaned_tasks:
-                    self._broadcast_orphan_events(
-                        orphan_service, orphaned_tasks, orphaned_at
+                    orphan_service.broadcast_orphan_events(
+                        orphaned_tasks, orphaned_at, self.event_handler.connection_manager
                     )
 
         except Exception as e:
@@ -122,19 +113,3 @@ class WorkerHealthMonitor:
                 f"Error marking tasks as orphaned for worker {hostname}: {e}",
                 exc_info=True
             )
-
-    def _broadcast_orphan_events(
-        self,
-        orphan_service: OrphanDetectionService,
-        orphaned_tasks,
-        orphaned_at: datetime
-    ):
-        """Broadcast orphan events to WebSocket clients."""
-        orphan_events = orphan_service.create_orphan_events(
-            orphaned_tasks=orphaned_tasks,
-            orphaned_at=orphaned_at
-        )
-
-        for orphan_event in orphan_events:
-            logger.info(f"Broadcasting orphan event for task {orphan_event.task_id}")
-            self.event_handler.connection_manager.queue_broadcast(orphan_event)

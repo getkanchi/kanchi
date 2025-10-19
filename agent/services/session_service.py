@@ -28,13 +28,11 @@ class SessionService:
         ).first()
 
         if session_db:
-            # Update last_active timestamp
             session_db.last_active = datetime.now(timezone.utc)
             self.session.commit()
             self.session.refresh(session_db)
             logger.debug(f"Retrieved existing session: {session_id}")
         else:
-            # Create new session
             session_db = UserSessionDB(
                 session_id=session_id,
                 active_environment_id=None,
@@ -72,17 +70,14 @@ class SessionService:
         if not session_db:
             return None
 
-        # Update fields
         if session_update.active_environment_id is not None:
             session_db.active_environment_id = session_update.active_environment_id
 
         if session_update.preferences is not None:
-            # Merge preferences instead of replacing
             current_prefs = session_db.preferences or {}
             current_prefs.update(session_update.preferences)
             session_db.preferences = current_prefs
 
-        # Update last_active
         session_db.last_active = datetime.now(timezone.utc)
 
         self.session.commit()

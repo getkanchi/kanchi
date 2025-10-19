@@ -93,7 +93,6 @@ function getErrorPreview(traceback: string | null | undefined): string {
   if (!traceback) return 'No error details available'
 
   const lines = traceback.split('\n').filter(l => l.trim())
-  // Get last line (usually the error message)
   const lastLine = lines[lines.length - 1] || ''
   return lastLine.substring(0, 120)
 }

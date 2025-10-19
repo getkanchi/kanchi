@@ -30,7 +30,6 @@ const isRender = computed(() => {
       return true
     }
 
-    // Check with filter
     return filteredCurrentItem > 0
   }
 })

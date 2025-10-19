@@ -2,7 +2,6 @@
  * Generate a consistent color for a tag based on its text content
  */
 
-// Define a palette of colors that fit the existing design system
 const TAG_COLOR_PALETTE = [
   // Green variants
   { bg: 'hsl(158, 64%, 12%)', border: 'hsl(158, 64%, 25%)', text: 'hsl(158, 64%, 75%)' },

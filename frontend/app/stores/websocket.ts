@@ -1,6 +1,3 @@
-/**
- * Pinia store for WebSocket management
- */
 import { defineStore } from 'pinia'
 import { ref, computed, readonly } from 'vue'
 import { useTasksStore } from './tasks'
@@ -24,7 +21,6 @@ export const useWebSocketStore = defineStore('websocket', () => {
   const workersStore = useWorkersStore()
   const orphanTasksStore = useOrphanTasksStore()
 
-  // State
   const ws = ref<WebSocket | null>(null)
   const isConnected = ref(false)
   const isConnecting = ref(false)
@@ -34,16 +30,13 @@ export const useWebSocketStore = defineStore('websocket', () => {
   const maxReconnectAttempts = 5
   const reconnectDelay = ref(1000)
 
-  // Client state
   const clientFilters = ref<Record<string, any>>({})
   const clientMode = ref<'live' | 'static'>('live')
 
-  // Computed
-  const canReconnect = computed(() => 
+  const canReconnect = computed(() =>
     reconnectAttempts.value < maxReconnectAttempts
   )
 
-  // Actions
   function connect() {
     if (isConnected.value || isConnecting.value) {
       return
@@ -64,7 +57,6 @@ export const useWebSocketStore = defineStore('websocket', () => {
         reconnectAttempts.value = 0
         reconnectDelay.value = 1000
 
-        // Send initial ping and set mode
         sendMessage({ type: 'ping' })
         sendMessage({ type: 'set_mode', mode: clientMode.value })
       }
@@ -81,11 +73,11 @@ export const useWebSocketStore = defineStore('websocket', () => {
       ws.value.onclose = () => {
         isConnected.value = false
         isConnecting.value = false
-        
+
         if (canReconnect.value) {
           setTimeout(() => {
             reconnectAttempts.value++
-            reconnectDelay.value *= 2 // Exponential backoff
+            reconnectDelay.value *= 2
             connect()
           }, reconnectDelay.value)
         }
@@ -109,7 +101,7 @@ export const useWebSocketStore = defineStore('websocket', () => {
     }
     isConnected.value = false
     isConnecting.value = false
-    reconnectAttempts.value = maxReconnectAttempts // Prevent auto-reconnect
+    reconnectAttempts.value = maxReconnectAttempts
   }
 
   function sendMessage(message: WebSocketMessage) {
@@ -119,7 +111,6 @@ export const useWebSocketStore = defineStore('websocket', () => {
   }
 
   function handleMessage(message: any) {
-    // Handle backend response messages (with .type field)
     const messageType = message.type
     if (messageType) {
       switch (messageType) {
@@ -128,22 +119,18 @@ export const useWebSocketStore = defineStore('websocket', () => {
           break
 
         case 'pong':
-          // Handle pong response
           break
 
         case 'subscription_response':
-          // Handle subscription acknowledgment
           break
 
         case 'mode_changed':
-          // Confirm mode change from backend
           if (message.mode) {
             clientMode.value = message.mode
           }
           break
 
         case 'stored_events_sent':
-          // Handle stored events response
           break
 
         default:
@@ -152,16 +139,13 @@ export const useWebSocketStore = defineStore('websocket', () => {
       return
     }
 
-    // Handle live event messages (with .event_type field)
     const eventType = message.event_type
     if (eventType) {
       if (clientMode.value === 'live') {
-        // Handle task events
         if (eventType.startsWith('task-')) {
           tasksStore.handleLiveEvent(message)
           orphanTasksStore.updateFromLiveEvent(message)
         }
-        // Handle worker events  
         else if (eventType.startsWith('worker-')) {
           workersStore.updateFromLiveEvent(message)
         }
@@ -200,13 +184,11 @@ export const useWebSocketStore = defineStore('websocket', () => {
     sendMessage({ type: 'ping' })
   }
 
-  // Auto-connect only on client side
   if (process.client) {
     connect()
   }
 
   return {
-    // State
     isConnected: readonly(isConnected),
     isConnecting: readonly(isConnecting),
     connectionInfo: readonly(connectionInfo),
@@ -215,10 +197,8 @@ export const useWebSocketStore = defineStore('websocket', () => {
     clientFilters: readonly(clientFilters),
     clientMode: readonly(clientMode),
 
-    // Computed
     canReconnect,
 
-    // Actions
     connect,
     disconnect,
     sendMessage,

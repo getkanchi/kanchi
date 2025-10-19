@@ -218,14 +218,12 @@ const workflow = ref<WorkflowCreateRequest>({
   cooldown_seconds: 0
 })
 
-// Computed
 const canSave = computed(() => {
   return workflow.value.name.trim().length > 0 &&
          workflow.value.trigger?.type.length > 0 &&
          workflow.value.actions.length > 0
 })
 
-// Actions
 async function saveWorkflow() {
   if (!canSave.value) return
 

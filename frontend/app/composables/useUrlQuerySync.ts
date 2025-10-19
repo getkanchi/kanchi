@@ -61,7 +61,6 @@ export const useUrlQuerySync = () => {
     if (state.endTime) query.endTime = state.endTime
     if (state.environment) query.environment = state.environment
 
-    // Update URL without reloading
     if (replace) {
       await router.replace({ query })
     } else {

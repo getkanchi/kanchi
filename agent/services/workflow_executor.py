@@ -2,7 +2,7 @@
 
 import logging
 import traceback
-from typing import Dict, Any, List
+from typing import Dict, Any
 from sqlalchemy.orm import Session
 
 from models import TaskEvent, WorkerEvent, WorkflowDefinition
@@ -29,7 +29,6 @@ class WorkflowExecutor:
         """Execute a workflow's actions."""
         workflow_service = WorkflowService(self.session)
 
-        # Create execution record
         execution_id = workflow_service.record_workflow_execution_start(
             workflow_id=workflow.id,
             trigger_type=workflow.trigger.type,
@@ -45,7 +44,6 @@ class WorkflowExecutor:
         stack_trace = None
 
         try:
-            # Execute actions in order
             action_executor = ActionExecutor(
                 session=self.session,
                 db_manager=self.db_manager,
@@ -58,14 +56,12 @@ class WorkflowExecutor:
                     f"{action_config.type} (workflow={workflow.name})"
                 )
 
-                # Execute action
                 result = await action_executor.execute(
                     action_type=action_config.type,
                     context=context,
                     params=action_config.params
                 )
 
-                # Store result
                 action_results.append({
                     "action_type": result.action_type,
                     "status": result.status,
@@ -74,7 +70,6 @@ class WorkflowExecutor:
                     "duration_ms": result.duration_ms
                 })
 
-                # Handle failure
                 if result.status == "failed":
                     logger.warning(
                         f"Action failed: {action_config.type} - {result.error_message} "
@@ -87,7 +82,6 @@ class WorkflowExecutor:
                         error_message = f"Action {action_config.type} failed: {result.error_message}"
                         break
 
-            # Update workflow stats
             workflow_service.update_workflow_stats(
                 workflow_id=workflow.id,
                 success=(overall_status == "completed")
@@ -108,7 +102,6 @@ class WorkflowExecutor:
             )
 
         finally:
-            # Update execution record
             workflow_service.update_workflow_execution(
                 execution_id=execution_id,
                 status=overall_status,

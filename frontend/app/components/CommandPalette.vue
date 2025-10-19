@@ -190,7 +190,6 @@ const lookupTask = async (taskId: string) => {
     if (response.ok) {
       const responseData = await response.json()
 
-      // Handle different response formats
       let events = []
       if (Array.isArray(responseData)) {
         events = responseData

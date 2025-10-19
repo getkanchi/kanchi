@@ -36,7 +36,6 @@ const parsedValue = computed(() => {
   return props.value
 })
 
-// Check if value is empty
 const isEmpty = computed(() => {
   if (!parsedValue.value) return true
   if (Array.isArray(parsedValue.value) && parsedValue.value.length === 0) return true
@@ -44,7 +43,6 @@ const isEmpty = computed(() => {
   return false
 })
 
-// Get item count for display
 const itemCount = computed(() => {
   if (!parsedValue.value) return 0
   if (Array.isArray(parsedValue.value)) return parsedValue.value.length

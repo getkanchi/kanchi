@@ -7,6 +7,7 @@ from typing import Any, Callable, Dict, Optional
 from celery import Celery
 
 from models import TaskEvent, WorkerEvent
+from constants import EventType
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,6 @@ class CeleryEventMonitor:
             if self.state:
                 self.state.event(event)
 
-            # Get task name from event or state
             task_name = event.get("name", "unknown")
             task_id = event.get("uuid", "")
             event_type = event.get("type", "")
@@ -47,13 +47,10 @@ class CeleryEventMonitor:
                 if task and hasattr(task, "name"):
                     task_name = task.name
 
-            # Create event object
             task_event = TaskEvent.from_celery_event(event, task_name)
 
-            # Log event
-            logger.info(f"Task {event_type}: {task_name}[{task_id}]")
+            logger.debug(f"Task {event_type}: {task_name}[{task_id}]")
 
-            # Send to callback
             if self.task_callback:
                 self.task_callback(task_event)
 
@@ -64,16 +61,12 @@ class CeleryEventMonitor:
         """Handle worker events."""
         try:
             hostname = event.get("hostname", "unknown")
-            # Use current server time (UTC) instead of worker timestamp to avoid timezone issues
-            # Worker clocks may be misconfigured or in different timezones (e.g., Docker containers)
-            # The receive time is more reliable for monitoring purposes
             timestamp = datetime.now(timezone.utc)
 
-            # Update worker state
             if hostname not in self.workers:
                 self.workers[hostname] = {}
 
-            if event_type == "worker-online":
+            if event_type == EventType.WORKER_ONLINE.value:
                 self.workers[hostname].update(
                     {
                         "status": "online",
@@ -85,11 +78,11 @@ class CeleryEventMonitor:
                 )
                 logger.info(f"Worker online: {hostname}")
 
-            elif event_type == "worker-offline":
+            elif event_type == EventType.WORKER_OFFLINE.value:
                 self.workers[hostname].update({"status": "offline", "timestamp": timestamp})
                 logger.warning(f"Worker offline: {hostname}")
 
-            elif event_type == "worker-heartbeat":
+            elif event_type == EventType.WORKER_HEARTBEAT.value:
                 self.workers[hostname].update(
                     {
                         "status": "online",
@@ -103,7 +96,6 @@ class CeleryEventMonitor:
                 )
                 logger.debug(f"Worker heartbeat: {hostname} - Active: {event.get('active', 0)}")
 
-            # Create and send worker event
             if self.worker_callback:
                 worker_event = WorkerEvent.from_celery_event(event)
                 self.worker_callback(worker_event)
@@ -124,21 +116,21 @@ class CeleryEventMonitor:
         try:
             with self.app.connection() as connection:
                 handlers = {
-                    "task-sent": self._handle_task_event,
-                    "task-received": self._handle_task_event,
-                    "task-started": self._handle_task_event,
-                    "task-succeeded": self._handle_task_event,
-                    "task-failed": self._handle_task_event,
-                    "task-retried": self._handle_task_event,
-                    "task-revoked": self._handle_task_event,
-                    "worker-online": lambda event: self._handle_worker_event(
-                        event, "worker-online"
+                    EventType.TASK_SENT.value: self._handle_task_event,
+                    EventType.TASK_RECEIVED.value: self._handle_task_event,
+                    EventType.TASK_STARTED.value: self._handle_task_event,
+                    EventType.TASK_SUCCEEDED.value: self._handle_task_event,
+                    EventType.TASK_FAILED.value: self._handle_task_event,
+                    EventType.TASK_RETRIED.value: self._handle_task_event,
+                    EventType.TASK_REVOKED.value: self._handle_task_event,
+                    EventType.WORKER_ONLINE.value: lambda event: self._handle_worker_event(
+                        event, EventType.WORKER_ONLINE.value
                     ),
-                    "worker-offline": lambda event: self._handle_worker_event(
-                        event, "worker-offline"
+                    EventType.WORKER_OFFLINE.value: lambda event: self._handle_worker_event(
+                        event, EventType.WORKER_OFFLINE.value
                     ),
-                    "worker-heartbeat": lambda event: self._handle_worker_event(
-                        event, "worker-heartbeat"
+                    EventType.WORKER_HEARTBEAT.value: lambda event: self._handle_worker_event(
+                        event, EventType.WORKER_HEARTBEAT.value
                     ),
                 }
 

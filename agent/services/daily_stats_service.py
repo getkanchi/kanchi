@@ -13,22 +13,14 @@ logger = logging.getLogger(__name__)
 
 
 class DailyStatsService:
-    """Service for aggregating and managing daily task statistics."""
 
     def __init__(self, session: Session):
         self.session = session
 
     def update_daily_stats(self, task_event: TaskEvent):
-        """
-        Update daily statistics for a task based on incoming event.
-
-        This is called in real-time as events arrive.
-        """
-        # Get the date for this event (UTC)
         event_date = task_event.timestamp.date()
         task_name = task_event.task_name
 
-        # Get or create daily stats record
         stats = self.session.query(TaskDailyStatsDB).filter(
             TaskDailyStatsDB.task_name == task_name,
             TaskDailyStatsDB.date == event_date
@@ -50,16 +42,13 @@ class DailyStatsService:
             )
             self.session.add(stats)
 
-        # Update counters based on event type
         event_type = task_event.event_type
 
         if event_type == 'task-received':
-            # New execution starting
             stats.total_executions += 1
             stats.pending += 1
         elif event_type == 'task-succeeded':
             stats.succeeded += 1
-            # Decrement pending if it was counted
             if stats.pending > 0:
                 stats.pending -= 1
         elif event_type == 'task-failed':
@@ -73,15 +62,12 @@ class DailyStatsService:
             if stats.pending > 0:
                 stats.pending -= 1
 
-        # Handle orphaned tasks
         if task_event.is_orphan:
             stats.orphaned += 1
 
-        # Update runtime statistics
         if task_event.runtime is not None:
             self._update_runtime_stats(stats, task_event.runtime)
 
-        # Update timestamps (ensure timezone-aware comparison)
         event_ts = task_event.timestamp
         if event_ts.tzinfo is None:
             event_ts = event_ts.replace(tzinfo=timezone.utc)
@@ -89,7 +75,6 @@ class DailyStatsService:
         if stats.first_execution is None:
             stats.first_execution = event_ts
         else:
-            # Ensure DB timestamp is timezone-aware
             first_exec = stats.first_execution
             if first_exec.tzinfo is None:
                 first_exec = first_exec.replace(tzinfo=timezone.utc)
@@ -99,7 +84,6 @@ class DailyStatsService:
         if stats.last_execution is None:
             stats.last_execution = event_ts
         else:
-            # Ensure DB timestamp is timezone-aware
             last_exec = stats.last_execution
             if last_exec.tzinfo is None:
                 last_exec = last_exec.replace(tzinfo=timezone.utc)
@@ -120,21 +104,16 @@ class DailyStatsService:
         Update runtime statistics (avg, min, max, percentiles).
 
         For percentiles, we use a simple approximation since we don't store
-        all individual runtimes. For accurate percentiles, you'd need to
-        query the raw task_events table.
+        all individual runtimes. For accurate percentiles, query the raw task_events table.
         """
-        # Update min/max
         if stats.min_runtime is None or runtime < stats.min_runtime:
             stats.min_runtime = runtime
         if stats.max_runtime is None or runtime > stats.max_runtime:
             stats.max_runtime = runtime
 
-        # Update average (incremental)
-        # New average = (old_avg * old_count + new_value) / (old_count + 1)
         if stats.avg_runtime is None:
             stats.avg_runtime = runtime
         else:
-            # Estimate count from succeeded tasks
             count = stats.succeeded
             if count > 0:
                 stats.avg_runtime = ((stats.avg_runtime * count) + runtime) / (count + 1)
@@ -229,7 +208,6 @@ class DailyStatsService:
         total_succeeded = sum(s.succeeded for s in stats)
         total_failed = sum(s.failed for s in stats)
 
-        # Calculate average runtime across days
         runtimes = [s.avg_runtime for s in stats if s.avg_runtime is not None]
         avg_runtime = sum(runtimes) / len(runtimes) if runtimes else None
 

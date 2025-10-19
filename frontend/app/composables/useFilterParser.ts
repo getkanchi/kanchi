@@ -81,7 +81,6 @@ export const useFilterParser = () => {
 
     const field = segments[0].trim().toLowerCase()
 
-    // Check if field is valid
     if (!filterFields.find(f => f.value === field)) return null
 
     let operator: string

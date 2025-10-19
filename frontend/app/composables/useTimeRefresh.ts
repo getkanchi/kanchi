@@ -14,7 +14,6 @@ export function useTimeRefresh(intervalMs: number = 10000) {
   let intervalId: ReturnType<typeof setInterval> | null = null
   let isPageVisible = true
 
-  // Update current time
   const updateTime = () => {
     currentTime.value = new Date()
   }
@@ -33,7 +32,6 @@ export function useTimeRefresh(intervalMs: number = 10000) {
     }
   }
 
-  // Handle page visibility changes
   const handleVisibilityChange = () => {
     if (document.hidden) {
       isPageVisible = false

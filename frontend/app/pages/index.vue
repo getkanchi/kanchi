@@ -61,7 +61,6 @@ import type { ParsedFilter } from '~/composables/useFilterParser'
 import type { TimeRange } from '~/components/TimeRangeFilter.vue'
 import type { UrlQueryState } from '~/composables/useUrlQuerySync'
 
-// Stores
 const tasksStore = useTasksStore()
 const workersStore = useWorkersStore()
 const orphanTasksStore = useOrphanTasksStore()
@@ -71,7 +70,6 @@ const environmentStore = useEnvironmentStore()
 // Time range state
 const timeRange = ref<TimeRange>({ start: null, end: null })
 
-// Filter parser
 const { queryStringToFilters, filtersToQueryString } = useFilterParser()
 
 // URL query sync
@@ -80,7 +78,6 @@ const urlQuerySync = useUrlQuerySync()
 // Track if we're initializing from URL to avoid duplicate fetches
 const isInitializing = ref(true)
 
-// Computed
 const secondsSinceUpdate = computed(() => {
   if (!tasksStore.lastRefreshTime) return 0
   return Math.floor((Date.now() - tasksStore.lastRefreshTime.getTime()) / 1000)
@@ -95,7 +92,6 @@ const currentSorting = computed(() => {
 const currentFilters = computed((): ParsedFilter[] => {
   const filters = tasksStore.filters
 
-  // If we have the new filters format, parse it
   if (filters.filters) {
     return queryStringToFilters(filters.filters)
   }
@@ -107,7 +103,6 @@ const currentFilters = computed((): ParsedFilter[] => {
 // Table columns
 const columns = getTaskColumns()
 
-// Actions
 function handleToggleLiveMode() {
   const newMode = !tasksStore.isLiveMode
   wsStore.setMode(newMode ? 'live' : 'static')
@@ -117,7 +112,6 @@ function handleToggleLiveMode() {
     // Reset to first page for live mode to see newest events
     tasksStore.setPage(0)
   } else {
-    // Refresh data when switching to static mode
     tasksStore.fetchRecentEvents()
   }
 }
@@ -137,7 +131,6 @@ function handleSetFilters(filters: ParsedFilter[]) {
   // Convert ParsedFilter[] to query string format
   const filterQueryString = filtersToQueryString(filters)
 
-  // Update store with new filter format
   tasksStore.setFilters({
     filters: filterQueryString || null
   })
@@ -179,7 +172,6 @@ const handleMouseMove = (e: MouseEvent) => {
   })
 }
 
-// Get current state for URL sync
 const getCurrentState = computed((): UrlQueryState => ({
   search: tasksStore.filters.search || null,
   filters: tasksStore.filters.filters || null,
@@ -231,7 +223,6 @@ function applyStateFromUrl(state: UrlQueryState) {
   }
 }
 
-// Initialize from URL on mount
 urlQuerySync.initializeFromUrl((state) => {
   applyStateFromUrl(state)
 })
@@ -270,13 +261,11 @@ onMounted(async () => {
     orphanTasksStore.fetchOrphanedTasks()
   ])
 
-  // Set initial mode based on WebSocket client preference
   tasksStore.setLiveMode(wsStore.clientMode === 'live')
 
   // Mark initialization as complete
   isInitializing.value = false
 
-  // Set up periodic refresh for workers and orphaned tasks
   const orphanTasksInterval = setInterval(() => {
     orphanTasksStore.fetchOrphanedTasks()
   }, 60000) // Poll every 60 seconds for orphaned tasks

@@ -159,7 +159,6 @@ const filteredCategories = computed(() => {
 
 function selectTrigger(type: string) {
   emit('update:trigger', { type, config: {} })
-  // Auto-close the dialog after selection
   showSelector.value = false
 }
 

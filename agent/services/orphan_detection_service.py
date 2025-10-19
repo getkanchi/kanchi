@@ -1,5 +1,3 @@
-"""Orphan detection service for identifying and marking orphaned tasks."""
-
 import logging
 from datetime import datetime
 from typing import List
@@ -9,21 +7,12 @@ from sqlalchemy.orm import Session
 
 from database import TaskEventDB
 from models import TaskEvent
+from constants import NON_TERMINAL_EVENT_TYPES, EventType
 
 logger = logging.getLogger(__name__)
 
-# Non-terminal event types that indicate a task is still running
-NON_TERMINAL_EVENTS = ['task-started', 'task-received', 'task-sent']
-
 
 class OrphanDetectionService:
-    """
-    Service for detecting and marking orphaned tasks.
-
-    Orphaned tasks are tasks that were running on a worker when it went offline
-    and never completed. This service uses database-level aggregation to accurately
-    identify such tasks by checking their latest event state.
-    """
 
     def __init__(self, session: Session):
         self.session = session
@@ -34,31 +23,9 @@ class OrphanDetectionService:
         orphaned_at: datetime,
         grace_period_seconds: int = 2
     ) -> List[TaskEventDB]:
-        """
-        Find and mark all orphaned tasks for a specific worker.
-
-        This method uses database-level aggregation to find the latest event for each
-        task on the specified worker. Tasks whose latest event is non-terminal (still
-        running) are marked as orphaned.
-
-        Note: The caller should wait for the grace period before calling this method
-        to allow any late-arriving completion events to be processed.
-
-        Args:
-            hostname: Worker hostname that went offline
-            orphaned_at: Timestamp when worker went offline
-            grace_period_seconds: Grace period duration (for logging only, caller should wait)
-
-        Returns:
-            List of orphaned task events (latest event for each orphaned task)
-        """
-        # Build subquery to find latest event timestamp per task
         latest_events_subquery = self._build_latest_events_subquery(hostname)
-
-        # Find tasks with non-terminal latest event
         orphaned_tasks = self._find_non_terminal_tasks(latest_events_subquery)
 
-        # Mark all events for orphaned tasks
         if orphaned_tasks:
             self._mark_tasks_as_orphaned(orphaned_tasks, orphaned_at, grace_period_seconds)
         else:
@@ -67,7 +34,6 @@ class OrphanDetectionService:
         return orphaned_tasks
 
     def _build_latest_events_subquery(self, hostname: str):
-        """Build subquery to find latest event timestamp per task for a worker."""
         return self.session.query(
             TaskEventDB.task_id,
             func.max(TaskEventDB.timestamp).label('max_timestamp')
@@ -76,14 +42,14 @@ class OrphanDetectionService:
         ).group_by(TaskEventDB.task_id).subquery()
 
     def _find_non_terminal_tasks(self, latest_events_subquery) -> List[TaskEventDB]:
-        """Find tasks where latest event is non-terminal (still running)."""
+        non_terminal_values = [et.value for et in NON_TERMINAL_EVENT_TYPES]
         return self.session.query(TaskEventDB).join(
             latest_events_subquery,
             and_(
                 TaskEventDB.task_id == latest_events_subquery.c.task_id,
                 TaskEventDB.timestamp == latest_events_subquery.c.max_timestamp,
-                TaskEventDB.event_type.in_(NON_TERMINAL_EVENTS),
-                TaskEventDB.is_orphan.is_(False)  # Don't re-orphan
+                TaskEventDB.event_type.in_(non_terminal_values),
+                TaskEventDB.is_orphan.is_(False)
             )
         ).all()
 
@@ -93,7 +59,6 @@ class OrphanDetectionService:
         orphaned_at: datetime,
         grace_period_seconds: int
     ):
-        """Mark all events for orphaned tasks in the database."""
         task_ids = [task.task_id for task in orphaned_tasks]
 
         self.session.query(TaskEventDB).filter(
@@ -116,14 +81,14 @@ class OrphanDetectionService:
         orphaned_at: datetime
     ) -> List[TaskEvent]:
         """
-        Create orphan events for broadcasting via WebSocket.
+        Create orphan event objects from orphaned tasks.
 
         Args:
-            orphaned_tasks: List of orphaned task database records
+            orphaned_tasks: List of orphaned task database objects
             orphaned_at: Timestamp when tasks were orphaned
 
         Returns:
-            List of TaskEvent objects for broadcasting
+            List of TaskEvent objects for orphaned tasks
         """
         orphan_events = []
 
@@ -131,7 +96,7 @@ class OrphanDetectionService:
             orphan_event = TaskEvent(
                 task_id=task.task_id,
                 task_name=task.task_name,
-                event_type='task-orphaned',
+                event_type=EventType.TASK_ORPHANED.value,
                 hostname=task.hostname,
                 timestamp=orphaned_at,
                 routing_key=task.routing_key,
@@ -141,3 +106,23 @@ class OrphanDetectionService:
             orphan_events.append(orphan_event)
 
         return orphan_events
+
+    def broadcast_orphan_events(
+        self,
+        orphaned_tasks: List[TaskEventDB],
+        orphaned_at: datetime,
+        connection_manager
+    ):
+        """
+        Create and broadcast orphan events to WebSocket clients.
+
+        Args:
+            orphaned_tasks: List of orphaned task database objects
+            orphaned_at: Timestamp when tasks were orphaned
+            connection_manager: ConnectionManager instance for broadcasting
+        """
+        orphan_events = self.create_orphan_events(orphaned_tasks, orphaned_at)
+
+        for orphan_event in orphan_events:
+            logger.info(f"Broadcasting orphan event for task {orphan_event.task_id}")
+            connection_manager.queue_broadcast(orphan_event)

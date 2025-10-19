@@ -20,7 +20,6 @@ class ApiService {
       },
     })
 
-    // Add request interceptor to include session ID
     this.api.instance.interceptors.request.use((config) => {
       const sessionId = localStorage.getItem('kanchi_session_id')
       if (sessionId) {
@@ -53,7 +52,6 @@ class ApiService {
     filters?: string | null
     start_time?: string | null
     end_time?: string | null
-    // Legacy parameters (deprecated)
     filter_state?: string | null
     filter_worker?: string | null
     filter_task?: string | null
@@ -391,7 +389,6 @@ class ApiService {
     return response.data
   }
 
-  // Action Config endpoints
   async getActionConfigs(params?: {
     action_type?: string
     limit?: number
@@ -440,7 +437,6 @@ class ApiService {
 
 }
 
-// Create singleton instance with runtime config
 let apiService: ApiService | null = null
 
 export function useApiService(): ApiService {

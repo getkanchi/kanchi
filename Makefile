@@ -1,4 +1,4 @@
-.PHONY: dev logs backend frontend help
+.PHONY: dev logs backend frontend seed help
 
 help:
 	@echo "Kanchi Development Commands"
@@ -7,6 +7,7 @@ help:
 	@echo "make logs     - Tail unified log file (last 100 lines and follow)"
 	@echo "make backend  - Start backend only"
 	@echo "make frontend - Start frontend only"
+	@echo "make seed     - Seed database with marketing/demo data (clears existing data)"
 
 dev:
 	@echo "Starting Kanchi in development mode..."
@@ -31,3 +32,14 @@ frontend:
 logs:
 	@echo "Tailing unified log file (Ctrl+C to stop)..."
 	tail -n 100 -f agent/kanchi.log
+
+seed:
+	@echo "Seeding database with marketing/demo data..."
+	@echo "This will clear existing data and populate with sample data for screenshots/demos."
+	@read -p "Continue? [y/N] " -n 1 -r; \
+	echo; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		cd agent && poetry run python seed_database.py --days 7; \
+	else \
+		echo "Cancelled."; \
+	fi

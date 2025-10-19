@@ -381,7 +381,6 @@ const uniqueOrphanedTasks = computed(() => {
   })
 
   // Keep only the most recent event for each task_id
-  // Filter: is_orphan = true AND retried_by is empty (not retried yet)
   for (const task of sortedTasks) {
     if (task.task_id && !taskMap.has(task.task_id)) {
       // Only show orphans that haven't been retried
@@ -395,7 +394,6 @@ const uniqueOrphanedTasks = computed(() => {
   return Array.from(taskMap.values())
 })
 
-// Filtered data based on search
 const filteredTasks = computed(() => {
   let filtered = [...uniqueOrphanedTasks.value]
   
@@ -465,7 +463,6 @@ const overallStatus = computed((): 'online' | 'warning' | 'error' | 'muted' => {
 const summaryClasses = computed(() => {
   const classes = ['bg-background-surface']
   
-  // Add subtle background gradient
   if (recentOrphansCount.value > 0) {
     classes.push('bg-gradient-to-r from-card-base to-status-error/5')
     classes.push('glow-border-error')

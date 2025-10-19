@@ -48,7 +48,6 @@ const emit = defineEmits<{
 
 const open = ref(false)
 
-// Initialize from URL query params or props or current date
 function getInitialDateRange() {
   // Try URL params first
   const startParam = route.query.start as string
@@ -119,13 +118,11 @@ const displayLabel = computed(() => {
     return ''
   }
 
-  // Check if it's a single day selection
   const isSameDay =
     props.modelValue.start.getFullYear() === props.modelValue.end.getFullYear() &&
     props.modelValue.start.getMonth() === props.modelValue.end.getMonth() &&
     props.modelValue.start.getDate() === props.modelValue.end.getDate()
 
-  // Check if time is at default values (00:00 - 23:59)
   const isDefaultTime =
     props.modelValue.start.getHours() === 0 &&
     props.modelValue.start.getMinutes() === 0 &&
@@ -216,7 +213,6 @@ function applyRange() {
     0
   )
 
-  // Update URL query params
   router.push({
     query: {
       ...route.query,
@@ -236,7 +232,6 @@ function clearRange() {
   startTime.value = '00:00'
   endTime.value = '23:59'
 
-  // Clear URL query params
   const query = { ...route.query }
   delete query.start
   delete query.end
@@ -247,7 +242,6 @@ function clearRange() {
   open.value = false
 }
 
-// Handle button click - disable live mode if active
 function handleButtonClick() {
   if (props.disabled) {
     emit('disableLiveMode')
@@ -255,12 +249,10 @@ function handleButtonClick() {
   open.value = true
 }
 
-// Handle clear button click
 function handleClearClick() {
   clearRange()
 }
 
-// Initialize from URL on mount
 onMounted(() => {
   const startParam = route.query.start as string
   const endParam = route.query.end as string

@@ -1,6 +1,3 @@
-/**
- * Pinia store for orphan task management
- */
 import { defineStore } from 'pinia'
 import { ref, computed, readonly } from 'vue'
 import { useApiService } from '../services/apiClient'
@@ -9,12 +6,10 @@ import type { TaskEventResponse } from '../services/apiClient'
 export const useOrphanTasksStore = defineStore('orphanTasks', () => {
   const apiService = useApiService()
 
-  // State
   const orphanedTasks = ref<TaskEventResponse[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
-  // Computed
   const orphanedTasksCount = computed(() => orphanedTasks.value.length)
   
   const recentOrphanedTasks = computed(() => {
@@ -39,7 +34,6 @@ export const useOrphanTasksStore = defineStore('orphanTasks', () => {
     return map
   })
 
-  // Actions
   async function fetchOrphanedTasks() {
     try {
       isLoading.value = true
@@ -57,7 +51,6 @@ export const useOrphanTasksStore = defineStore('orphanTasks', () => {
     try {
       error.value = null
       await apiService.retryTask(taskId)
-      // Remove the task from orphaned list after successful retry
       orphanedTasks.value = orphanedTasks.value.filter(task => task.task_id !== taskId)
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to retry orphaned task'
@@ -70,7 +63,6 @@ export const useOrphanTasksStore = defineStore('orphanTasks', () => {
   }
 
   function addOrphanedTask(task: TaskEventResponse) {
-    // Check if task is already in the list
     if (!orphanedTasks.value.find(t => t.task_id === task.task_id)) {
       orphanedTasks.value.push(task)
     }
@@ -80,29 +72,31 @@ export const useOrphanTasksStore = defineStore('orphanTasks', () => {
     orphanedTasks.value = orphanedTasks.value.filter(task => task.task_id !== taskId)
   }
 
-  // Update orphaned tasks from live WebSocket event
   function updateFromLiveEvent(event: any) {
+    const environmentStore = useEnvironmentStore()
+    const { matchesEnvironment } = useEnvironmentMatcher()
+
+    if (!matchesEnvironment(event as TaskEventResponse, environmentStore.activeEnvironment)) {
+      return
+    }
+
     if (event.event_type === 'task-orphaned' && event.task_id) {
       addOrphanedTask(event as TaskEventResponse)
     } else if (event.event_type === 'task-succeeded' || event.event_type === 'task-failed') {
-      // Remove from orphaned list if task completes
       removeOrphanedTask(event.task_id)
     }
   }
 
   return {
-    // State
     orphanedTasks: readonly(orphanedTasks),
     isLoading: readonly(isLoading),
     error: readonly(error),
 
-    // Computed
     orphanedTasksCount,
     recentOrphanedTasks,
     recentOrphanedTasksCount,
     orphanedTasksByHostname,
 
-    // Actions
     fetchOrphanedTasks,
     retryOrphanedTask,
     updateOrphanedTasks,

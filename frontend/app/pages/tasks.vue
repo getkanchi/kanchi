@@ -5,7 +5,7 @@
       </div>
 
       <!-- Search and Filters -->
-      <div class="mb-6 flex items-center gap-4">
+      <div class="mb-6 flex items-center gap-4 bg-background-raised">
         <div class="flex-1">
           <Input
             v-model="searchQuery"
@@ -127,7 +127,6 @@ const environmentStore = useEnvironmentStore()
 // URL query sync
 const urlQuerySync = useUrlQuerySync()
 
-// State
 const searchQuery = ref('')
 const selectedTags = ref<string[]>([])
 const selectedTask = ref(null)
@@ -135,11 +134,9 @@ const selectedTask = ref(null)
 // Track if we're initializing from URL
 const isInitializing = ref(true)
 
-// Computed
 const filteredTasks = computed(() => {
   let tasks = taskRegistryStore.tasks
 
-  // Filter by search query
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
     tasks = tasks.filter(task =>
@@ -149,7 +146,6 @@ const filteredTasks = computed(() => {
     )
   }
 
-  // Filter by tags (task must have ALL selected tags)
   if (selectedTags.value.length > 0) {
     tasks = tasks.filter(task =>
       task.tags && selectedTags.value.every(selectedTag => task.tags.includes(selectedTag))
@@ -159,13 +155,11 @@ const filteredTasks = computed(() => {
   return tasks
 })
 
-// Actions
 function handleTaskClick(task: any) {
   selectedTask.value = task
 }
 
 function handleTaskUpdate(updatedTask: any) {
-  // Update the selected task with the new data
   selectedTask.value = updatedTask
 }
 
@@ -184,7 +178,6 @@ function clearTags() {
   selectedTags.value = []
 }
 
-// Get current state for URL sync
 const getCurrentState = computed(() => ({
   search: searchQuery.value || null,
   filters: selectedTags.value.length > 0 ? selectedTags.value.join(',') : null,
@@ -209,7 +202,6 @@ function applyStateFromUrl(state: any) {
   }
 }
 
-// Initialize from URL on mount
 urlQuerySync.initializeFromUrl((state) => {
   applyStateFromUrl(state)
 })

@@ -1,6 +1,3 @@
-/**
- * Pinia store for worker management
- */
 import { defineStore } from 'pinia'
 import { ref, computed, readonly } from 'vue'
 import { useApiService } from '../services/apiClient'
@@ -9,18 +6,16 @@ import type { WorkerInfo } from '../services/apiClient'
 export const useWorkersStore = defineStore('workers', () => {
   const apiService = useApiService()
 
-  // State
   const workers = ref<WorkerInfo[]>([])
   const recentWorkerEvents = ref<any[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
-  // Computed
-  const activeWorkers = computed(() => 
+  const activeWorkers = computed(() =>
     workers.value.filter(worker => worker.status === 'online')
   )
 
-  const offlineWorkers = computed(() => 
+  const offlineWorkers = computed(() =>
     workers.value.filter(worker => worker.status === 'offline')
   )
 
@@ -36,7 +31,6 @@ export const useWorkersStore = defineStore('workers', () => {
     return map
   })
 
-  // Actions
   async function fetchWorkers() {
     try {
       isLoading.value = true
@@ -54,8 +48,7 @@ export const useWorkersStore = defineStore('workers', () => {
     try {
       error.value = null
       const worker = await apiService.getWorker(hostname)
-      
-      // Update the worker in the list if it exists
+
       const index = workers.value.findIndex(w => w.hostname === hostname)
       if (index !== -1) {
         workers.value[index] = worker
@@ -98,15 +91,25 @@ export const useWorkersStore = defineStore('workers', () => {
     workers.value = newWorkers
   }
 
-  // Update worker from live WebSocket event
   function updateFromLiveEvent(event: any) {
+    const environmentStore = useEnvironmentStore()
+    const { matchesEnvironment } = useEnvironmentMatcher()
+
     if (event.hostname) {
+      const taskEventForMatching = {
+        hostname: event.hostname,
+        queue: null,
+      } as TaskEventResponse
+
+      if (!matchesEnvironment(taskEventForMatching, environmentStore.activeEnvironment)) {
+        return
+      }
+
       const existingWorkerIndex = workers.value.findIndex(w => w.hostname === event.hostname)
       if (existingWorkerIndex !== -1) {
-        // Update existing worker with live data
         workers.value[existingWorkerIndex] = {
           ...workers.value[existingWorkerIndex],
-          status: 'online', // If we're getting heartbeats, worker is online
+          status: 'online',
           active: event.active || 0,
           processed: event.processed || 0,
           timestamp: event.timestamp,
@@ -116,13 +119,11 @@ export const useWorkersStore = defineStore('workers', () => {
   }
 
   return {
-    // State
     workers: readonly(workers),
     recentWorkerEvents: readonly(recentWorkerEvents),
     isLoading: readonly(isLoading),
     error: readonly(error),
 
-    // Computed
     activeWorkers,
     offlineWorkers,
     totalWorkers,
@@ -130,7 +131,6 @@ export const useWorkersStore = defineStore('workers', () => {
     offlineWorkersCount,
     workersByHostname,
 
-    // Actions
     fetchWorkers,
     fetchWorker,
     fetchRecentWorkerEvents,

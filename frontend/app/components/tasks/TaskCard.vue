@@ -151,7 +151,6 @@ function formatRuntime(runtime: number | null | undefined) {
   return `${runtime.toFixed(1)}s`
 }
 
-// Load stats and timeline on mount
 onMounted(async () => {
   const [statsData, timelineData] = await Promise.all([
     taskRegistryStore.fetchTaskStats(props.task.name, 24),

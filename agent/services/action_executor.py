@@ -15,11 +15,9 @@ logger = logging.getLogger(__name__)
 class ActionExecutor:
     """Executes workflow actions by routing to specific handlers."""
 
-    # Action handler registry
     ACTION_HANDLERS: Dict[str, Type[ActionHandler]] = {
         "slack.notify": SlackActionHandler,
         "task.retry": RetryActionHandler,
-        # Add more handlers here as they're implemented
     }
 
     def __init__(self, session: Session, db_manager, monitor_instance=None):
@@ -44,7 +42,6 @@ class ActionExecutor:
         Returns:
             ActionResult with execution status
         """
-        # Get handler class for action type
         handler_class = self.ACTION_HANDLERS.get(action_type)
 
         if not handler_class:
@@ -56,14 +53,12 @@ class ActionExecutor:
                 duration_ms=0
             )
 
-        # Instantiate handler
         handler = handler_class(
             session=self.session,
             db_manager=self.db_manager,
             monitor_instance=self.monitor_instance
         )
 
-        # Execute action
         try:
             result = await handler.execute(context, params)
             return result

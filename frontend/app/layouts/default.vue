@@ -22,7 +22,6 @@ import { useEnvironmentStore } from '~/stores/environment'
 
 const environmentStore = useEnvironmentStore()
 
-// Initialize environment store on mount
 onMounted(async () => {
   await environmentStore.initialize()
 })

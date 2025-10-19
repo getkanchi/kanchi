@@ -99,16 +99,13 @@ def create_app() -> FastAPI:
 
         workers_count = len(app_state.monitor_instance.get_workers_info()) if app_state.monitor_instance else 0
 
-        # Calculate uptime
         uptime_seconds = (datetime.now(timezone.utc) - APP_START_TIME).total_seconds()
 
-        # Get task statistics
         total_tasks = 0
         first_task_timestamp = None
         if app_state.db_manager:
             try:
                 with app_state.db_manager.get_session() as session:
-                    # Count unique tasks that have completed (succeeded, failed, or revoked)
                     result = session.execute(
                         text("""
                             SELECT COUNT(DISTINCT task_id)
@@ -118,7 +115,6 @@ def create_app() -> FastAPI:
                     )
                     total_tasks = result.scalar() or 0
 
-                    # Get first task timestamp from the earliest event
                     result = session.execute(
                         text("SELECT MIN(timestamp) FROM task_events")
                     )
@@ -126,25 +122,19 @@ def create_app() -> FastAPI:
             except Exception as e:
                 logger.error(f"Error fetching task statistics: {e}")
 
-        # Get configuration
         config = Config.from_env()
 
-        # Get broker URL from monitor instance (which has the actual connection)
-        # If monitor_instance has broker_url, use it; otherwise use config; otherwise use default
         broker_url_full = None
         if app_state.monitor_instance and app_state.monitor_instance.broker_url:
             broker_url_full = app_state.monitor_instance.broker_url
         elif config.broker_url:
             broker_url_full = config.broker_url
         else:
-            # Default broker URL used by CeleryEventMonitor
             broker_url_full = "amqp://guest@localhost//"
 
-        # Mask broker URL credentials
         broker_url_masked = None
         if broker_url_full:
             if '@' in broker_url_full:
-                # Extract the credentials part (between :// and @)
                 try:
                     parts = broker_url_full.split('://')
                     if len(parts) == 2:
@@ -157,7 +147,8 @@ def create_app() -> FastAPI:
                             broker_url_masked = broker_url_full
                     else:
                         broker_url_masked = broker_url_full
-                except:
+                except (ValueError, IndexError, AttributeError) as e:
+                    logger.warning(f"Failed to mask broker URL: {e}")
                     broker_url_masked = broker_url_full
             else:
                 broker_url_masked = broker_url_full

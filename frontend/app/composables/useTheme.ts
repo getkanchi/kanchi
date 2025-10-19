@@ -42,9 +42,7 @@ export const useTheme = () => {
     setTheme(nextTheme)
   }
 
-  // Initialize theme on mount
   onMounted(() => {
-    // Get stored theme or default to system
     const stored = localStorage.getItem(THEME_KEY) as Theme | null
     theme.value = stored || 'dark'
     

@@ -1,291 +1,24 @@
 from typing import Any, Dict, Optional, List, Union, Literal
-from dataclasses import dataclass, asdict, field
 from datetime import datetime, timezone, date
 from enum import Enum
-import json
-from pydantic import BaseModel, Field
+import ast
+from pydantic import BaseModel, Field, field_validator
 
 
-@dataclass
-class TaskEvent:
+class TaskEvent(BaseModel):
     """Represents a Celery task event"""
     task_id: str
     task_name: str
-    event_type: str  # 'task-sent', 'task-received', 'task-started', 'task-succeeded', 'task-failed', 'task-retried', 'task-revoked'
+    event_type: str
     timestamp: datetime
-    args: str = "()"
-    kwargs: str = "{}"
+    args: list = Field(default_factory=list)
+    kwargs: dict = Field(default_factory=dict)
     retries: int = 0
     eta: Optional[str] = None
     expires: Optional[str] = None
     hostname: Optional[str] = None
     worker_name: Optional[str] = None
     queue: Optional[str] = None
-    exchange: str = ""
-    routing_key: str = ""
-    root_id: Optional[str] = None
-    parent_id: Optional[str] = None
-    result: Optional[Any] = None
-    runtime: Optional[float] = None
-    exception: Optional[str] = None
-    traceback: Optional[str] = None
-    retry_of: Optional['TaskEvent'] = None  # Parent task object (1 level up only, no grandparents)
-    retried_by: List['TaskEvent'] = field(default_factory=list)  # Child retry tasks (1 level down only, no grandchildren)
-    is_retry: bool = False
-    has_retries: bool = False
-    retry_count: int = 0
-    is_orphan: bool = False
-    orphaned_at: Optional[datetime] = None
-
-    def to_dict(self) -> dict:
-        """Convert to dictionary for JSON serialization with nested task objects"""
-        data = asdict(self)
-
-        # Helper to ensure UTC timezone in ISO format
-        def ensure_utc_iso(dt):
-            if dt is None:
-                return None
-            if isinstance(dt, datetime):
-                # If naive, treat as UTC
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=timezone.utc)
-                return dt.isoformat()
-            return dt
-
-        # Ensure routing_key is never None (TaskEventResponse expects a string)
-        if data.get('routing_key') is None:
-            data['routing_key'] = 'default'
-
-        # Ensure queue is never None
-        if data.get('queue') is None:
-            data['queue'] = None  # Keep as None, TaskEventResponse allows Optional[str]
-
-        # Convert datetime to ISO format string with timezone
-        data['timestamp'] = ensure_utc_iso(data['timestamp'])
-        data['orphaned_at'] = ensure_utc_iso(data.get('orphaned_at'))
-
-        # Parse args/kwargs from JSON strings back to Python objects
-        # This ensures WebSocket clients receive proper JSON objects, not stringified JSON
-        if isinstance(data.get('args'), str):
-            try:
-                data['args'] = json.loads(data['args'])
-            except (json.JSONDecodeError, ValueError):
-                data['args'] = []  # Default to empty list if parsing fails
-
-        if isinstance(data.get('kwargs'), str):
-            try:
-                data['kwargs'] = json.loads(data['kwargs'])
-            except (json.JSONDecodeError, ValueError):
-                data['kwargs'] = {}  # Default to empty dict if parsing fails
-
-        if data.get('retry_of') and isinstance(data['retry_of'], dict):
-            data['retry_of']['timestamp'] = ensure_utc_iso(data['retry_of'].get('timestamp'))
-            data['retry_of']['orphaned_at'] = ensure_utc_iso(data['retry_of'].get('orphaned_at'))
-
-            # Ensure routing_key is never None for nested objects
-            if data['retry_of'].get('routing_key') is None:
-                data['retry_of']['routing_key'] = 'default'
-
-            # Parse nested retry_of args/kwargs too
-            if isinstance(data['retry_of'].get('args'), str):
-                try:
-                    data['retry_of']['args'] = json.loads(data['retry_of']['args'])
-                except (json.JSONDecodeError, ValueError):
-                    data['retry_of']['args'] = []
-            if isinstance(data['retry_of'].get('kwargs'), str):
-                try:
-                    data['retry_of']['kwargs'] = json.loads(data['retry_of']['kwargs'])
-                except (json.JSONDecodeError, ValueError):
-                    data['retry_of']['kwargs'] = {}
-
-        if data.get('retried_by'):
-            for retry_task in data['retried_by']:
-                if isinstance(retry_task, dict):
-                    retry_task['timestamp'] = ensure_utc_iso(retry_task.get('timestamp'))
-                    retry_task['orphaned_at'] = ensure_utc_iso(retry_task.get('orphaned_at'))
-
-                    # Ensure routing_key is never None for nested objects
-                    if retry_task.get('routing_key') is None:
-                        retry_task['routing_key'] = 'default'
-
-                    # Parse nested retried_by args/kwargs too
-                    if isinstance(retry_task.get('args'), str):
-                        try:
-                            retry_task['args'] = json.loads(retry_task['args'])
-                        except (json.JSONDecodeError, ValueError):
-                            retry_task['args'] = []
-                    if isinstance(retry_task.get('kwargs'), str):
-                        try:
-                            retry_task['kwargs'] = json.loads(retry_task['kwargs'])
-                        except (json.JSONDecodeError, ValueError):
-                            retry_task['kwargs'] = {}
-
-        return data
-    
-    def to_json(self) -> str:
-        """Convert to JSON string"""
-        return json.dumps(self.to_dict())
-    
-    @classmethod
-    def from_celery_event(cls, event: dict, task_name: Optional[str] = None) -> 'TaskEvent':
-        """Create TaskEvent from Celery event data.
-
-        NOTE: We use the current server time (UTC) instead of the timestamp from the Celery event
-        because worker clocks may be misconfigured or out of sync. The receive time is more reliable
-        for monitoring purposes.
-
-        NOTE: Only task-sent events contain routing information (queue, exchange, routing_key).
-        All other event types will have these fields as None/empty. Use a JOIN query to get
-        routing info from the task-sent event when querying other event types.
-        """
-        import logging
-        logger = logging.getLogger(__name__)
-
-        # Extract event type from the event
-        event_type = event.get('type', 'unknown')
-
-        # Get task info
-        task_id = event.get('uuid', '')
-
-        # Handle different event types
-        # Celery sends args/kwargs as STRING representations of Python objects
-        # e.g., "({'key': 'value'},)" for args, "{'key': 'value'}" for kwargs
-        # We need to: 1) Parse string to Python object, 2) Convert to JSON
-        import ast
-
-        kwargs_data = event.get('kwargs', {})
-        args_data = event.get('args', ())
-
-        # Parse and convert kwargs
-        try:
-            # If it's a string, parse it as Python literal
-            if isinstance(kwargs_data, str):
-                kwargs_obj = ast.literal_eval(kwargs_data) if kwargs_data and kwargs_data != '{}' else {}
-            else:
-                kwargs_obj = kwargs_data
-            kwargs_str = json.dumps(kwargs_obj)
-        except (ValueError, SyntaxError, TypeError):
-            # If parsing fails, keep as-is
-            kwargs_str = kwargs_data if isinstance(kwargs_data, str) else str(kwargs_data)
-
-        # Parse and convert args
-        try:
-            # If it's a string, parse it as Python literal
-            if isinstance(args_data, str):
-                args_obj = ast.literal_eval(args_data) if args_data and args_data != '()' else []
-            else:
-                args_obj = args_data
-
-            # Convert tuple to list for JSON serialization
-            if isinstance(args_obj, tuple):
-                args_obj = list(args_obj)
-            args_str = json.dumps(args_obj)
-        except (ValueError, SyntaxError, TypeError):
-            # If parsing fails, keep as-is
-            args_str = args_data if isinstance(args_data, str) else str(args_data)
-            
-
-        return cls(
-            task_id=task_id,
-            task_name=task_name or event.get('name', 'unknown'),
-            event_type=event_type,
-            # Use server receive time instead of worker's timestamp to avoid clock skew issues
-            timestamp=datetime.now(timezone.utc),
-            args=args_str,
-            kwargs=kwargs_str,
-            retries=event.get('retries', 0),
-            eta=event.get('eta'),
-            expires=event.get('expires'),
-            hostname=event.get('hostname'),
-            # Routing info: only present in task-sent events, None/empty for others
-            queue=event.get('queue'),
-            exchange=event.get('exchange') or '',
-            routing_key=event.get('routing_key') or '',
-            root_id=event.get('root_id', task_id),
-            parent_id=event.get('parent_id'),
-            result=event.get('result'),
-            runtime=event.get('runtime'),
-            exception=event.get('exception'),
-            traceback=event.get('traceback')
-        )
-
-
-@dataclass 
-class TaskInfo:
-    """Extended task information from Celery state tracking"""
-    uuid: str
-    name: str
-    args: str
-    kwargs: str
-    retries: int
-    result: Optional[Any]
-    runtime: Optional[float]
-    exchange: str
-    routing_key: str
-    root_id: str
-    
-    @classmethod
-    def from_celery_task(cls, task) -> 'TaskInfo':
-        """Create TaskInfo from Celery task state object"""
-        import ast
-        info = task.info() if hasattr(task, 'info') else {}
-
-        # Parse and convert args (same logic as TaskEvent)
-        args_data = info.get('args', ())
-        try:
-            if isinstance(args_data, str):
-                args_obj = ast.literal_eval(args_data) if args_data and args_data != '()' else []
-            else:
-                args_obj = args_data
-
-            if isinstance(args_obj, tuple):
-                args_obj = list(args_obj)
-            args_str = json.dumps(args_obj)
-        except (ValueError, SyntaxError, TypeError):
-            args_str = args_data if isinstance(args_data, str) else str(args_data)
-
-        # Parse and convert kwargs (same logic as TaskEvent)
-        kwargs_data = info.get('kwargs', {})
-        try:
-            if isinstance(kwargs_data, str):
-                kwargs_obj = ast.literal_eval(kwargs_data) if kwargs_data and kwargs_data != '{}' else {}
-            else:
-                kwargs_obj = kwargs_data
-            kwargs_str = json.dumps(kwargs_obj)
-        except (ValueError, SyntaxError, TypeError):
-            kwargs_str = kwargs_data if isinstance(kwargs_data, str) else str(kwargs_data)
-
-        return cls(
-            uuid=task.uuid if hasattr(task, 'uuid') else '',
-            name=task.name if hasattr(task, 'name') else 'unknown',
-            args=args_str,
-            kwargs=kwargs_str,
-            retries=info.get('retries', 0),
-            result=str(info.get('result', '')),
-            runtime=info.get('runtime'),
-            exchange=info.get('exchange', ''),
-            routing_key=info.get('routing_key', ''),
-            root_id=info.get('root_id', task.uuid if hasattr(task, 'uuid') else '')
-        )
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary"""
-        return asdict(self)
-
-
-# Pydantic models for FastAPI
-class TaskEventResponse(BaseModel):
-    """Pydantic model for API responses with nested retry relationships"""
-    task_id: str
-    task_name: str
-    event_type: str
-    timestamp: datetime
-    args: Any = []  # Can be list, dict, or any JSON-serializable type
-    kwargs: Dict[str, Any] = Field(default_factory=dict)
-    retries: int = 0
-    eta: Optional[str] = None
-    expires: Optional[str] = None
-    hostname: Optional[str] = None
     exchange: str = ""
     routing_key: str = "default"
     root_id: Optional[str] = None
@@ -294,33 +27,93 @@ class TaskEventResponse(BaseModel):
     runtime: Optional[float] = None
     exception: Optional[str] = None
     traceback: Optional[str] = None
-    retry_of: Optional['TaskEventResponse'] = None  # Nested parent task object
-    retried_by: List['TaskEventResponse'] = Field(default_factory=list)  # Nested retry task objects
+    retry_of: Optional['TaskEvent'] = None
+    retried_by: List['TaskEvent'] = Field(default_factory=list)
     is_retry: bool = False
     has_retries: bool = False
     retry_count: int = 0
     is_orphan: bool = False
     orphaned_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
-        json_encoders = {
-            datetime: lambda v: v.replace(tzinfo=timezone.utc).isoformat() if v and v.tzinfo is None else (v.isoformat() if v else None)
+    model_config = {
+        'from_attributes': True,
+        'json_encoders': {
+            datetime: lambda v: v.isoformat() if v else None
         }
+    }
 
     @classmethod
-    def from_task_event(cls, task_event: TaskEvent) -> 'TaskEventResponse':
-        """Create from TaskEvent dataclass"""
-        return cls(**task_event.to_dict())
+    def from_celery_event(cls, event: dict, task_name: Optional[str] = None) -> 'TaskEvent':
+        return cls(
+            task_id=event.get('uuid', ''),
+            task_name=task_name or event.get('name', 'unknown'),
+            event_type=event.get('type', 'unknown'),
+            timestamp=datetime.now(timezone.utc),
+            args=event.get('args'),
+            kwargs=event.get('kwargs'),
+            retries=event.get('retries', 0),
+            eta=event.get('eta'),
+            expires=event.get('expires'),
+            hostname=event.get('hostname'),
+            queue=event.get('queue'),
+            exchange=event.get('exchange') or '',
+            routing_key=event.get('routing_key') or 'default',
+            root_id=event.get('root_id', event.get('uuid', '')),
+            parent_id=event.get('parent_id'),
+            result=event.get('result'),
+            runtime=event.get('runtime'),
+            exception=event.get('exception'),
+            traceback=event.get('traceback'),
+        )
+
+    @field_validator('args', mode='before')
+    @classmethod
+    def validate_args(cls, v):
+        if v is None:
+            return []
+        if isinstance(v, list):
+            return v
+        if isinstance(v, tuple):
+            return list(v)
+        if isinstance(v, str):
+            try:
+                parsed = ast.literal_eval(v) if v and v != '()' else []
+                return list(parsed) if isinstance(parsed, tuple) else (parsed if isinstance(parsed, list) else [])
+            except:
+                return []
+        return []
+
+    @field_validator('kwargs', mode='before')
+    @classmethod
+    def validate_kwargs(cls, v):
+        if v is None:
+            return {}
+        if isinstance(v, dict):
+            return v
+        if isinstance(v, str):
+            try:
+                return ast.literal_eval(v) if v and v != '{}' else {}
+            except:
+                return {}
+        return {}
+
+    @field_validator('timestamp', 'orphaned_at', mode='before')
+    @classmethod
+    def validate_datetime(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, datetime):
+            return v if v.tzinfo else v.replace(tzinfo=timezone.utc)
+        return v
 
 
-TaskEventResponse.model_rebuild()
+TaskEvent.model_rebuild()
 
 
 class WorkerInfo(BaseModel):
     """Worker information model"""
     hostname: str
-    status: str  # 'online', 'offline', 'heartbeat'
+    status: str
     timestamp: datetime
     active_tasks: int = 0
     processed_tasks: int = 0
@@ -340,7 +133,7 @@ class WorkerInfo(BaseModel):
 class WorkerEvent(BaseModel):
     """Worker event model"""
     hostname: str
-    event_type: str  # 'worker-online', 'worker-offline', 'worker-heartbeat'
+    event_type: str
     timestamp: datetime
     active: Optional[int] = None
     processed: Optional[int] = None
@@ -356,7 +149,7 @@ class WorkerEvent(BaseModel):
         json_encoders = {
             datetime: lambda v: v.replace(tzinfo=timezone.utc).isoformat() if v.tzinfo is None else v.isoformat()
         }
-    
+
     @classmethod
     def from_celery_event(cls, event: dict) -> 'WorkerEvent':
         """Create WorkerEvent from Celery worker event"""
@@ -383,12 +176,6 @@ class ConnectionInfo(BaseModel):
     timestamp: datetime
     message: str
     total_connections: int = 0
-
-
-class SubscriptionRequest(BaseModel):
-    """WebSocket subscription request"""
-    event_types: Optional[List[str]] = None
-    task_names: Optional[List[str]] = None
 
 
 class SubscriptionResponse(BaseModel):
@@ -570,7 +357,6 @@ class TaskTimelineResponse(BaseModel):
         }
 
 
-# WebSocket Message Models
 class PingMessage(BaseModel):
     """WebSocket ping message"""
     type: Literal["ping"] = "ping"
@@ -615,35 +401,13 @@ class StoredEventsResponse(BaseModel):
     timestamp: datetime
 
 
-# Union type for all incoming WebSocket messages
-WebSocketMessage = Union[
-    PingMessage,
-    SubscribeMessage,
-    SetModeMessage,
-    GetStoredMessage
-]
-
-# Union type for all outgoing WebSocket responses
-WebSocketResponse = Union[
-    PongResponse,
-    SubscriptionResponse,
-    ModeChangedResponse,
-    StoredEventsResponse,
-    ConnectionInfo,
-    TaskEventResponse
-]
-
-
-# ==================== Workflow Models ====================
-
-
 class ConditionOperator(str, Enum):
     """Supported condition operators."""
     EQUALS = "equals"
     NOT_EQUALS = "not_equals"
     IN = "in"
     NOT_IN = "not_in"
-    MATCHES = "matches"  # Regex
+    MATCHES = "matches"
     GREATER_THAN = "gt"
     LESS_THAN = "lt"
     GREATER_EQUAL = "gte"
@@ -655,15 +419,15 @@ class ConditionOperator(str, Enum):
 
 class TriggerConfig(BaseModel):
     """Base trigger configuration."""
-    type: str  # e.g., "task.failed", "task.orphaned"
+    type: str
     config: Dict[str, Any] = Field(default_factory=dict)
 
 
 class Condition(BaseModel):
     """Single condition for workflow filtering."""
-    field: str  # e.g., "task_name", "queue", "retry_count"
+    field: str
     operator: ConditionOperator
-    value: Any  # String, int, float, list, etc.
+    value: Any
 
 
 class ConditionGroup(BaseModel):
@@ -674,10 +438,10 @@ class ConditionGroup(BaseModel):
 
 class ActionConfig(BaseModel):
     """Configuration for a single action."""
-    type: str  # e.g., "slack.notify", "task.retry"
-    config_id: Optional[str] = None  # Reference to action_configs table
+    type: str
+    config_id: Optional[str] = None
     params: Dict[str, Any] = Field(default_factory=dict)
-    continue_on_failure: bool = True  # Continue to next action if this fails
+    continue_on_failure: bool = True
 
 
 class ActionResult(BaseModel):
@@ -691,7 +455,7 @@ class ActionResult(BaseModel):
 
 class WorkflowDefinition(BaseModel):
     """Complete workflow definition."""
-    id: Optional[str] = None  # UUID, generated on creation
+    id: Optional[str] = None
     name: str
     description: Optional[str] = None
     enabled: bool = True

@@ -25,7 +25,6 @@ class EnvironmentService:
         """Create a new environment."""
         env_id = str(uuid.uuid4())
 
-        # If this is marked as default, unset any existing default
         if env_create.is_default:
             self._unset_all_defaults()
 
@@ -36,7 +35,7 @@ class EnvironmentService:
             queue_patterns=env_create.queue_patterns,
             worker_patterns=env_create.worker_patterns,
             is_default=env_create.is_default,
-            is_active=False,
+            is_active=False,  # Deprecated: kept for database compatibility only
         )
 
         self.session.add(env_db)
@@ -50,7 +49,6 @@ class EnvironmentService:
         """List all environments."""
         envs = self.session.query(EnvironmentDB).order_by(
             desc(EnvironmentDB.is_default),
-            desc(EnvironmentDB.is_active),
             EnvironmentDB.name
         ).all()
         return [EnvironmentResponse.model_validate(env) for env in envs]
@@ -62,24 +60,15 @@ class EnvironmentService:
             return EnvironmentResponse.model_validate(env)
         return None
 
-    def get_active_environment(self) -> Optional[EnvironmentResponse]:
-        """Get the currently active environment."""
-        env = self.session.query(EnvironmentDB).filter(EnvironmentDB.is_active == True).first()
-        if env:
-            return EnvironmentResponse.model_validate(env)
-        return None
-
     def update_environment(self, env_id: str, env_update: EnvironmentUpdate) -> Optional[EnvironmentResponse]:
         """Update an environment."""
         env = self.session.query(EnvironmentDB).filter(EnvironmentDB.id == env_id).first()
         if not env:
             return None
 
-        # If setting as default, unset any existing default
         if env_update.is_default is True:
             self._unset_all_defaults()
 
-        # Update fields
         if env_update.name is not None:
             env.name = env_update.name
         if env_update.description is not None:
@@ -105,40 +94,11 @@ class EnvironmentService:
         if not env:
             return False
 
-        # Cannot delete active environment
-        if env.is_active:
-            logger.warning(f"Cannot delete active environment: {env.name}")
-            return False
-
         self.session.delete(env)
         self.session.commit()
 
         logger.info(f"Deleted environment: {env.name}")
         return True
-
-    def activate_environment(self, env_id: str) -> Optional[EnvironmentResponse]:
-        """Activate an environment (deactivates all others)."""
-        # Deactivate all environments
-        self.session.query(EnvironmentDB).update({EnvironmentDB.is_active: False})
-
-        # Activate the specified environment
-        env = self.session.query(EnvironmentDB).filter(EnvironmentDB.id == env_id).first()
-        if not env:
-            self.session.commit()
-            return None
-
-        env.is_active = True
-        self.session.commit()
-        self.session.refresh(env)
-
-        logger.info(f"Activated environment: {env.name}")
-        return EnvironmentResponse.model_validate(env)
-
-    def deactivate_all_environments(self) -> None:
-        """Deactivate all environments (show all data)."""
-        self.session.query(EnvironmentDB).update({EnvironmentDB.is_active: False})
-        self.session.commit()
-        logger.info("Deactivated all environments")
 
     def _unset_all_defaults(self):
         """Unset default flag on all environments."""
@@ -171,30 +131,23 @@ class EnvironmentService:
         env: Optional[EnvironmentResponse] = None
     ) -> bool:
         """
-        Check if an event should be included based on active environment filters.
+        Check if an event should be included based on environment filters.
 
         Args:
             queue_name: The queue name from the task event
             worker_hostname: The worker hostname from the task event
-            env: Optional environment to check against (uses active if not provided)
+            env: Environment to check against (must be provided)
 
         Returns:
             True if the event should be included, False if it should be filtered out
         """
-        # Get active environment if not provided
-        if env is None:
-            env = self.get_active_environment()
-
-        # No active environment = show all events
         if not env:
             return True
 
-        # Check queue patterns if queue name is provided
         if queue_name and env.queue_patterns:
             if not self.matches_patterns(queue_name, env.queue_patterns):
                 return False
 
-        # Check worker patterns if hostname is provided
         if worker_hostname and env.worker_patterns:
             if not self.matches_patterns(worker_hostname, env.worker_patterns):
                 return False

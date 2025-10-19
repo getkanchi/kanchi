@@ -46,16 +46,6 @@ def create_router(app_state) -> APIRouter:
             logger.error(f"Error listing environments: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e))
 
-    @router.get("/active", response_model=Optional[EnvironmentResponse])
-    async def get_active_environment(session: Session = Depends(get_db)):
-        """Get the currently active environment."""
-        try:
-            service = EnvironmentService(session)
-            return service.get_active_environment()
-        except Exception as e:
-            logger.error(f"Error getting active environment: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e))
-
     @router.get("/{env_id}", response_model=EnvironmentResponse)
     async def get_environment(env_id: str, session: Session = Depends(get_db)):
         """Get environment by ID."""
@@ -98,37 +88,12 @@ def create_router(app_state) -> APIRouter:
             if not service.delete_environment(env_id):
                 raise HTTPException(
                     status_code=400,
-                    detail="Cannot delete environment (not found or is active)"
+                    detail="Cannot delete environment (not found)"
                 )
         except HTTPException:
             raise
         except Exception as e:
             logger.error(f"Error deleting environment: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e))
-
-    @router.post("/{env_id}/activate", response_model=EnvironmentResponse)
-    async def activate_environment(env_id: str, session: Session = Depends(get_db)):
-        """Activate an environment (deactivates all others)."""
-        try:
-            service = EnvironmentService(session)
-            env = service.activate_environment(env_id)
-            if not env:
-                raise HTTPException(status_code=404, detail="Environment not found")
-            return env
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"Error activating environment: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e))
-
-    @router.post("/deactivate-all", status_code=204)
-    async def deactivate_all_environments(session: Session = Depends(get_db)):
-        """Deactivate all environments (show all data)."""
-        try:
-            service = EnvironmentService(session)
-            service.deactivate_all_environments()
-        except Exception as e:
-            logger.error(f"Error deactivating all environments: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e))
 
     return router

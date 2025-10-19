@@ -1,13 +1,14 @@
 # Kanchi
 
-Real-time Celery task monitoring system with WebSocket support.
+Kanchi is a real-time Celery task monitoring (and management) system with an enjoyable user interface. It provides insights into task execution, worker health, and task statistics.
 
 ## Features
 
 - Real-time task monitoring via WebSocket
+- Task filtering and searching (date range, status, name, worker, full-text)
 - Task retry tracking and orphan detection
+- Daily task statistics and history
 - Worker health monitoring
-- SQLite (development) and PostgreSQL (production) support
 - Auto-migrations with Alembic
 
 ## Quick Start with Docker
@@ -32,21 +33,10 @@ RABBITMQ_URL=amqp://guest:guest@localhost:5672//
 ### Optional
 
 ```bash
-DATABASE_URL=sqlite:///kanchi.db           # or postgresql://user:pass@host/db
+DATABASE_URL=<postgresql://user:pass@localhost:5432/kanchi>  # Default: SQLite
 WS_HOST=localhost
 WS_PORT=8765
 LOG_LEVEL=INFO
-```
-
-### Database Options
-
-**SQLite (default)** - No setup required
-
-**PostgreSQL (production)**
-```bash
-cd agent
-poetry install -E postgresql
-export DATABASE_URL=postgresql://user:pass@localhost:5432/kanchi
 ```
 
 Migrations run automatically on startup.
@@ -70,6 +60,11 @@ cd ../frontend && npm install
 ### Run
 
 ```bash
+# Use our makefile:
+make dev
+
+# Or manually:
+
 # Terminal 1: Backend
 cd agent && poetry run python app.py
 
@@ -106,4 +101,4 @@ npx swagger-typescript-api generate -p http://localhost:8765/openapi.json -o app
 
 ## License
 
-[License Type]
+Copyright 2025 Kanchi Project. Licensed for non-commercial use only. This license will automatically convert to Apache License 2.0 after 2 years from first public release. See LICENSE.txt for full details.

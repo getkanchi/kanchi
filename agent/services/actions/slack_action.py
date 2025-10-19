@@ -20,7 +20,6 @@ class SlackActionHandler(ActionHandler):
         start_time = datetime.now()
 
         try:
-            # Validate parameters
             is_valid, error = self.validate_params(params)
             if not is_valid:
                 return ActionResult(
@@ -30,7 +29,6 @@ class SlackActionHandler(ActionHandler):
                     duration_ms=0
                 )
 
-            # Get webhook URL from config
             config_service = ActionConfigService(self.session)
             config = config_service.get_config_by_name(params["config_id"])
 
@@ -51,10 +49,8 @@ class SlackActionHandler(ActionHandler):
                     duration_ms=0
                 )
 
-            # Render message template
             message = self.render_template(params.get("template", ""), context)
 
-            # Build Slack message payload
             payload = self._build_slack_payload(
                 message=message,
                 channel=params.get("channel"),
@@ -65,7 +61,6 @@ class SlackActionHandler(ActionHandler):
                 context=context if params.get("include_context", True) else None
             )
 
-            # Send to Slack
             async with aiohttp.ClientSession() as session:
                 async with session.post(webhook_url, json=payload) as response:
                     if response.status != 200:
@@ -77,7 +72,6 @@ class SlackActionHandler(ActionHandler):
                             duration_ms=int((datetime.now() - start_time).total_seconds() * 1000)
                         )
 
-            # Update usage stats
             config_service.increment_usage(config.id)
 
             duration = int((datetime.now() - start_time).total_seconds() * 1000)
@@ -132,7 +126,6 @@ class SlackActionHandler(ActionHandler):
         if channel:
             payload["channel"] = channel
 
-        # Build attachment with rich formatting
         attachment = {
             "color": color,
             "text": message,
@@ -141,11 +134,9 @@ class SlackActionHandler(ActionHandler):
             "ts": int(datetime.now().timestamp())
         }
 
-        # Add context fields if requested
         if include_context and context:
             fields = []
 
-            # Add task-specific fields
             if "task_id" in context:
                 fields.append({
                     "title": "Task ID",

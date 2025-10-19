@@ -27,14 +27,12 @@ export const useEntityInput = () => {
 
     for (const word of words) {
       if (isUUID(word)) {
-        // Create UUID entity
         entities.push({
           id: crypto.randomUUID(),
           type: 'uuid',
           display: word,
         })
       } else {
-        // Try to parse as filter
         const filter = parseFilter(word)
         if (filter) {
           entities.push({
@@ -68,7 +66,6 @@ export const useEntityInput = () => {
     const textBeforeCursor = text.substring(0, cursorPos)
     const textAfterCursor = text.substring(cursorPos)
 
-    // Check if we're at the start or end of an entity
     for (const entity of entities) {
       const entityIndex = text.indexOf(entity.display)
       if (entityIndex === -1) continue

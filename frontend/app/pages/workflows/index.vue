@@ -238,25 +238,21 @@ import type { WorkflowDefinition } from '~/types/workflow'
 
 const workflowStore = useWorkflowsStore()
 
-// State
 const searchQuery = ref('')
 const filterEnabled = ref('all')
 const toggling = ref(new Set<string>())
 const deleting = ref(new Set<string>())
 const workflowToDelete = ref<WorkflowDefinition | null>(null)
 
-// Computed
 const filteredWorkflows = computed(() => {
   let result = workflowStore.workflows
 
-  // Filter by enabled status
   if (filterEnabled.value === 'enabled') {
     result = result.filter(w => w.enabled)
   } else if (filterEnabled.value === 'disabled') {
     result = result.filter(w => !w.enabled)
   }
 
-  // Filter by search query
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
     result = result.filter(w =>
@@ -285,7 +281,6 @@ const averageSuccessRate = computed(() => {
   return Math.round((totalRate / workflows.length) * 100)
 })
 
-// Actions
 async function toggleWorkflow(workflow: WorkflowDefinition) {
   if (!workflow.id) return
 

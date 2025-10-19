@@ -1,7 +1,3 @@
-/**
- * Pinia store for anonymous session management
- * Handles persistent user identity without authentication
- */
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { v4 as uuidv4 } from '@lukeed/uuid'
@@ -10,17 +6,12 @@ import { useApiService, type UserSessionResponse } from '~/services/apiClient'
 export const useSessionStore = defineStore('session', () => {
   const apiService = useApiService()
 
-  // State
   const sessionId = ref<string | null>(null)
   const session = ref<UserSessionResponse | null>(null)
   const isInitialized = ref(false)
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  /**
-   * Initialize session - call this once on app mount
-   * Reads session_id from localStorage or creates new one
-   */
   async function initialize() {
     if (isInitialized.value) {
       return
@@ -30,19 +21,15 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
 
     try {
-      // Try to get session_id from localStorage
       let storedSessionId = localStorage.getItem('kanchi_session_id')
 
       if (!storedSessionId) {
-        // Generate new session_id
         storedSessionId = uuidv4()
         localStorage.setItem('kanchi_session_id', storedSessionId)
       }
 
       sessionId.value = storedSessionId
 
-      // Initialize session with backend
-      // Backend will either load existing session or create new one
       session.value = await apiService.initializeSession(storedSessionId)
       isInitialized.value = true
 
@@ -56,9 +43,6 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  /**
-   * Update session preferences
-   */
   async function updatePreferences(preferences: Record<string, any>) {
     if (!sessionId.value) {
       throw new Error('Session not initialized')
@@ -78,9 +62,6 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  /**
-   * Set active environment for this session
-   */
   async function setActiveEnvironment(environmentId: string | null) {
     if (!sessionId.value) {
       throw new Error('Session not initialized')
@@ -104,9 +85,6 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  /**
-   * Get current session info
-   */
   async function refresh() {
     if (!sessionId.value) {
       throw new Error('Session not initialized')
@@ -126,10 +104,6 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  /**
-   * Reset session - generates new session_id
-   * Use this if you want to "log out" or start fresh
-   */
   function reset() {
     localStorage.removeItem('kanchi_session_id')
     sessionId.value = null
@@ -139,14 +113,12 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   return {
-    // State
     sessionId,
     session,
     isInitialized,
     loading,
     error,
 
-    // Actions
     initialize,
     updatePreferences,
     setActiveEnvironment,

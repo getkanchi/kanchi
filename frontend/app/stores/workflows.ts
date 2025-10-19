@@ -1,6 +1,3 @@
-/**
- * Pinia store for workflow management
- */
 import { defineStore } from 'pinia'
 import { ref, computed, readonly } from 'vue'
 import { useApiService } from '../services/apiClient'
@@ -17,7 +14,6 @@ import type {
 export const useWorkflowsStore = defineStore('workflows', () => {
   const apiService = useApiService()
 
-  // State
   const workflows = ref<WorkflowDefinition[]>([])
   const currentWorkflow = ref<WorkflowDefinition | null>(null)
   const executions = ref<WorkflowExecutionRecord[]>([])
@@ -26,7 +22,6 @@ export const useWorkflowsStore = defineStore('workflows', () => {
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
-  // Computed
   const enabledWorkflows = computed(() =>
     workflows.value.filter(w => w.enabled)
   )
@@ -45,7 +40,6 @@ export const useWorkflowsStore = defineStore('workflows', () => {
     return grouped
   })
 
-  // Workflow CRUD Actions
   async function fetchWorkflows(params?: {
     enabled_only?: boolean
     trigger_type?: string
@@ -97,13 +91,11 @@ export const useWorkflowsStore = defineStore('workflows', () => {
       error.value = null
       const updated = await apiService.updateWorkflow(workflowId, data)
 
-      // Update in list
       const index = workflows.value.findIndex(w => w.id === workflowId)
       if (index !== -1) {
         workflows.value[index] = updated
       }
 
-      // Update current workflow if it's the one being updated
       if (currentWorkflow.value?.id === workflowId) {
         currentWorkflow.value = updated
       }
@@ -123,10 +115,8 @@ export const useWorkflowsStore = defineStore('workflows', () => {
       error.value = null
       await apiService.deleteWorkflow(workflowId)
 
-      // Remove from list
       workflows.value = workflows.value.filter(w => w.id !== workflowId)
 
-      // Clear current workflow if it's the one being deleted
       if (currentWorkflow.value?.id === workflowId) {
         currentWorkflow.value = null
       }
@@ -145,7 +135,6 @@ export const useWorkflowsStore = defineStore('workflows', () => {
     return updateWorkflow(workflowId, { enabled: !workflow.enabled })
   }
 
-  // Execution Actions
   async function fetchWorkflowExecutions(workflowId: string, params?: {
     limit?: number
     offset?: number
@@ -188,7 +177,6 @@ export const useWorkflowsStore = defineStore('workflows', () => {
     }
   }
 
-  // Action Config Actions
   async function fetchActionConfigs(params?: { action_type?: string }) {
     try {
       isLoading.value = true
@@ -251,7 +239,6 @@ export const useWorkflowsStore = defineStore('workflows', () => {
     }
   }
 
-  // Helper Actions
   function clearError() {
     error.value = null
   }
@@ -261,7 +248,6 @@ export const useWorkflowsStore = defineStore('workflows', () => {
   }
 
   return {
-    // State
     workflows: readonly(workflows),
     currentWorkflow: readonly(currentWorkflow),
     executions: readonly(executions),
@@ -269,12 +255,10 @@ export const useWorkflowsStore = defineStore('workflows', () => {
     isLoading: readonly(isLoading),
     error: readonly(error),
 
-    // Computed
     enabledWorkflows,
     activeWorkflowsCount,
     workflowsByTrigger,
 
-    // Actions
     fetchWorkflows,
     fetchWorkflow,
     createWorkflow,

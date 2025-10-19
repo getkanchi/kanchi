@@ -200,7 +200,6 @@ const saving = ref(false)
 // Local workflow state (editable)
 const workflow = ref<WorkflowUpdateRequest | null>(null)
 
-// Computed
 const canSave = computed(() => {
   return workflow.value &&
          workflow.value.name &&
@@ -211,7 +210,6 @@ const canSave = computed(() => {
          workflow.value.actions.length > 0
 })
 
-// Actions
 async function saveWorkflow() {
   if (!canSave.value || !workflow.value) return
 
@@ -234,7 +232,6 @@ function cancel() {
 onMounted(async () => {
   const loaded = await workflowStore.fetchWorkflow(route.params.id as string)
   if (loaded) {
-    // Create editable copy
     workflow.value = {
       name: loaded.name,
       description: loaded.description,

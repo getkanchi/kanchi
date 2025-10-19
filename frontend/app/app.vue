@@ -4,7 +4,6 @@ import { useSessionStore } from '~/stores/session'
 
 const sessionStore = useSessionStore()
 
-// Initialize session on app mount
 onMounted(async () => {
   try {
     await sessionStore.initialize()

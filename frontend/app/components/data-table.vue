@@ -123,7 +123,6 @@ const handleRetryCancel = () => {
   currentRetryTaskId.value = null
 }
 
-// Helper to map TaskEventResponse to RetryChain format with status
 const mapTaskToRetryChainFormat = (task: any) => {
   if (!task) return null
 

@@ -108,7 +108,6 @@ const computedCurrentStatus = computed(() => {
   return props.currentTask.status
 })
 
-// Get appropriate label for current task
 const getCurrentTaskLabel = () => {
   const task = props.currentTask
 
