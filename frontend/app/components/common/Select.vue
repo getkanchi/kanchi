@@ -1,6 +1,7 @@
 <template>
   <select
-    :value="modelValue"
+    ref="selectRef"
+    :value="normalizedValue"
     @change="handleChange"
     :disabled="disabled"
     :class="cn(selectVariants({ variant, size }), props.class)"
@@ -38,7 +39,7 @@ export type SelectVariants = VariantProps<typeof selectVariants>
 </script>
 
 <script setup lang="ts">
-import type { HTMLAttributes } from "vue"
+import { computed, onMounted, ref, watch, type HTMLAttributes } from "vue"
 import { cn } from "@/lib/utils"
 
 const props = defineProps<{
@@ -53,8 +54,35 @@ const emit = defineEmits<{
   'update:modelValue': [value: string | number]
 }>()
 
+const selectRef = ref<HTMLSelectElement | null>(null)
+
+const normalizedValue = computed(() => {
+  if (props.modelValue === undefined || props.modelValue === null) {
+    return ""
+  }
+  return String(props.modelValue)
+})
+
 function handleChange(event: Event) {
   const target = event.target as HTMLSelectElement
   emit('update:modelValue', target.value)
 }
+
+function syncSelectValue() {
+  const target = selectRef.value
+  if (!target) return
+
+  const value = normalizedValue.value
+  if (target.value !== value) {
+    target.value = value
+  }
+}
+
+onMounted(() => {
+  syncSelectValue()
+})
+
+watch(normalizedValue, () => {
+  syncSelectValue()
+})
 </script>
