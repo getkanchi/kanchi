@@ -177,6 +177,23 @@ def create_router(app_state) -> APIRouter:
 
         return unretried_orphaned
 
+    @router.get("/tasks/failed/recent", response_model=List[TaskEvent])
+    async def get_recent_failed_tasks(
+        hours: int = 24,
+        limit: int = 50,
+        include_retried: bool = False,
+        session: Session = Depends(get_db),
+        active_env = Depends(get_active_env)
+    ):
+        """Get failed tasks within the last ``hours`` window."""
+        task_service = TaskService(session, active_env=active_env)
+        failed_tasks = task_service.get_recent_failed_tasks(
+            hours=hours,
+            limit=limit,
+            exclude_retried=not include_retried
+        )
+        return failed_tasks
+
 
     @router.post("/tasks/{task_id}/retry")
     async def retry_task(task_id: str, session: Session = Depends(get_db)):

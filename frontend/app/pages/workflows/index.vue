@@ -18,49 +18,59 @@
     </div>
 
     <!-- Stats Cards -->
-    <div v-if="!workflowStore.isLoading" class="grid grid-cols-4 gap-4 mb-6">
-      <div class="bg-background-surface border border-border rounded-lg p-4">
-        <div class="text-2xl font-bold text-text-primary">
-          {{ workflowStore.activeWorkflowsCount }}
-        </div>
-        <div class="text-sm text-text-muted">Active</div>
-      </div>
-      <div class="bg-background-surface border border-border rounded-lg p-4">
-        <div class="text-2xl font-bold text-text-primary">
-          {{ workflowStore.workflows.length }}
-        </div>
-        <div class="text-sm text-text-muted">Total</div>
-      </div>
-      <div class="bg-background-surface border border-border rounded-lg p-4">
-        <div class="text-2xl font-bold text-text-primary">
-          {{ totalExecutionsToday }}
-        </div>
-        <div class="text-sm text-text-muted">Today</div>
-      </div>
-      <div class="bg-background-surface border border-border rounded-lg p-4">
-        <div class="text-2xl font-bold text-status-success">
-          {{ averageSuccessRate }}%
-        </div>
-        <div class="text-sm text-text-muted">Success Rate</div>
-      </div>
+    <div v-if="!workflowStore.isLoading" class="grid grid-cols-1 gap-4 mb-6 sm:grid-cols-2 xl:grid-cols-4">
+      <Card>
+        <CardHeader class="pb-2">
+          <CardTitle class="text-sm text-text-secondary">Active</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p class="text-2xl font-semibold text-text-primary">{{ workflowStore.activeWorkflowsCount }}</p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader class="pb-2">
+          <CardTitle class="text-sm text-text-secondary">Total Workflows</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p class="text-2xl font-semibold text-text-primary">{{ workflowStore.workflows.length }}</p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader class="pb-2">
+          <CardTitle class="text-sm text-text-secondary">Executions Today</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p class="text-2xl font-semibold text-text-primary">{{ totalExecutionsToday }}</p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader class="pb-2">
+          <CardTitle class="text-sm text-text-secondary">Success Rate</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p class="text-2xl font-semibold text-status-success">{{ averageSuccessRate }}%</p>
+        </CardContent>
+      </Card>
     </div>
 
     <!-- Filters -->
-    <div class="mb-4 flex items-center gap-3">
-      <div class="flex-1">
-        <Input
-          v-model="searchQuery"
-          type="text"
-          placeholder="Search workflows..."
-          class="w-full"
-        />
-      </div>
-      <Select v-model="filterEnabled" class="w-40">
-        <option value="all">All Workflows</option>
-        <option value="enabled">Enabled Only</option>
-        <option value="disabled">Disabled Only</option>
-      </Select>
-    </div>
+    <Card class="mb-4">
+      <CardContent class="flex flex-col gap-3 py-4 sm:flex-row sm:items-center">
+        <div class="flex-1">
+          <Input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Search workflows..."
+            class="w-full"
+          />
+        </div>
+        <Select v-model="filterEnabled" class="w-full sm:w-44">
+          <option value="all">All Workflows</option>
+          <option value="enabled">Enabled Only</option>
+          <option value="disabled">Disabled Only</option>
+        </Select>
+      </CardContent>
+    </Card>
 
     <!-- Loading State -->
     <div v-if="workflowStore.isLoading" class="space-y-3">
@@ -83,37 +93,29 @@
 
     <!-- Workflows List -->
     <div v-else class="space-y-3">
-      <div
+      <Card
         v-for="workflow in filteredWorkflows"
         :key="workflow.id"
-        class="bg-background-surface border border-border rounded-lg p-4 hover:border-border-highlight transition-colors cursor-pointer group"
+        class="cursor-pointer border-border transition-colors hover:border-border-highlight"
         @click="navigateTo(`/workflows/${workflow.id}`)"
       >
-        <div class="flex items-start justify-between gap-4">
-          <!-- Left: Status + Info -->
+        <CardContent class="flex items-start justify-between gap-4 p-5">
           <div class="flex items-start gap-3 flex-1 min-w-0">
-            <!-- Status Indicator -->
             <div class="mt-1">
               <StatusDot
                 :status="workflow.enabled ? 'online' : 'offline'"
                 :pulse="workflow.enabled"
               />
             </div>
-
-            <!-- Workflow Info -->
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 mb-1">
                 <h3 class="text-sm font-semibold text-text-primary truncate">
                   {{ workflow.name }}
                 </h3>
               </div>
-
-              <!-- Description -->
               <p v-if="workflow.description" class="text-xs text-text-muted mb-2 line-clamp-1">
                 {{ workflow.description }}
               </p>
-
-              <!-- Workflow Formula -->
               <div class="flex items-center gap-2 text-xs text-text-secondary flex-wrap">
                 <span class="text-text-muted">When</span>
                 <Badge variant="outline" size="sm" class="font-mono">
@@ -136,8 +138,6 @@
                   +{{ workflow.actions.length - 2 }} more
                 </span>
               </div>
-
-              <!-- Stats -->
               <div class="flex items-center gap-4 mt-2 text-xs text-text-muted">
                 <span v-if="workflow.execution_count > 0">
                   ✓ {{ workflow.execution_count }} execution{{ workflow.execution_count !== 1 ? 's' : '' }}
@@ -152,10 +152,7 @@
               </div>
             </div>
           </div>
-
-          <!-- Right: Actions -->
           <div class="flex items-center gap-2">
-            <!-- Toggle -->
             <Button
               variant="ghost"
               size="sm"
@@ -169,8 +166,6 @@
                 ]"
               />
             </Button>
-
-            <!-- Edit -->
             <Button
               variant="ghost"
               size="sm"
@@ -178,8 +173,6 @@
             >
               <Pencil class="h-4 w-4" />
             </Button>
-
-            <!-- Delete -->
             <Button
               variant="ghost"
               size="sm"
@@ -189,8 +182,8 @@
               <Trash2 class="h-4 w-4 text-status-error" />
             </Button>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
 
     <!-- Delete Confirmation Dialog -->
@@ -222,6 +215,7 @@ import { Zap, Plus, Power, Pencil, Trash2 } from 'lucide-vue-next'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Badge } from '~/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '~/components/ui/card'
 import Select from '~/components/common/Select.vue'
 import {
   AlertDialog,

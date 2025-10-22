@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional, Tuple
 
 from sqlalchemy.orm import Session
@@ -182,6 +182,74 @@ class TaskService:
         )
 
         events = [self._db_to_task_event(event_db) for event_db in active_events_db]
+        self._bulk_enrich_with_retry_info(events)
+
+        return events
+
+    def get_recent_failed_tasks(
+        self,
+        hours: int = 24,
+        limit: int = 50,
+        exclude_retried: bool = True
+    ) -> List[TaskEvent]:
+        """
+        Get failed tasks in the last ``hours`` where the latest event is a failure.
+
+        Args:
+            hours: Lookback window in hours (default 24)
+            limit: Maximum number of tasks to return (default 50)
+            exclude_retried: If True, exclude tasks that have already been retried
+
+        Returns:
+            List of failed task events ordered by most recent failure first
+        """
+        since = datetime.now(timezone.utc) - timedelta(hours=hours)
+
+        latest_subquery = (
+            self.session.query(
+                TaskEventDB.task_id,
+                func.max(TaskEventDB.timestamp).label('max_timestamp')
+            )
+            .filter(TaskEventDB.timestamp >= since)
+        )
+
+        env_filtered_query = self.session.query(TaskEventDB.task_id)
+        env_filtered_query = EnvironmentFilter.apply(env_filtered_query, self.active_env)
+        env_conditions = env_filtered_query.whereclause
+
+        if env_conditions is not None:
+            latest_subquery = latest_subquery.filter(env_conditions)
+
+        latest_subquery = latest_subquery.group_by(TaskEventDB.task_id).subquery()
+
+        query = (
+            self.session.query(TaskEventDB)
+            .join(
+                latest_subquery,
+                and_(
+                    TaskEventDB.task_id == latest_subquery.c.task_id,
+                    TaskEventDB.timestamp == latest_subquery.c.max_timestamp
+                )
+            )
+            .filter(
+                TaskEventDB.event_type == EventType.TASK_FAILED.value,
+                TaskEventDB.timestamp >= since
+            )
+        )
+
+        if exclude_retried:
+            query = query.filter(
+                or_(TaskEventDB.has_retries.is_(False), TaskEventDB.has_retries.is_(None))
+            )
+
+        query = query.order_by(TaskEventDB.timestamp.desc())
+
+        if limit and limit > 0:
+            query = query.limit(limit)
+
+        events_db = query.all()
+
+        events = [self._db_to_task_event(event_db) for event_db in events_db]
         self._bulk_enrich_with_retry_info(events)
 
         return events

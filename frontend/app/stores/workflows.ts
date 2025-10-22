@@ -18,6 +18,9 @@ export const useWorkflowsStore = defineStore('workflows', () => {
   const currentWorkflow = ref<WorkflowDefinition | null>(null)
   const executions = ref<WorkflowExecutionRecord[]>([])
   const actionConfigs = ref<ActionConfigDefinition[]>([])
+  const triggerCatalog = ref<{ type: string; label: string; description: string; category: string }[]>([])
+  const actionCatalog = ref<{ type: string; label: string; description: string; category: string }[]>([])
+  const metadataLoaded = ref(false)
 
   const isLoading = ref(false)
   const error = ref<string | null>(null)
@@ -39,6 +42,19 @@ export const useWorkflowsStore = defineStore('workflows', () => {
     })
     return grouped
   })
+
+  async function fetchWorkflowMetadata(force = false) {
+    if (metadataLoaded.value && !force) return
+    try {
+      const metadata = await apiService.getWorkflowMetadata()
+      triggerCatalog.value = metadata.triggers || []
+      actionCatalog.value = metadata.actions || []
+      metadataLoaded.value = true
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to load workflow metadata'
+      throw err
+    }
+  }
 
   async function fetchWorkflows(params?: {
     enabled_only?: boolean
@@ -258,6 +274,8 @@ export const useWorkflowsStore = defineStore('workflows', () => {
     enabledWorkflows,
     activeWorkflowsCount,
     workflowsByTrigger,
+    triggerCatalog: readonly(triggerCatalog),
+    actionCatalog: readonly(actionCatalog),
 
     fetchWorkflows,
     fetchWorkflow,
@@ -272,6 +290,7 @@ export const useWorkflowsStore = defineStore('workflows', () => {
     createActionConfig,
     updateActionConfig,
     deleteActionConfig,
+    fetchWorkflowMetadata,
     clearError,
     setCurrentWorkflow
   }

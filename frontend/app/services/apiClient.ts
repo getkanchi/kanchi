@@ -81,6 +81,15 @@ class ApiService {
     return response.data
   }
 
+  async getRecentFailedTasks(params?: { hours?: number; limit?: number; include_retried?: boolean }): Promise<TaskEventResponse[]> {
+    const response = await this.api.request({
+      path: '/api/tasks/failed/recent',
+      method: 'GET',
+      query: params
+    })
+    return response.data
+  }
+
   // Worker-related endpoints
   async getWorkers(): Promise<WorkerInfo[]> {
     const response = await this.api.api.getWorkersApiWorkersGet()
@@ -318,6 +327,14 @@ class ApiService {
       path: '/api/workflows',
       method: 'GET',
       query: params
+    })
+    return response.data
+  }
+
+  async getWorkflowMetadata(): Promise<any> {
+    const response = await this.api.request({
+      path: '/api/workflows/metadata',
+      method: 'GET'
     })
     return response.data
   }

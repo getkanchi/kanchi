@@ -93,7 +93,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { Target, Pencil, Check } from 'lucide-vue-next'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
@@ -107,6 +107,7 @@ import {
   DialogTitle
 } from '~/components/ui/dialog'
 import type { TriggerConfig } from '~/types/workflow'
+import { useWorkflowsStore } from '~/stores/workflows'
 
 const props = defineProps<{
   trigger?: TriggerConfig
@@ -118,34 +119,19 @@ const emit = defineEmits<{
 
 const showSelector = ref(false)
 const searchQuery = ref('')
+const workflowStore = useWorkflowsStore()
 
-// Available triggers (from WORKFLOW_SYSTEM_PLAN.md)
-const triggerOptions = [
-  // Task events
-  { type: 'task.failed', label: 'Task Failed', description: 'A task fails with an exception', category: 'task' },
-  { type: 'task.orphaned', label: 'Task Orphaned', description: 'Worker dies, leaving task hanging', category: 'task' },
-  { type: 'task.succeeded', label: 'Task Succeeded', description: 'Task completes successfully', category: 'task' },
-  { type: 'task.started', label: 'Task Started', description: 'Task execution begins', category: 'task' },
-  { type: 'task.received', label: 'Task Received', description: 'Task received by worker', category: 'task' },
-  { type: 'task.sent', label: 'Task Sent', description: 'Task sent to broker', category: 'task' },
-  { type: 'task.retried', label: 'Task Retried', description: 'Task retry initiated', category: 'task' },
-  { type: 'task.revoked', label: 'Task Revoked', description: 'Task cancelled/revoked', category: 'task' },
-
-  // Worker events
-  { type: 'worker.offline', label: 'Worker Offline', description: 'Worker went offline', category: 'worker' },
-  { type: 'worker.online', label: 'Worker Online', description: 'Worker came online', category: 'worker' },
-  { type: 'worker.heartbeat', label: 'Worker Heartbeat', description: 'Worker heartbeat signal', category: 'worker' },
-]
+const triggers = computed(() => workflowStore.triggerCatalog)
 
 const filteredCategories = computed(() => {
   const query = searchQuery.value.toLowerCase()
   const filtered = query
-    ? triggerOptions.filter(t =>
+    ? triggers.value.filter(t =>
         t.label.toLowerCase().includes(query) ||
         t.description.toLowerCase().includes(query) ||
         t.type.toLowerCase().includes(query)
       )
-    : triggerOptions
+    : triggers.value
 
   // Group by category
   const taskTriggers = filtered.filter(t => t.category === 'task')
@@ -167,14 +153,24 @@ function confirmSelection() {
 }
 
 function getTriggerLabel(type: string): string {
-  return triggerOptions.find(t => t.type === type)?.label || type
+  return triggers.value.find(t => t.type === type)?.label || type
 }
 
 function getTriggerDescription(type: string): string {
-  return triggerOptions.find(t => t.type === type)?.description || ''
+  return triggers.value.find(t => t.type === type)?.description || ''
 }
 
 function getTriggerCategory(type: string): string {
-  return triggerOptions.find(t => t.type === type)?.category || 'task'
+  return triggers.value.find(t => t.type === type)?.category || 'task'
 }
+
+onMounted(async () => {
+  if (!workflowStore.triggerCatalog.length) {
+    try {
+      await workflowStore.fetchWorkflowMetadata()
+    } catch (e) {
+      console.error('Failed to load workflow metadata:', e)
+    }
+  }
+})
 </script>

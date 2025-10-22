@@ -2,12 +2,13 @@
 
 import logging
 import uuid
-from typing import List, Optional, Dict, Any
-from datetime import datetime, timezone, timedelta
-from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from datetime import date, datetime, timezone, timedelta
+from typing import Any, Dict, List, Optional
 
-from database import WorkflowDB, WorkflowExecutionDB, utc_now
+from sqlalchemy import and_, or_
+from sqlalchemy.orm import Session
+
+from database import WorkflowDB, WorkflowExecutionDB, ensure_utc_isoformat, utc_now
 from models import (
     WorkflowDefinition,
     WorkflowCreateRequest,
@@ -17,6 +18,9 @@ from models import (
     ConditionGroup,
     ActionConfig
 )
+from services.action_executor import ActionExecutor
+from services.action_config_service import ActionConfigService
+from services.workflow_catalog import TRIGGER_METADATA
 
 logger = logging.getLogger(__name__)
 
@@ -27,11 +31,86 @@ class WorkflowService:
     def __init__(self, session: Session):
         self.session = session
 
+    def _json_safe(self, value: Any) -> Any:
+        """Convert complex objects (datetimes, UUIDs, Pydantic models) into JSON-safe structures."""
+        if value is None:
+            return None
+
+        if isinstance(value, datetime):
+            return ensure_utc_isoformat(value)
+
+        if isinstance(value, date):
+            return value.isoformat()
+
+        if isinstance(value, uuid.UUID):
+            return str(value)
+
+        if isinstance(value, dict):
+            return {key: self._json_safe(val) for key, val in value.items()}
+
+        if isinstance(value, (list, tuple, set)):
+            return [self._json_safe(item) for item in value]
+
+        # Support Pydantic v1 (`dict`) and v2 (`model_dump`)
+        if hasattr(value, "model_dump"):
+            try:
+                return self._json_safe(value.model_dump())
+            except Exception:
+                pass
+
+        if hasattr(value, "dict") and callable(value.dict):
+            try:
+                return self._json_safe(value.dict())
+            except Exception:
+                pass
+
+        if hasattr(value, "__dict__"):
+            return self._json_safe(vars(value))
+
+        return value
+
+    def _validate_workflow_definition(
+        self,
+        trigger: TriggerConfig,
+        actions: List[ActionConfig]
+    ):
+        valid_triggers = {meta["type"] for meta in TRIGGER_METADATA}
+        if trigger.type not in valid_triggers:
+            raise ValueError(f"Unsupported trigger type: {trigger.type}")
+
+        supported_actions = set(ActionExecutor.get_supported_actions())
+        config_service = ActionConfigService(self.session)
+
+        for action in actions:
+            action_type = action.type
+            if action_type not in supported_actions:
+                raise ValueError(f"Unsupported action type: {action_type}")
+
+            params = action.params or {}
+            if action_type == "slack.notify":
+                config_id = params.get("config_id")
+                if not config_id:
+                    raise ValueError("Slack action requires config_id")
+                if not config_service.get_config(config_id):
+                    raise ValueError(f"Action config not found: {config_id}")
+
+    def _coerce_actions(self, actions: List[Any]) -> List[ActionConfig]:
+        coerced = []
+        for action in actions:
+            if isinstance(action, ActionConfig):
+                coerced.append(action)
+            else:
+                coerced.append(ActionConfig(**action))
+        return coerced
+
     # ==================== Workflow CRUD ====================
 
     def create_workflow(self, workflow_data: WorkflowCreateRequest) -> WorkflowDefinition:
         """Create a new workflow."""
         workflow_id = str(uuid.uuid4())
+
+        actions = self._coerce_actions(workflow_data.actions)
+        self._validate_workflow_definition(workflow_data.trigger, actions)
 
         workflow_db = WorkflowDB(
             id=workflow_id,
@@ -41,7 +120,7 @@ class WorkflowService:
             trigger_type=workflow_data.trigger.type,
             trigger_config=workflow_data.trigger.config,
             conditions=workflow_data.conditions.dict() if workflow_data.conditions else None,
-            actions=[action.dict() for action in workflow_data.actions],
+            actions=[action.dict() for action in actions],
             priority=workflow_data.priority,
             max_executions_per_hour=workflow_data.max_executions_per_hour,
             cooldown_seconds=workflow_data.cooldown_seconds,
@@ -105,6 +184,13 @@ class WorkflowService:
                 workflow_db.actions = [action.dict() if hasattr(action, 'dict') else action for action in value]
             elif hasattr(workflow_db, field):
                 setattr(workflow_db, field, value)
+
+        trigger = TriggerConfig(
+            type=workflow_db.trigger_type,
+            config=workflow_db.trigger_config or {}
+        )
+        actions_payload = self._coerce_actions(workflow_db.actions or [])
+        self._validate_workflow_definition(trigger, actions_payload)
 
         workflow_db.updated_at = datetime.now(timezone.utc)
         self.session.commit()
@@ -188,10 +274,10 @@ class WorkflowService:
         execution_db = WorkflowExecutionDB(
             workflow_id=workflow_id,
             trigger_type=trigger_type,
-            trigger_event=trigger_event,
+            trigger_event=self._json_safe(trigger_event),
             status="running",
             started_at=datetime.now(timezone.utc),
-            workflow_snapshot=workflow_snapshot
+            workflow_snapshot=self._json_safe(workflow_snapshot)
         )
 
         self.session.add(execution_db)
@@ -222,7 +308,7 @@ class WorkflowService:
             execution_db.duration_ms = int(duration)
 
         if actions_executed is not None:
-            execution_db.actions_executed = actions_executed
+            execution_db.actions_executed = self._json_safe(actions_executed)
 
         if error_message:
             execution_db.error_message = error_message

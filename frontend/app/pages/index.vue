@@ -14,11 +14,15 @@
         />
       </div>
 
-      <!-- Orphaned Tasks Overview -->
-      <div class="mb-6 orphan-tasks-section">
+      <!-- Failure & Orphaned Tasks Overview -->
+      <div class="mb-6 grid gap-4 xl:grid-cols-2 failure-insights-section">
+        <FailedTasksSummary
+          :failed-tasks="failedTasksStore.failedTasks"
+          :is-loading="failedTasksStore.isLoading"
+        />
         <OrphanTasksSummary
-          v-if="orphanTasksStore.orphanedTasks.length > 0"
           :orphaned-tasks="orphanTasksStore.orphanedTasks"
+          :is-loading="orphanTasksStore.isLoading"
           @retry-task="handleRerunTask"
         />
       </div>
@@ -57,6 +61,7 @@ import DataTable from "~/components/data-table.vue"
 import WorkerStatusSummary from "~/components/WorkerStatusSummary.vue"
 import OrphanTasksSummary from "~/components/OrphanTasksSummary.vue"
 import CommandPalette from "~/components/CommandPalette.vue"
+import FailedTasksSummary from "~/components/FailedTasksSummary.vue"
 import type { ParsedFilter } from '~/composables/useFilterParser'
 import type { TimeRange } from '~/components/TimeRangeFilter.vue'
 import type { UrlQueryState } from '~/composables/useUrlQuerySync'
@@ -64,6 +69,7 @@ import type { UrlQueryState } from '~/composables/useUrlQuerySync'
 const tasksStore = useTasksStore()
 const workersStore = useWorkersStore()
 const orphanTasksStore = useOrphanTasksStore()
+const failedTasksStore = useFailedTasksStore()
 const wsStore = useWebSocketStore()
 const environmentStore = useEnvironmentStore()
 
@@ -245,7 +251,8 @@ watch(() => environmentStore.activeEnvironment, async () => {
     tasksStore.fetchRecentEvents(),
     tasksStore.fetchStats(),
     workersStore.fetchWorkers(),
-    orphanTasksStore.fetchOrphanedTasks()
+    orphanTasksStore.fetchOrphanedTasks(),
+    failedTasksStore.fetchFailedTasks()
   ])
 })
 
@@ -258,7 +265,8 @@ onMounted(async () => {
     tasksStore.fetchRecentEvents(),
     tasksStore.fetchStats(),
     workersStore.fetchWorkers(),
-    orphanTasksStore.fetchOrphanedTasks()
+    orphanTasksStore.fetchOrphanedTasks(),
+    failedTasksStore.fetchFailedTasks()
   ])
 
   tasksStore.setLiveMode(wsStore.clientMode === 'live')
@@ -267,8 +275,12 @@ onMounted(async () => {
   isInitializing.value = false
 
   const orphanTasksInterval = setInterval(() => {
-    orphanTasksStore.fetchOrphanedTasks()
+    orphanTasksStore.fetchOrphanedTasks().catch(() => {})
   }, 60000) // Poll every 60 seconds for orphaned tasks
+
+  const failedTasksInterval = setInterval(() => {
+    failedTasksStore.fetchFailedTasks().catch(() => {})
+  }, 60000) // Poll every 60 seconds for failed tasks
 
   const workerInterval = setInterval(() => {
     // Only fetch if WebSocket is not connected
@@ -279,6 +291,7 @@ onMounted(async () => {
 
   onUnmounted(() => {
     clearInterval(orphanTasksInterval)
+    clearInterval(failedTasksInterval)
     clearInterval(workerInterval)
   })
 })

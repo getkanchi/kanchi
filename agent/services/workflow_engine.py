@@ -15,26 +15,13 @@ from models import (
 )
 from services.workflow_service import WorkflowService
 from services.workflow_executor import WorkflowExecutor
+from services.workflow_catalog import EVENT_TRIGGER_MAP, TRIGGER_METADATA
 
 logger = logging.getLogger(__name__)
 
 
 class WorkflowEngine:
     """Engine for processing events and triggering workflows."""
-
-    EVENT_TRIGGER_MAP = {
-        "task-sent": "task.sent",
-        "task-received": "task.received",
-        "task-started": "task.started",
-        "task-succeeded": "task.succeeded",
-        "task-failed": "task.failed",
-        "task-retried": "task.retried",
-        "task-revoked": "task.revoked",
-        "task-orphaned": "task.orphaned",
-        "worker-online": "worker.online",
-        "worker-offline": "worker.offline",
-        "worker-heartbeat": "worker.heartbeat",
-    }
 
     def __init__(self, db_manager, monitor_instance=None):
         self.db_manager = db_manager
@@ -48,7 +35,7 @@ class WorkflowEngine:
         are executed asynchronously to avoid blocking.
         """
         try:
-            trigger_type = self.EVENT_TRIGGER_MAP.get(event.event_type, None)
+            trigger_type = EVENT_TRIGGER_MAP.get(event.event_type, None)
 
             if not trigger_type:
                 return

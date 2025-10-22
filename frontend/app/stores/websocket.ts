@@ -3,6 +3,7 @@ import { ref, computed, readonly } from 'vue'
 import { useTasksStore } from './tasks'
 import { useWorkersStore } from './workers'
 import { useOrphanTasksStore } from './orphanTasks'
+import { useFailedTasksStore } from './failedTasks'
 
 export interface WebSocketMessage {
   type: string
@@ -20,6 +21,7 @@ export const useWebSocketStore = defineStore('websocket', () => {
   const tasksStore = useTasksStore()
   const workersStore = useWorkersStore()
   const orphanTasksStore = useOrphanTasksStore()
+  const failedTasksStore = useFailedTasksStore()
 
   const ws = ref<WebSocket | null>(null)
   const isConnected = ref(false)
@@ -145,6 +147,7 @@ export const useWebSocketStore = defineStore('websocket', () => {
         if (eventType.startsWith('task-')) {
           tasksStore.handleLiveEvent(message)
           orphanTasksStore.updateFromLiveEvent(message)
+          failedTasksStore.updateFromLiveEvent(message)
         }
         else if (eventType.startsWith('worker-')) {
           workersStore.updateFromLiveEvent(message)

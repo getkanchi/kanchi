@@ -19,6 +19,20 @@ class ActionExecutor:
         "slack.notify": SlackActionHandler,
         "task.retry": RetryActionHandler,
     }
+    ACTION_CATALOG = {
+        "slack.notify": {
+            "type": "slack.notify",
+            "label": "Slack Notification",
+            "description": "Send a templated message to Slack",
+            "category": "notification",
+        },
+        "task.retry": {
+            "type": "task.retry",
+            "label": "Retry Task",
+            "description": "Retry the Celery task with optional delay",
+            "category": "task",
+        },
+    }
 
     def __init__(self, session: Session, db_manager, monitor_instance=None):
         self.session = session
@@ -75,6 +89,11 @@ class ActionExecutor:
     def get_supported_actions(cls) -> list[str]:
         """Get list of supported action types."""
         return list(cls.ACTION_HANDLERS.keys())
+
+    @classmethod
+    def get_action_catalog(cls) -> list[dict[str, str]]:
+        """Return metadata for supported actions."""
+        return [cls.ACTION_CATALOG[action] for action in cls.get_supported_actions() if action in cls.ACTION_CATALOG]
 
     @classmethod
     def register_action_handler(cls, action_type: str, handler_class: Type[ActionHandler]):

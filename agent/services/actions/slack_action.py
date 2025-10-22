@@ -30,7 +30,7 @@ class SlackActionHandler(ActionHandler):
                 )
 
             config_service = ActionConfigService(self.session)
-            config = config_service.get_config_by_name(params["config_id"])
+            config = config_service.get_config(params["config_id"])
 
             if not config:
                 return ActionResult(
@@ -61,7 +61,8 @@ class SlackActionHandler(ActionHandler):
                 context=context if params.get("include_context", True) else None
             )
 
-            async with aiohttp.ClientSession() as session:
+            timeout = aiohttp.ClientTimeout(total=10)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.post(webhook_url, json=payload) as response:
                     if response.status != 200:
                         error_text = await response.text()
@@ -140,7 +141,7 @@ class SlackActionHandler(ActionHandler):
             if "task_id" in context:
                 fields.append({
                     "title": "Task ID",
-                    "value": f"`{context['task_id'][:12]}...`",
+                    "value": f"`{context['task_id']}`",
                     "short": True
                 })
 

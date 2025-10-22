@@ -2,7 +2,16 @@
   <div class="sticky top-0 z-50 bg-background-surface border-b border-border backdrop-blur-sm bg-opacity-95">
     <div class="px-6">
       <div class="flex h-14 items-center justify-between">
-        <div class="flex items-center gap-8">
+        <div class="flex items-center gap-6">
+          <Button
+            variant="ghost"
+            size="icon"
+            class="text-text-secondary hover:text-text-primary"
+            @click="showSettings = true"
+          >
+            <Settings class="h-4 w-4" />
+            <span class="sr-only">Open settings</span>
+          </Button>
           <!-- Logo -->
 <!--          <div class="flex items-center">-->
 <!--            <img src="/logo.svg" alt="Kanchi" class="h-10 w-auto" style="filter: brightness(0) invert(1) opacity(0.95);" />-->
@@ -92,20 +101,21 @@
           </NavigationMenu>
         </div>
 
-        <div class="flex items-center gap-3">
-          <!-- Environment Switcher -->
+        <div class="flex items-center gap-2.5">
           <EnvironmentSwitcher />
-
-          <!-- Theme Toggle -->
-          <ThemeToggle />
         </div>
-        </div>
+      </div>
     </div>
   </div>
+  <SettingsSheet
+    :open="showSettings"
+    @close="showSettings = false"
+  />
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { Settings } from 'lucide-vue-next'
 import {
   NavigationMenu,
   NavigationMenuItem,
@@ -115,15 +125,16 @@ import {
 import { Badge } from "~/components/ui/badge"
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover"
 import StatusDot from "~/components/StatusDot.vue"
-import ThemeToggle from "~/components/ThemeToggle.vue"
 import EnvironmentSwitcher from "~/components/EnvironmentSwitcher.vue"
 import AgentConnectionDetails from "~/components/AgentConnectionDetails.vue"
+import { Button } from '~/components/ui/button'
+import SettingsSheet from '~/components/SettingsSheet.vue'
 
 // Use the WebSocket store instead of the composable
 const wsStore = useWebSocketStore()
 const config = useRuntimeConfig()
-const wsUrl = config.public.wsUrl
 const connectionDetailsRef = ref<InstanceType<typeof AgentConnectionDetails> | null>(null)
+const showSettings = ref(false)
 
 // Force client-side only rendering to avoid hydration mismatch
 const isClientSide = ref(false)

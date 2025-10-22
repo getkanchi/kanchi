@@ -77,14 +77,14 @@
           </DialogDescription>
         </DialogHeader>
 
-        <div class="grid grid-cols-2 gap-3">
+        <div v-if="actionTypes.length" class="grid grid-cols-2 gap-3">
           <button
             v-for="actionType in actionTypes"
             :key="actionType.type"
             class="p-4 rounded-lg border border-border hover:border-primary hover:bg-background-hover transition-colors text-left"
             @click="selectActionType(actionType.type)"
           >
-            <component :is="actionType.icon" class="h-6 w-6 text-primary mb-2" />
+            <component :is="getActionIcon(actionType.type)" class="h-6 w-6 text-primary mb-2" />
             <div class="text-sm font-medium text-text-primary mb-1">
               {{ actionType.label }}
             </div>
@@ -92,6 +92,9 @@
               {{ actionType.description }}
             </div>
           </button>
+        </div>
+        <div v-else class="text-sm text-text-muted">
+          No actions available. Configure action metadata on the backend.
         </div>
       </DialogContent>
     </Dialog>
@@ -116,8 +119,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from 'vue'
-import { Plus, X, Settings, Zap, MessageSquare, RotateCw, Mail, Webhook } from 'lucide-vue-next'
+import { ref, nextTick, computed, onMounted } from 'vue'
+import { Plus, X, Settings, Zap, MessageSquare, RotateCw } from 'lucide-vue-next'
 import { Button } from '~/components/ui/button'
 import {
   Dialog,
@@ -129,6 +132,7 @@ import {
 import WorkflowSlackActionConfig from './WorkflowSlackActionConfig.vue'
 import WorkflowRetryActionConfig from './WorkflowRetryActionConfig.vue'
 import type { ActionConfig } from '~/types/workflow'
+import { useWorkflowsStore } from '~/stores/workflows'
 
 const props = defineProps<{
   actions: ActionConfig[]
@@ -140,33 +144,13 @@ const emit = defineEmits<{
 
 const showActionSelector = ref(false)
 const editingAction = ref<number | null>(null)
+const workflowStore = useWorkflowsStore()
 
-const actionTypes = [
-  {
-    type: 'slack.notify',
-    label: 'Slack Notification',
-    description: 'Send message to Slack',
-    icon: MessageSquare
-  },
-  {
-    type: 'task.retry',
-    label: 'Retry Task',
-    description: 'Retry the failed task',
-    icon: RotateCw
-  },
-  {
-    type: 'email.send',
-    label: 'Email',
-    description: 'Send email notification',
-    icon: Mail
-  },
-  {
-    type: 'webhook.call',
-    label: 'Webhook',
-    description: 'Call HTTP endpoint',
-    icon: Webhook
-  }
-]
+const actionTypes = computed(() => workflowStore.actionCatalog)
+const ACTION_ICONS: Record<string, any> = {
+  'slack.notify': MessageSquare,
+  'task.retry': RotateCw
+}
 
 async function selectActionType(type: string) {
   const newAction: ActionConfig = {
@@ -214,21 +198,30 @@ function handleConfigClose() {
 }
 
 function getActionIcon(type: string) {
-  const actionType = actionTypes.find(a => a.type === type)
-  return actionType?.icon || Zap
+  return ACTION_ICONS[type] || Zap
 }
 
 function getActionLabel(type: string): string {
-  const actionType = actionTypes.find(a => a.type === type)
-  return actionType?.label || type
+  const catalog = actionTypes.value.find(a => a.type === type)
+  return catalog?.label || type
 }
 
 function getActionDescription(type: string): string {
-  const actionType = actionTypes.find(a => a.type === type)
-  return actionType?.description || ''
+  const catalog = actionTypes.value.find(a => a.type === type)
+  return catalog?.description || ''
 }
 
 function truncate(text: string, length: number): string {
   return text.length > length ? text.substring(0, length) + '...' : text
 }
+
+onMounted(async () => {
+  if (!workflowStore.actionCatalog.length) {
+    try {
+      await workflowStore.fetchWorkflowMetadata()
+    } catch (e) {
+      console.error('Failed to load workflow metadata:', e)
+    }
+  }
+})
 </script>

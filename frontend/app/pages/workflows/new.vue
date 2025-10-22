@@ -15,7 +15,7 @@
         <h1 class="text-2xl font-bold text-text-primary">New Workflow</h1>
       </div>
       <div class="flex items-center gap-2">
-        <Button variant="outline" @click="testWorkflow" :disabled="!canSave">
+        <Button variant="outline" disabled title="Save the workflow to run a test">
           <FlaskConical class="h-4 w-4 mr-2" />
           Test
         </Button>
@@ -29,9 +29,12 @@
     <!-- Main Form -->
     <div class="space-y-6">
       <!-- Basic Info -->
-      <div class="bg-background-surface border border-border rounded-lg p-5">
-        <h2 class="text-sm font-semibold text-text-primary mb-4">Basic Information</h2>
-        <div class="space-y-4">
+      <Card>
+        <CardHeader class="pb-4">
+          <CardTitle class="text-sm text-text-primary">Basic Information</CardTitle>
+          <CardDescription>Give the workflow a clear title and optional description.</CardDescription>
+        </CardHeader>
+        <CardContent class="space-y-4">
           <div>
             <label class="text-xs font-medium text-text-secondary mb-1.5 block">
               Name *
@@ -54,28 +57,30 @@
               class="w-full"
             />
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       <!-- Workflow Builder -->
-      <div class="bg-background-surface border border-border rounded-lg p-5">
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="text-sm font-semibold text-text-primary">Workflow Flow</h2>
+      <Card>
+        <CardHeader class="pb-4 flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle class="text-sm text-text-primary">Workflow Builder</CardTitle>
+            <CardDescription>Define trigger, optional filters, and follow-up actions.</CardDescription>
+          </div>
           <Badge variant="outline" size="sm" class="font-mono">
             {{ workflow.trigger?.type || 'no trigger' }} → {{ workflow.actions.length }} actions
           </Badge>
-        </div>
-
-        <!-- Step 1: Trigger -->
-        <div class="space-y-6">
+        </CardHeader>
+        <CardContent class="space-y-6">
+          <!-- Step 1: Trigger -->
           <div>
             <div class="flex items-center gap-2 mb-3">
-              <div class="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-xs font-bold text-white">
+              <span class="flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-xs font-semibold text-primary">
                 1
-              </div>
-              <span class="text-sm font-medium text-text-primary">WHEN</span>
+              </span>
+              <span class="text-sm font-medium text-text-primary uppercase tracking-wide">When</span>
             </div>
-            <div class="ml-8">
+            <div class="ml-9">
               <WorkflowTriggerSelector
                 :trigger="workflow.trigger"
                 @update:trigger="workflow.trigger = $event"
@@ -86,12 +91,12 @@
           <!-- Step 2: Conditions -->
           <div>
             <div class="flex items-center gap-2 mb-3">
-              <div class="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-xs font-bold text-white">
+              <span class="flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-xs font-semibold text-primary">
                 2
-              </div>
-              <span class="text-sm font-medium text-text-primary">IF (Optional)</span>
+              </span>
+              <span class="text-sm font-medium text-text-primary uppercase tracking-wide">If (optional)</span>
             </div>
-            <div class="ml-8">
+            <div class="ml-9">
               <WorkflowConditionBuilder
                 :conditions="workflow.conditions"
                 @update:conditions="workflow.conditions = $event"
@@ -102,28 +107,29 @@
           <!-- Step 3: Actions -->
           <div>
             <div class="flex items-center gap-2 mb-3">
-              <div class="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-xs font-bold text-white">
+              <span class="flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-xs font-semibold text-primary">
                 3
-              </div>
-              <span class="text-sm font-medium text-text-primary">THEN</span>
+              </span>
+              <span class="text-sm font-medium text-text-primary uppercase tracking-wide">Then</span>
             </div>
-            <div class="ml-8">
+            <div class="ml-9">
               <WorkflowActionsList
                 :actions="workflow.actions"
                 @update:actions="workflow.actions = $event"
               />
             </div>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       <!-- Advanced Settings -->
-      <details class="bg-background-surface border border-border rounded-lg">
-        <summary class="p-5 cursor-pointer text-sm font-semibold text-text-primary hover:bg-background-hover-subtle transition-colors">
-          Advanced Settings
-        </summary>
-        <div class="px-5 pb-5 space-y-4 border-t border-border pt-5">
-          <div class="grid grid-cols-2 gap-4">
+      <Card>
+        <CardHeader class="pb-4">
+          <CardTitle class="text-sm text-text-primary">Advanced Controls</CardTitle>
+          <CardDescription>Tune execution priority, throttling, and status.</CardDescription>
+        </CardHeader>
+        <CardContent class="space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label class="text-xs font-medium text-text-secondary mb-1.5 block">
                 Priority
@@ -136,7 +142,7 @@
                 max="999"
                 class="w-full"
               />
-              <p class="text-xs text-text-muted mt-1">Higher priority workflows execute first</p>
+              <p class="text-xs text-text-muted mt-1">Higher values run before others.</p>
             </div>
             <div>
               <label class="text-xs font-medium text-text-secondary mb-1.5 block">
@@ -149,12 +155,12 @@
                 min="0"
                 class="w-full"
               />
-              <p class="text-xs text-text-muted mt-1">Minimum time between executions</p>
+              <p class="text-xs text-text-muted mt-1">Minimum gap between executions.</p>
             </div>
           </div>
           <div>
             <label class="text-xs font-medium text-text-secondary mb-1.5 block">
-              Max Executions per Hour
+              Max executions per hour
             </label>
             <Input
               :value="workflow.max_executions_per_hour"
@@ -164,20 +170,20 @@
               class="w-full"
               placeholder="Unlimited"
             />
-            <p class="text-xs text-text-muted mt-1">Leave empty for no limit</p>
+            <p class="text-xs text-text-muted mt-1">Leave blank for no hourly cap.</p>
           </div>
-          <div class="flex items-center justify-between">
+          <div class="flex items-center justify-between rounded-lg border border-border px-4 py-3">
             <div>
               <label class="text-sm font-medium text-text-primary">Enabled</label>
-              <p class="text-xs text-text-muted">Workflow will start executing immediately</p>
+              <p class="text-xs text-text-muted">Toggle workflow activation.</p>
             </div>
             <Switch
               :checked="workflow.enabled"
               @update:checked="workflow.enabled = $event"
             />
           </div>
-        </div>
-      </details>
+        </CardContent>
+      </Card>
     </div>
 
     <!-- Error Display -->
@@ -188,12 +194,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ChevronLeft, Save, FlaskConical } from 'lucide-vue-next'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Badge } from '~/components/ui/badge'
 import { Switch } from '~/components/ui/switch'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '~/components/ui/card'
 import WorkflowTriggerSelector from '~/components/workflows/WorkflowTriggerSelector.vue'
 import WorkflowConditionBuilder from '~/components/workflows/WorkflowConditionBuilder.vue'
 import WorkflowActionsList from '~/components/workflows/WorkflowActionsList.vue'
@@ -238,8 +245,11 @@ async function saveWorkflow() {
   }
 }
 
-function testWorkflow() {
-  // TODO: Implement test workflow dialog
-  console.log('Test workflow:', workflow.value)
-}
+onMounted(async () => {
+  try {
+    await workflowStore.fetchWorkflowMetadata()
+  } catch (err) {
+    console.error('Failed to load workflow metadata:', err)
+  }
+})
 </script>

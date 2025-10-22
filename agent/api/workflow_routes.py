@@ -11,6 +11,8 @@ from models import (
     WorkflowExecutionRecord
 )
 from services.workflow_service import WorkflowService
+from services.action_executor import ActionExecutor
+from services.workflow_catalog import TRIGGER_METADATA
 
 
 def create_router(app_state) -> APIRouter:
@@ -24,6 +26,14 @@ def create_router(app_state) -> APIRouter:
         with app_state.db_manager.get_session() as session:
             yield session
 
+    @router.get("/metadata")
+    async def get_workflow_metadata():
+        """Expose supported triggers and actions."""
+        return {
+            "triggers": TRIGGER_METADATA,
+            "actions": ActionExecutor.get_action_catalog()
+        }
+
     # ==================== Workflow CRUD ====================
 
     @router.post("", response_model=WorkflowDefinition, status_code=201)
@@ -33,7 +43,10 @@ def create_router(app_state) -> APIRouter:
     ):
         """Create a new workflow."""
         workflow_service = WorkflowService(session)
-        workflow = workflow_service.create_workflow(workflow_data)
+        try:
+            workflow = workflow_service.create_workflow(workflow_data)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
         return workflow
 
     @router.get("", response_model=List[WorkflowDefinition])
@@ -76,7 +89,10 @@ def create_router(app_state) -> APIRouter:
     ):
         """Update an existing workflow."""
         workflow_service = WorkflowService(session)
-        workflow = workflow_service.update_workflow(workflow_id, updates)
+        try:
+            workflow = workflow_service.update_workflow(workflow_id, updates)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
         if not workflow:
             raise HTTPException(status_code=404, detail="Workflow not found")
