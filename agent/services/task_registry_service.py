@@ -319,12 +319,23 @@ class TaskRegistryService:
         base_query = EnvironmentFilter.apply(base_query, self.active_env)
 
         from sqlalchemy import cast, Integer, literal
+        from sqlalchemy.types import DateTime as SADateTime
+
+        dialect_name = getattr(getattr(self.session.bind, "dialect", None), "name", "sqlite")
+        start_time_literal = literal(start_time, type_=SADateTime(timezone=True))
+
+        if dialect_name == 'postgresql':
+            seconds_from_start_expr = func.extract(
+                'epoch',
+                TaskEventDB.timestamp
+            ) - func.extract('epoch', start_time_literal)
+        else:
+            seconds_from_start_expr = (
+                func.julianday(TaskEventDB.timestamp) - func.julianday(start_time_literal)
+            ) * 86400
 
         base_query_cte = base_query.add_columns(
-            cast(
-                (func.julianday(TaskEventDB.timestamp) - func.julianday(literal(start_time))) * 86400,
-                Integer
-            ).label('seconds_from_start')
+            cast(seconds_from_start_expr, Integer).label('seconds_from_start')
         ).subquery()
 
         from sqlalchemy import case as sql_case
