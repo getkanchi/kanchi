@@ -1,17 +1,8 @@
 <template>
   <div class="sticky top-0 z-50 bg-background-surface border-b border-border backdrop-blur-sm bg-opacity-95">
     <div class="px-6">
-      <div class="flex h-14 items-center justify-between">
+      <div class="flex h-14 items-center">
         <div class="flex items-center gap-6">
-          <Button
-            variant="ghost"
-            size="icon"
-            class="text-text-secondary hover:text-text-primary"
-            @click="showSettings = true"
-          >
-            <Settings class="h-4 w-4" />
-            <span class="sr-only">Open settings</span>
-          </Button>
           <!-- Logo -->
 <!--          <div class="flex items-center">-->
 <!--            <img src="/logo.svg" alt="Kanchi" class="h-10 w-auto" style="filter: brightness(0) invert(1) opacity(0.95);" />-->
@@ -100,10 +91,18 @@
             </NavigationMenuList>
           </NavigationMenu>
         </div>
-
-        <div class="flex items-center gap-2.5">
+        <div class="flex ml-auto">
           <EnvironmentSwitcher />
-        </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            class="text-text-secondary hover:text-text-primary"
+            @click="showSettings = true"
+          >
+            <Settings class="h-4 w-4" />
+            <span class="sr-only">Open settings</span>
+          </Button>
+          </div>
       </div>
     </div>
   </div>
