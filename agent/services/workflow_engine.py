@@ -95,13 +95,34 @@ class WorkflowEngine:
 
                     logger.info(f"Executing workflow: {workflow.name} (trigger={trigger_type})")
 
+                    cb_state = workflow_service.is_circuit_breaker_open(workflow, context)
+
+                    if cb_state.is_open:
+                        logger.warning(
+                            f"Circuit breaker skipped workflow {workflow.name}: {cb_state.reason}"
+                        )
+                        workflow_service.record_circuit_breaker_skip(
+                            workflow=workflow,
+                            trigger_type=trigger_type,
+                            trigger_event=context,
+                            workflow_snapshot=workflow.dict(),
+                            circuit_breaker_key=cb_state.key,
+                            reason=cb_state.reason,
+                        )
+                        continue
+
                     executor = WorkflowExecutor(
                         session=session,
                         db_manager=self.db_manager,
                         monitor_instance=self.monitor_instance
                     )
 
-                    await executor.execute_workflow(workflow, context, event)
+                    await executor.execute_workflow(
+                        workflow,
+                        context,
+                        event,
+                        circuit_breaker_key=cb_state.key
+                    )
 
                 except Exception as e:
                     logger.error(f"Error evaluating workflow {workflow.name}: {e}", exc_info=True)

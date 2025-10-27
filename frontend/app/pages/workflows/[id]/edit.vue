@@ -1,27 +1,30 @@
 <template>
-  <div v-if="workflow" class="max-w-5xl mx-auto">
+  <div v-if="!isLoading && workflow" class="max-w-5xl mx-auto">
     <!-- Header -->
-    <div class="mb-6 flex items-center justify-between">
+    <div class="mb-10 flex items-center justify-between">
       <div>
-        <Button
-          variant="ghost"
-          size="sm"
-          @click="navigateTo(`/workflows/${route.params.id}`)"
-          class="mb-3 -ml-2"
-        >
-          <ChevronLeft class="h-4 w-4 mr-1" />
-          Back to Workflow
-        </Button>
-        <h1 class="text-2xl font-bold text-text-primary">Edit Workflow</h1>
+        <NuxtLink :to="`/workflows/${route.params.id}`">
+          <Button
+            variant="ghost"
+            size="sm"
+            class="mb-4 -ml-2"
+          >
+            <ChevronLeft class="h-4 w-4 mr-1" />
+            Back to Workflow
+          </Button>
+        </NuxtLink>
+        <h1 class="text-xl font-semibold text-text-primary">Edit Workflow</h1>
       </div>
       <div class="flex items-center gap-2">
-        <Button variant="ghost" @click="cancel">Cancel</Button>
-        <Button variant="outline" @click="showTestDialog = true">
-          <FlaskConical class="h-4 w-4 mr-2" />
+        <NuxtLink :to="`/workflows/${route.params.id}`">
+          <Button variant="ghost" size="sm">Cancel</Button>
+        </NuxtLink>
+        <Button variant="outline" size="sm" @click="showTestDialog = true">
+          <FlaskConical class="h-3.5 w-3.5 mr-1.5" />
           Test
         </Button>
-        <Button @click="saveWorkflow" :disabled="!canSave || saving">
-          <Save class="h-4 w-4 mr-2" />
+        <Button @click="saveWorkflow" :disabled="!canSave || saving" size="sm">
+          <Save class="h-3.5 w-3.5 mr-1.5" />
           {{ saving ? 'Saving...' : 'Save Changes' }}
         </Button>
       </div>
@@ -30,18 +33,19 @@
     <!-- Main Form (same as new.vue) -->
     <div class="space-y-6">
       <!-- Basic Info -->
-      <Card>
-        <CardHeader class="pb-4">
-          <CardTitle class="text-sm text-text-primary">Basic Information</CardTitle>
-          <CardDescription>Edit the workflow name and high-level description.</CardDescription>
-        </CardHeader>
-        <CardContent class="space-y-4">
+      <div class="border border-border rounded-md p-5">
+        <div class="mb-4">
+          <h2 class="text-sm font-medium text-text-primary">Basic Information</h2>
+          <p class="text-xs text-text-muted mt-0.5">Edit the workflow name and high-level description.</p>
+        </div>
+        <div class="space-y-4">
           <div>
             <label class="text-xs font-medium text-text-secondary mb-1.5 block">
               Name *
             </label>
             <Input
-              v-model="workflow.name"
+              :value="workflow?.name || ''"
+              @input="(e) => { if (workflow) workflow.name = (e.target as HTMLInputElement).value }"
               placeholder="e.g., Alert on Critical Failures"
               class="w-full"
             />
@@ -51,13 +55,14 @@
               Description
             </label>
             <Input
-              v-model="workflow.description"
+              :value="workflow?.description || ''"
+              @input="(e) => { if (workflow) workflow.description = (e.target as HTMLInputElement).value }"
               placeholder="What does this workflow do?"
               class="w-full"
             />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <Dialog :open="showTestDialog" @update:open="(open) => { showTestDialog = open; testError = null }">
         <DialogContent class="max-w-xl">
@@ -101,17 +106,17 @@
       </Dialog>
 
       <!-- Workflow Builder -->
-      <Card>
-        <CardHeader class="pb-4 flex flex-row items-center justify-between space-y-0">
+      <div class="border border-border rounded-md p-5">
+        <div class="flex flex-row items-center justify-between mb-4">
           <div>
-            <CardTitle class="text-sm text-text-primary">Workflow Builder</CardTitle>
-            <CardDescription>Adjust trigger, filters, and actions in sequence.</CardDescription>
+            <h2 class="text-sm font-medium text-text-primary">Workflow Builder</h2>
+            <p class="text-xs text-text-muted mt-0.5">Adjust trigger, filters, and actions in sequence.</p>
           </div>
-          <Badge variant="outline" size="sm" class="font-mono">
+          <Badge variant="outline" size="sm" class="font-mono text-[10px]">
             {{ workflow.trigger?.type || 'no trigger' }} → {{ workflow.actions.length }} actions
           </Badge>
-        </CardHeader>
-        <CardContent class="space-y-6">
+        </div>
+        <div class="space-y-6">
           <!-- Step 1: Trigger -->
           <div>
             <div class="flex items-center gap-2 mb-3">
@@ -159,16 +164,29 @@
               />
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+
+      <!-- Circuit Breaker -->
+      <div class="border border-border rounded-md p-5">
+        <div class="mb-4">
+          <h2 class="text-sm font-medium text-text-primary">Circuit Breaker</h2>
+          <p class="text-xs text-text-muted mt-0.5">Prevent excessive executions for the same context.</p>
+        </div>
+        <WorkflowCircuitBreakerConfig
+          v-if="workflow"
+          :config="workflow.circuit_breaker ?? undefined"
+          @update:config="updateCircuitBreaker"
+        />
+      </div>
 
       <!-- Advanced Settings -->
-      <Card>
-        <CardHeader class="pb-4">
-          <CardTitle class="text-sm text-text-primary">Advanced Controls</CardTitle>
-          <CardDescription>Fine-tune execution priority, limits, and status.</CardDescription>
-        </CardHeader>
-        <CardContent class="space-y-4">
+      <div class="border border-border rounded-md p-5">
+        <div class="mb-4">
+          <h2 class="text-sm font-medium text-text-primary">Advanced Controls</h2>
+          <p class="text-xs text-text-muted mt-0.5">Fine-tune execution priority, limits, and status.</p>
+        </div>
+        <div class="space-y-4">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label class="text-xs font-medium text-text-secondary mb-1.5 block">
@@ -216,8 +234,8 @@
               @update:checked="workflow.enabled = $event"
             />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
 
     <!-- Error Display -->
@@ -227,20 +245,31 @@
   </div>
 
   <!-- Loading State -->
-  <div v-else-if="workflowStore.isLoading" class="max-w-5xl mx-auto">
-    <div class="h-96 bg-background-surface border border-border rounded-lg animate-pulse" />
+  <div v-else-if="isLoading" class="max-w-5xl mx-auto">
+    <div class="h-96 border border-border rounded-md animate-pulse" />
+  </div>
+
+  <!-- Error/Not Found State -->
+  <div v-else class="max-w-5xl mx-auto text-center py-24">
+    <AlertCircle class="h-10 w-10 text-status-error mx-auto mb-3 opacity-40" />
+    <h3 class="text-sm font-medium text-text-primary mb-1">Failed to load workflow</h3>
+    <p class="text-xs text-text-muted mb-6">The workflow couldn't be loaded for editing.</p>
+    <NuxtLink to="/workflows">
+      <Button size="sm">
+        Back to Workflows
+      </Button>
+    </NuxtLink>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { ChevronLeft, Save, FlaskConical } from 'lucide-vue-next'
+import { ChevronLeft, Save, FlaskConical, AlertCircle } from 'lucide-vue-next'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Badge } from '~/components/ui/badge'
 import { Switch } from '~/components/ui/switch'
 import { Textarea } from '~/components/ui/textarea'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '~/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -252,6 +281,7 @@ import {
 import WorkflowTriggerSelector from '~/components/workflows/WorkflowTriggerSelector.vue'
 import WorkflowConditionBuilder from '~/components/workflows/WorkflowConditionBuilder.vue'
 import WorkflowActionsList from '~/components/workflows/WorkflowActionsList.vue'
+import WorkflowCircuitBreakerConfig from '~/components/workflows/WorkflowCircuitBreakerConfig.vue'
 import type { WorkflowUpdateRequest } from '~/types/workflow'
 
 const route = useRoute()
@@ -262,6 +292,7 @@ const testing = ref(false)
 const testContext = ref('{\n  "task_id": "example-task",\n  "task_name": "process_payment",\n  "event_type": "task.failed",\n  "retry_count": 0,\n  "queue": "default"\n}')
 const testResult = ref<any | null>(null)
 const testError = ref<string | null>(null)
+const isLoading = ref(true)
 
 // Local workflow state (editable)
 const workflow = ref<WorkflowUpdateRequest | null>(null)
@@ -281,8 +312,15 @@ async function saveWorkflow() {
 
   saving.value = true
   try {
-    await workflowStore.updateWorkflow(route.params.id as string, workflow.value)
-    navigateTo(`/workflows/${route.params.id}`)
+    const cleanedWorkflow = { ...workflow.value }
+
+    if (cleanedWorkflow.circuit_breaker === null) {
+      delete cleanedWorkflow.circuit_breaker
+    }
+
+    await workflowStore.updateWorkflow(route.params.id as string, cleanedWorkflow)
+    await workflowStore.fetchWorkflow(route.params.id as string)
+    await navigateTo(`/workflows/${route.params.id}`)
   } catch (err) {
     console.error('Failed to save workflow:', err)
   } finally {
@@ -290,8 +328,21 @@ async function saveWorkflow() {
   }
 }
 
-function cancel() {
-  navigateTo(`/workflows/${route.params.id}`)
+function updateCircuitBreaker(config: any) {
+  if (!workflow.value) return
+
+  workflow.value = {
+    name: workflow.value.name,
+    description: workflow.value.description,
+    enabled: workflow.value.enabled,
+    trigger: workflow.value.trigger,
+    conditions: workflow.value.conditions,
+    actions: workflow.value.actions,
+    priority: workflow.value.priority,
+    max_executions_per_hour: workflow.value.max_executions_per_hour,
+    cooldown_seconds: workflow.value.cooldown_seconds,
+    circuit_breaker: config === undefined ? null : config
+  }
 }
 
 async function runTest() {
@@ -316,12 +367,16 @@ async function runTest() {
 
 // Lifecycle
 onMounted(async () => {
+  isLoading.value = true
+
   try {
     await workflowStore.fetchWorkflowMetadata()
   } catch (err) {
     console.error('Failed to load workflow metadata:', err)
   }
+
   const loaded = await workflowStore.fetchWorkflow(route.params.id as string)
+
   if (loaded) {
     workflow.value = {
       name: loaded.name,
@@ -332,8 +387,13 @@ onMounted(async () => {
       actions: loaded.actions,
       priority: loaded.priority,
       max_executions_per_hour: loaded.max_executions_per_hour,
-      cooldown_seconds: loaded.cooldown_seconds
+      cooldown_seconds: loaded.cooldown_seconds,
+      circuit_breaker: loaded.circuit_breaker
     }
+  } else {
+    console.error('Failed to load workflow data')
   }
+
+  isLoading.value = false
 })
 </script>

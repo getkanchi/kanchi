@@ -5,6 +5,7 @@
   "scripts": {
     "build": "nuxt build",
     "dev": "nuxt dev",
+    "dev:clean": "rm -rf .nuxt node_modules/.vite node_modules/.cache && nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
@@ -26,7 +27,7 @@
     "nuxt": "^4.1.1",
     "pinia": "^3.0.3",
     "postcss": "^8.5.6",
-    "reka-ui": "^2.5.1",
+    "reka-ui": "^2.6.0",
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^3.4.17",
     "tailwindcss-animate": "^1.0.7",

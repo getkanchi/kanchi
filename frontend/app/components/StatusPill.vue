@@ -1,7 +1,7 @@
 <template>
   <div 
     class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full transition-all duration-200 group relative overflow-hidden"
-    :class="[pillClass, { 'ring-1 ring-offset-1 ring-offset-background-base': isCurrent }]"
+    :class="[pillClass, { 'ring-offset-1 ring-offset-background-base': isCurrent }]"
   >
     <!-- Gradient animation overlay for running states -->
     <div 
@@ -71,7 +71,7 @@ const isRunning = computed(() => {
 
 const pillClass = computed(() => {
   const config = getStatusColor(props.status || 'pending')
-  const base = `border ${config.pill}`
+  const base = `border border-border-highlight`
   return props.isCurrent && config.ring ? `${base} ${config.ring}` : base
 })
 

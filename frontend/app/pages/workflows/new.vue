@@ -1,26 +1,26 @@
 <template>
   <div class="max-w-5xl mx-auto">
     <!-- Header -->
-    <div class="mb-6 flex items-center justify-between">
+    <div class="mb-10 flex items-center justify-between">
       <div>
         <Button
           variant="ghost"
           size="sm"
           @click="navigateTo('/workflows')"
-          class="mb-3 -ml-2"
+          class="mb-4 -ml-2"
         >
           <ChevronLeft class="h-4 w-4 mr-1" />
           Back to Workflows
         </Button>
-        <h1 class="text-2xl font-bold text-text-primary">New Workflow</h1>
+        <h1 class="text-xl font-semibold text-text-primary">New Workflow</h1>
       </div>
       <div class="flex items-center gap-2">
-        <Button variant="outline" disabled title="Save the workflow to run a test">
-          <FlaskConical class="h-4 w-4 mr-2" />
+        <Button variant="outline" size="sm" disabled title="Save the workflow to run a test">
+          <FlaskConical class="h-3.5 w-3.5 mr-1.5" />
           Test
         </Button>
-        <Button @click="saveWorkflow" :disabled="!canSave || saving">
-          <Save class="h-4 w-4 mr-2" />
+        <Button @click="saveWorkflow" :disabled="!canSave || saving" size="sm">
+          <Save class="h-3.5 w-3.5 mr-1.5" />
           {{ saving ? 'Saving...' : 'Save' }}
         </Button>
       </div>
@@ -29,12 +29,12 @@
     <!-- Main Form -->
     <div class="space-y-6">
       <!-- Basic Info -->
-      <Card>
-        <CardHeader class="pb-4">
-          <CardTitle class="text-sm text-text-primary">Basic Information</CardTitle>
-          <CardDescription>Give the workflow a clear title and optional description.</CardDescription>
-        </CardHeader>
-        <CardContent class="space-y-4">
+      <div class="border border-border rounded-md p-5">
+        <div class="mb-4">
+          <h2 class="text-sm font-medium text-text-primary">Basic Information</h2>
+          <p class="text-xs text-text-muted mt-0.5">Give the workflow a clear title and optional description.</p>
+        </div>
+        <div class="space-y-4">
           <div>
             <label class="text-xs font-medium text-text-secondary mb-1.5 block">
               Name *
@@ -57,21 +57,21 @@
               class="w-full"
             />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <!-- Workflow Builder -->
-      <Card>
-        <CardHeader class="pb-4 flex flex-row items-center justify-between space-y-0">
+      <div class="border border-border rounded-md p-5">
+        <div class="flex flex-row items-center justify-between mb-4">
           <div>
-            <CardTitle class="text-sm text-text-primary">Workflow Builder</CardTitle>
-            <CardDescription>Define trigger, optional filters, and follow-up actions.</CardDescription>
+            <h2 class="text-sm font-medium text-text-primary">Workflow Builder</h2>
+            <p class="text-xs text-text-muted mt-0.5">Define trigger, optional filters, and follow-up actions.</p>
           </div>
-          <Badge variant="outline" size="sm" class="font-mono">
+          <Badge variant="outline" size="sm" class="font-mono text-[10px]">
             {{ workflow.trigger?.type || 'no trigger' }} → {{ workflow.actions.length }} actions
           </Badge>
-        </CardHeader>
-        <CardContent class="space-y-6">
+        </div>
+        <div class="space-y-6">
           <!-- Step 1: Trigger -->
           <div>
             <div class="flex items-center gap-2 mb-3">
@@ -119,16 +119,28 @@
               />
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+
+      <!-- Circuit Breaker -->
+      <div class="border border-border rounded-md p-5">
+        <div class="mb-4">
+          <h2 class="text-sm font-medium text-text-primary">Circuit Breaker</h2>
+          <p class="text-xs text-text-muted mt-0.5">Prevent excessive executions for the same context.</p>
+        </div>
+        <WorkflowCircuitBreakerConfig
+          :config="workflow.circuit_breaker"
+          @update:config="updateCircuitBreaker"
+        />
+      </div>
 
       <!-- Advanced Settings -->
-      <Card>
-        <CardHeader class="pb-4">
-          <CardTitle class="text-sm text-text-primary">Advanced Controls</CardTitle>
-          <CardDescription>Tune execution priority, throttling, and status.</CardDescription>
-        </CardHeader>
-        <CardContent class="space-y-4">
+      <div class="border border-border rounded-md p-5">
+        <div class="mb-4">
+          <h2 class="text-sm font-medium text-text-primary">Advanced Controls</h2>
+          <p class="text-xs text-text-muted mt-0.5">Tune execution priority, throttling, and status.</p>
+        </div>
+        <div class="space-y-4">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label class="text-xs font-medium text-text-secondary mb-1.5 block">
@@ -182,8 +194,8 @@
               @update:checked="workflow.enabled = $event"
             />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
 
     <!-- Error Display -->
@@ -200,10 +212,10 @@ import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Badge } from '~/components/ui/badge'
 import { Switch } from '~/components/ui/switch'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '~/components/ui/card'
 import WorkflowTriggerSelector from '~/components/workflows/WorkflowTriggerSelector.vue'
 import WorkflowConditionBuilder from '~/components/workflows/WorkflowConditionBuilder.vue'
 import WorkflowActionsList from '~/components/workflows/WorkflowActionsList.vue'
+import WorkflowCircuitBreakerConfig from '~/components/workflows/WorkflowCircuitBreakerConfig.vue'
 import type { WorkflowCreateRequest } from '~/types/workflow'
 
 const workflowStore = useWorkflowsStore()
@@ -231,12 +243,29 @@ const canSave = computed(() => {
          workflow.value.actions.length > 0
 })
 
+function updateCircuitBreaker(config: any) {
+  console.log('[New] updateCircuitBreaker called with:', config)
+  workflow.value.circuit_breaker = config
+  console.log('[New] workflow.value after update:', JSON.stringify(workflow.value, null, 2))
+}
+
 async function saveWorkflow() {
   if (!canSave.value) return
 
+  console.log('[New] saveWorkflow called, workflow.value:', JSON.stringify(workflow.value, null, 2))
+
   saving.value = true
   try {
-    const created = await workflowStore.createWorkflow(workflow.value)
+    const cleanedWorkflow = { ...workflow.value }
+    console.log('[New] cleanedWorkflow before cleanup:', JSON.stringify(cleanedWorkflow, null, 2))
+
+    if (cleanedWorkflow.circuit_breaker === null) {
+      console.log('[New] Deleting null circuit_breaker')
+      delete cleanedWorkflow.circuit_breaker
+    }
+
+    console.log('[New] Final payload being sent:', JSON.stringify(cleanedWorkflow, null, 2))
+    const created = await workflowStore.createWorkflow(cleanedWorkflow)
     navigateTo(`/workflows/${created.id}`)
   } catch (err) {
     console.error('Failed to save workflow:', err)

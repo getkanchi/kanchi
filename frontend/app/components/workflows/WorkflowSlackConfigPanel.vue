@@ -46,18 +46,9 @@
               <p v-if="config.description" class="text-xs text-text-muted max-w-prose">
                 {{ config.description }}
               </p>
-              <dl class="text-[11px] text-text-secondary grid grid-cols-2 gap-x-6 gap-y-1">
-                <div v-if="config.config.channel">
-                  <dt class="uppercase tracking-wide text-text-muted">Channel</dt>
-                  <dd class="font-mono text-text-primary">{{ config.config.channel }}</dd>
-                </div>
-                <div>
-                  <dt class="uppercase tracking-wide text-text-muted">Username</dt>
-                  <dd class="font-mono text-text-primary">
-                    {{ config.config.username || 'Kanchi Alert' }}
-                  </dd>
-                </div>
-              </dl>
+              <p class="text-[11px] text-text-secondary">
+                Webhook destination stored securely.
+              </p>
             </div>
             <div class="flex flex-col items-end gap-2 shrink-0">
               <Button
@@ -132,38 +123,6 @@
                 type="url"
                 placeholder="https://hooks.slack.com/services/..."
                 @input="form.webhook_url = ($event.target as HTMLInputElement).value"
-              />
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label class="text-[11px] font-medium text-text-secondary mb-1 block">
-                  Default Channel
-                </label>
-                <Input
-                  :value="form.channel"
-                  placeholder="#alerts"
-                  @input="form.channel = ($event.target as HTMLInputElement).value"
-                />
-              </div>
-              <div>
-                <label class="text-[11px] font-medium text-text-secondary mb-1 block">
-                  Username
-                </label>
-                <Input
-                  :value="form.username"
-                  placeholder="Kanchi Alert"
-                  @input="form.username = ($event.target as HTMLInputElement).value"
-                />
-              </div>
-            </div>
-            <div>
-              <label class="text-[11px] font-medium text-text-secondary mb-1 block">
-                Icon Emoji
-              </label>
-              <Input
-                :value="form.icon_emoji"
-                placeholder=":robot_face:"
-                @input="form.icon_emoji = ($event.target as HTMLInputElement).value"
               />
             </div>
           </div>
@@ -267,10 +226,7 @@ const saving = ref(false)
 const form = reactive({
   name: '',
   description: '',
-  webhook_url: '',
-  channel: '',
-  username: '',
-  icon_emoji: ':robot_face:'
+  webhook_url: ''
 })
 
 const error = computed(() => workflowStore.error)
@@ -315,9 +271,6 @@ function startEdit(config: ActionConfigDefinition) {
   form.name = config.name
   form.description = config.description || ''
   form.webhook_url = config.config.webhook_url || ''
-  form.channel = config.config.channel || ''
-  form.username = config.config.username || ''
-  form.icon_emoji = config.config.icon_emoji || ':robot_face:'
 }
 
 function cancelForm() {
@@ -331,9 +284,6 @@ function resetForm() {
   form.name = ''
   form.description = ''
   form.webhook_url = ''
-  form.channel = ''
-  form.username = ''
-  form.icon_emoji = ':robot_face:'
 }
 
 async function saveForm() {
@@ -345,10 +295,7 @@ async function saveForm() {
       name: form.name.trim(),
       description: form.description.trim() || undefined,
       config: {
-        webhook_url: form.webhook_url.trim(),
-        channel: form.channel.trim() || undefined,
-        username: form.username.trim() || undefined,
-        icon_emoji: form.icon_emoji.trim() || undefined
+        webhook_url: form.webhook_url.trim()
       }
     }
 

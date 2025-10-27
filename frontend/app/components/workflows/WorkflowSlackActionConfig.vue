@@ -47,7 +47,7 @@
           <!-- Channel (optional) -->
           <div>
             <label class="text-xs font-medium text-text-secondary mb-1.5 block">
-              Channel Override (optional)
+              Channel (optional)
             </label>
             <Input
               :value="localAction.params.channel"
@@ -56,7 +56,7 @@
               class="w-full"
             />
             <p class="text-xs text-text-muted mt-1">
-              Override the default channel from your webhook config
+              Specify the channel to send this notification to
             </p>
           </div>
 

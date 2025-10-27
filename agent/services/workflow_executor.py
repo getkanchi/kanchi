@@ -2,7 +2,7 @@
 
 import logging
 import traceback
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
 
 from models import TaskEvent, WorkerEvent, WorkflowDefinition
@@ -24,16 +24,21 @@ class WorkflowExecutor:
         self,
         workflow: WorkflowDefinition,
         context: Dict[str, Any],
-        event: TaskEvent | WorkerEvent
+        event: TaskEvent | WorkerEvent,
+        circuit_breaker_key: Optional[str] = None
     ):
         """Execute a workflow's actions."""
         workflow_service = WorkflowService(self.session)
+
+        if circuit_breaker_key is None:
+            circuit_breaker_key, _ = workflow_service.resolve_circuit_breaker_key(workflow, context)
 
         execution_id = workflow_service.record_workflow_execution_start(
             workflow_id=workflow.id,
             trigger_type=workflow.trigger.type,
             trigger_event=context,
-            workflow_snapshot=workflow.dict()
+            workflow_snapshot=workflow.dict(),
+            circuit_breaker_key=circuit_breaker_key
         )
 
         logger.info(f"Started workflow execution: {workflow.name} (execution_id={execution_id})")

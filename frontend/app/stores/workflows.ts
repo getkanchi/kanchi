@@ -76,10 +76,12 @@ export const useWorkflowsStore = defineStore('workflows', () => {
     try {
       isLoading.value = true
       error.value = null
-      currentWorkflow.value = await apiService.getWorkflow(workflowId)
-      return currentWorkflow.value
+      const workflow = await apiService.getWorkflow(workflowId)
+      currentWorkflow.value = workflow
+      return workflow
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch workflow'
+      currentWorkflow.value = null
       throw err
     } finally {
       isLoading.value = false
@@ -264,18 +266,18 @@ export const useWorkflowsStore = defineStore('workflows', () => {
   }
 
   return {
-    workflows: readonly(workflows),
-    currentWorkflow: readonly(currentWorkflow),
-    executions: readonly(executions),
-    actionConfigs: readonly(actionConfigs),
-    isLoading: readonly(isLoading),
-    error: readonly(error),
+    workflows,
+    currentWorkflow,
+    executions,
+    actionConfigs,
+    isLoading,
+    error,
 
     enabledWorkflows,
     activeWorkflowsCount,
     workflowsByTrigger,
-    triggerCatalog: readonly(triggerCatalog),
-    actionCatalog: readonly(actionCatalog),
+    triggerCatalog,
+    actionCatalog,
 
     fetchWorkflows,
     fetchWorkflow,

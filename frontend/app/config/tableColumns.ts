@@ -50,6 +50,7 @@ export function getTaskColumns(): ColumnDef<TaskEventResponse>[] {
       header: 'Time',
       cell: ({ row }) => h(TimeDisplay, {
         timestamp: row.getValue("timestamp"),
+        layout: 'inline',
         autoRefresh: true,
         refreshInterval: 1000
       }),

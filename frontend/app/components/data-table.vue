@@ -266,15 +266,26 @@ const mapTaskToRetryChainFormat = (task: any) => {
                       </div>
                     </div>
 
-                    <!-- Retry Button -->
-                    <IconButton
-                      :icon="RefreshCw"
-                      @click="() => { currentRetryTaskId = row.original.task_id; retryDialogRef?.open() }"
-                      :disabled="isRetrying"
-                      :loading="isRetrying && currentRetryTaskId === row.original.task_id"
-                      size="sm"
-                      variant="ghost"
-                    />
+                    <div class="flex items-center gap-2">
+                      <NuxtLink :to="`/tasks/${row.original.task_id}`">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          class="gap-1.5"
+                        >
+                          <ChevronRight class="h-3.5 w-3.5" />
+                          Open
+                        </Button>
+                      </NuxtLink>
+                      <IconButton
+                        :icon="RefreshCw"
+                        @click="() => { currentRetryTaskId = row.original.task_id; retryDialogRef?.open() }"
+                        :disabled="isRetrying"
+                        :loading="isRetrying && currentRetryTaskId === row.original.task_id"
+                        size="sm"
+                        variant="ghost"
+                      />
+                    </div>
                   </div>
                   
                   <!-- Retry Chain Section -->

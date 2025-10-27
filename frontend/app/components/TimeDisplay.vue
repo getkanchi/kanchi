@@ -47,11 +47,13 @@
     :title="timeData.fullDateTime"
     :aria-label="`Timestamp: ${timeData.fullDateTime}`"
   >
-    <!-- Desktop: Stacked Layout -->
-    <div class="hidden sm:flex flex-col gap-0.5 min-w-[90px]">
-      <!-- Context Label (Top) -->
+    <!-- Inline layout -->
+    <div
+      v-if="props.layout === 'inline'"
+      class="flex items-center gap-1.5 text-xs"
+    >
       <span
-        class="text-xs font-medium transition-colors duration-200"
+        class="font-medium transition-colors duration-200"
         :class="[
           timeData.colorClass,
           'group-hover/time:text-gray-200'
@@ -59,37 +61,58 @@
       >
         {{ timeData.contextLabel }}
       </span>
-
-      <!-- Precise Time (Bottom) -->
-      <span
-        class="text-[11px] font-mono text-gray-500 tabular-nums tracking-tight transition-colors duration-200 group-hover/time:text-gray-400"
-      >
-        {{ timeData.timeStr }}
-      </span>
-
-      <!-- Visual freshness indicator (for very recent items) -->
-      <div
-        v-if="timeData.diffSeconds < 300"
-        class="h-0.5 w-full bg-gradient-to-r from-emerald-400/20 to-transparent rounded-full mt-0.5"
-        :style="{
-          opacity: Math.max(0, 1 - timeData.diffSeconds / 300)
-        }"
-      />
-    </div>
-
-    <!-- Mobile: Compact Inline Layout -->
-    <div class="flex sm:hidden items-center gap-1.5 text-xs">
-      <span
-        class="font-medium"
-        :class="timeData.colorClass"
-      >
-        {{ timeData.contextLabel }}
-      </span>
       <span class="text-gray-600">•</span>
-      <span class="font-mono text-gray-500 tabular-nums text-[11px]">
+      <span class="font-mono text-gray-400 tabular-nums text-[11px] group-hover/time:text-gray-300">
         {{ timeData.timeStr }}
       </span>
     </div>
+
+    <!-- Adaptive layout (default) -->
+    <template v-else>
+      <!-- Desktop: Stacked Layout -->
+      <div class="hidden sm:flex flex-col gap-0.5 min-w-[90px]">
+        <!-- Context Label (Top) -->
+        <span
+          class="text-xs font-medium transition-colors duration-200"
+          :class="[
+            timeData.colorClass,
+            'group-hover/time:text-gray-200'
+          ]"
+        >
+          {{ timeData.contextLabel }}
+        </span>
+
+        <!-- Precise Time (Bottom) -->
+        <span
+          class="text-[11px] font-mono text-gray-500 tabular-nums tracking-tight transition-colors duration-200 group-hover/time:text-gray-400"
+        >
+          {{ timeData.timeStr }}
+        </span>
+
+        <!-- Visual freshness indicator (for very recent items) -->
+        <div
+          v-if="timeData.diffSeconds < 300"
+          class="h-0.5 w-full bg-gradient-to-r from-emerald-400/20 to-transparent rounded-full mt-0.5"
+          :style="{
+            opacity: Math.max(0, 1 - timeData.diffSeconds / 300)
+          }"
+        />
+      </div>
+
+      <!-- Mobile: Compact Inline Layout -->
+      <div class="flex sm:hidden items-center gap-1.5 text-xs">
+        <span
+          class="font-medium"
+          :class="timeData.colorClass"
+        >
+          {{ timeData.contextLabel }}
+        </span>
+        <span class="text-gray-600">•</span>
+        <span class="font-mono text-gray-500 tabular-nums text-[11px]">
+          {{ timeData.timeStr }}
+        </span>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -102,11 +125,13 @@ interface Props {
   timestamp: string
   autoRefresh?: boolean
   refreshInterval?: number
+  layout?: 'auto' | 'inline'
 }
 
 const props = withDefaults(defineProps<Props>(), {
   autoRefresh: true,
-  refreshInterval: 10000 // 10 seconds default
+  refreshInterval: 10000, // 10 seconds default
+  layout: 'auto'
 })
 
 // Use the time refresh composable (with Page Visibility API integration)

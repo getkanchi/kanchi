@@ -1,0 +1,32 @@
+version: "3.9"
+
+services:
+  kanchi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: kanchi:latest
+    ports:
+      - "8765:8765"
+      - "3000:3000"
+    environment:
+      # Required: point to your existing RabbitMQ broker
+      RABBITMQ_URL: ${RABBITMQ_URL:?Set RABBITMQ_URL to your RabbitMQ connection string}
+
+      # Optional overrides (defaults shown)
+      DATABASE_URL: ${DATABASE_URL:-sqlite:////data/kanchi.db}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DEVELOPMENT_MODE: ${DEVELOPMENT_MODE:-false}
+      NUXT_PUBLIC_API_URL: ${NUXT_PUBLIC_API_URL:-http://localhost:8765}
+      NUXT_PUBLIC_WS_URL: ${NUXT_PUBLIC_WS_URL:-ws://localhost:8765/ws}
+    volumes:
+      - kanchi_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8765/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  kanchi_data:

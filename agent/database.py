@@ -343,6 +343,7 @@ class WorkflowDB(Base):
 
     # Actions to execute (JSON array)
     actions = Column(JSON, nullable=False)
+    circuit_breaker_config = Column(JSON)
 
     # Execution settings
     priority = Column(Integer, default=100, index=True)
@@ -377,6 +378,7 @@ class WorkflowDB(Base):
             'trigger_config': self.trigger_config or {},
             'conditions': self.conditions,
             'actions': self.actions,
+            'circuit_breaker': self.circuit_breaker_config,
             'priority': self.priority,
             'max_executions_per_hour': self.max_executions_per_hour,
             'cooldown_seconds': self.cooldown_seconds,
@@ -414,6 +416,7 @@ class WorkflowExecutionDB(Base):
     started_at = Column(DateTime(timezone=True))
     completed_at = Column(DateTime(timezone=True))
     duration_ms = Column(Integer)
+    circuit_breaker_key = Column(String(255), index=True)
 
     # Context for debugging
     workflow_snapshot = Column(JSON)
@@ -422,6 +425,7 @@ class WorkflowExecutionDB(Base):
         Index('idx_workflow_exec_workflow_id', 'workflow_id'),
         Index('idx_workflow_exec_workflow_time', 'workflow_id', 'triggered_at'),
         Index('idx_workflow_exec_status', 'status', 'triggered_at'),
+        Index('idx_workflow_exec_circuit_key', 'workflow_id', 'circuit_breaker_key', 'triggered_at'),
     )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -440,6 +444,7 @@ class WorkflowExecutionDB(Base):
             'completed_at': ensure_utc_isoformat(self.completed_at),
             'duration_ms': self.duration_ms,
             'workflow_snapshot': self.workflow_snapshot,
+            'circuit_breaker_key': self.circuit_breaker_key,
         }
 
 

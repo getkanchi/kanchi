@@ -3,7 +3,7 @@
 import logging
 import uuid
 from datetime import date, datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
@@ -16,7 +16,9 @@ from models import (
     WorkflowExecutionRecord,
     TriggerConfig,
     ConditionGroup,
-    ActionConfig
+    ActionConfig,
+    CircuitBreakerConfig,
+    CircuitBreakerState
 )
 from services.action_executor import ActionExecutor
 from services.action_config_service import ActionConfigService
@@ -30,6 +32,48 @@ class WorkflowService:
 
     def __init__(self, session: Session):
         self.session = session
+
+    @staticmethod
+    def _ensure_aware_utc(dt: Optional[datetime]) -> Optional[datetime]:
+        """
+        Ensure datetime objects are timezone-aware and normalized to UTC.
+        SQLite sometimes returns naive datetimes even for timezone-aware columns.
+        """
+        if dt is None:
+            return None
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+
+    @staticmethod
+    def _circuit_candidate_fields(
+        workflow: WorkflowDefinition,
+        config: CircuitBreakerConfig
+    ) -> List[str]:
+        """Determine which context fields should be inspected for circuit breaker grouping."""
+        candidates: List[str] = []
+
+        if config.context_field:
+            candidates.append(config.context_field)
+
+        trigger_type = workflow.trigger.type
+        if trigger_type.startswith("task."):
+            candidates.extend(["root_id", "task_id"])
+        elif trigger_type.startswith("worker."):
+            candidates.extend(["hostname", "worker_name"])
+
+        # Always consider task identifiers as fallback for safety
+        candidates.extend(["root_id", "task_id"])
+
+        # Deduplicate while preserving order
+        seen: Set[str] = set()
+        ordered = []
+        for field in candidates:
+            if field and field not in seen:
+                seen.add(field)
+                ordered.append(field)
+
+        return ordered
 
     def _json_safe(self, value: Any) -> Any:
         """Convert complex objects (datetimes, UUIDs, Pydantic models) into JSON-safe structures."""
@@ -68,6 +112,86 @@ class WorkflowService:
             return self._json_safe(vars(value))
 
         return value
+
+    def resolve_circuit_breaker_key(
+        self,
+        workflow: WorkflowDefinition,
+        context: Dict[str, Any]
+    ) -> tuple[Optional[str], Optional[str]]:
+        """Resolve the circuit breaker grouping key (value, field)."""
+        config = workflow.circuit_breaker
+        if not config or not config.enabled:
+            return None, None
+
+        candidate_fields = self._circuit_candidate_fields(workflow, config)
+        for field in candidate_fields:
+            value = context.get(field)
+            if value is not None:
+                value_str = str(value).strip()
+                if value_str:
+                    return value_str, field
+
+        return None, None
+
+    def is_circuit_breaker_open(
+        self,
+        workflow: WorkflowDefinition,
+        context: Dict[str, Any]
+    ) -> CircuitBreakerState:
+        """Check whether the circuit breaker should prevent execution."""
+        config = workflow.circuit_breaker
+        if not config or not config.enabled:
+            return CircuitBreakerState(is_open=False)
+
+        key, field = self.resolve_circuit_breaker_key(workflow, context)
+
+        if not key:
+            return CircuitBreakerState(is_open=False)
+
+        window_start = datetime.now(timezone.utc) - timedelta(seconds=config.window_seconds)
+
+        recent_count = self.session.query(WorkflowExecutionDB).filter(
+            and_(
+                WorkflowExecutionDB.workflow_id == workflow.id,
+                WorkflowExecutionDB.circuit_breaker_key == key,
+                WorkflowExecutionDB.triggered_at >= window_start
+            )
+        ).count()
+
+        if recent_count >= config.max_executions:
+            reason = (
+                f"Circuit breaker open for workflow '{workflow.name}' "
+                f"(field={field or 'context'}, key={key}) - "
+                f"{recent_count} executions within {config.window_seconds}s "
+                f"(limit={config.max_executions})"
+            )
+            return CircuitBreakerState(is_open=True, reason=reason, key=key, field=field)
+
+        return CircuitBreakerState(is_open=False, key=key, field=field)
+
+    def record_circuit_breaker_skip(
+        self,
+        workflow: WorkflowDefinition,
+        trigger_type: str,
+        trigger_event: Dict[str, Any],
+        workflow_snapshot: Dict[str, Any],
+        circuit_breaker_key: Optional[str],
+        reason: str
+    ) -> None:
+        """Persist a workflow execution record for a circuit breaker skip."""
+        execution_db = WorkflowExecutionDB(
+            workflow_id=workflow.id,
+            trigger_type=trigger_type,
+            trigger_event=self._json_safe(trigger_event),
+            status="circuit_open",
+            error_message=reason,
+            actions_executed=[],
+            circuit_breaker_key=circuit_breaker_key,
+            workflow_snapshot=self._json_safe(workflow_snapshot)
+        )
+
+        self.session.add(execution_db)
+        self.session.commit()
 
     def _validate_workflow_definition(
         self,
@@ -124,6 +248,9 @@ class WorkflowService:
             priority=workflow_data.priority,
             max_executions_per_hour=workflow_data.max_executions_per_hour,
             cooldown_seconds=workflow_data.cooldown_seconds,
+            circuit_breaker_config=workflow_data.circuit_breaker.dict()
+            if workflow_data.circuit_breaker
+            else None,
         )
 
         self.session.add(workflow_db)
@@ -182,6 +309,13 @@ class WorkflowService:
                 workflow_db.conditions = value
             elif field == "actions" and value is not None:
                 workflow_db.actions = [action.dict() if hasattr(action, 'dict') else action for action in value]
+            elif field == "circuit_breaker":
+                if value is None:
+                    workflow_db.circuit_breaker_config = None
+                elif hasattr(value, 'dict'):
+                    workflow_db.circuit_breaker_config = value.dict()
+                else:
+                    workflow_db.circuit_breaker_config = value
             elif hasattr(workflow_db, field):
                 setattr(workflow_db, field, value)
 
@@ -268,7 +402,8 @@ class WorkflowService:
         workflow_id: str,
         trigger_type: str,
         trigger_event: Dict[str, Any],
-        workflow_snapshot: Dict[str, Any]
+        workflow_snapshot: Dict[str, Any],
+        circuit_breaker_key: Optional[str] = None
     ) -> int:
         """Create workflow execution record."""
         execution_db = WorkflowExecutionDB(
@@ -277,7 +412,8 @@ class WorkflowService:
             trigger_event=self._json_safe(trigger_event),
             status="running",
             started_at=datetime.now(timezone.utc),
-            workflow_snapshot=self._json_safe(workflow_snapshot)
+            workflow_snapshot=self._json_safe(workflow_snapshot),
+            circuit_breaker_key=circuit_breaker_key
         )
 
         self.session.add(execution_db)
@@ -301,10 +437,17 @@ class WorkflowService:
             return
 
         execution_db.status = status
-        execution_db.completed_at = datetime.now(timezone.utc)
+        execution_db.completed_at = self._ensure_aware_utc(datetime.now(timezone.utc))
 
-        if execution_db.started_at:
-            duration = (execution_db.completed_at - execution_db.started_at).total_seconds() * 1000
+        # Normalize started/completed timestamps to avoid naive vs aware subtraction
+        if execution_db.started_at and execution_db.started_at.tzinfo is None:
+            execution_db.started_at = execution_db.started_at.replace(tzinfo=timezone.utc)
+
+        started_at = self._ensure_aware_utc(execution_db.started_at)
+        completed_at = self._ensure_aware_utc(execution_db.completed_at)
+
+        if started_at and completed_at:
+            duration = (completed_at - started_at).total_seconds() * 1000
             execution_db.duration_ms = int(duration)
 
         if actions_executed is not None:
@@ -374,6 +517,10 @@ class WorkflowService:
 
         actions = [ActionConfig(**action) for action in workflow_db.actions]
 
+        circuit_breaker = None
+        if workflow_db.circuit_breaker_config:
+            circuit_breaker = CircuitBreakerConfig(**workflow_db.circuit_breaker_config)
+
         return WorkflowDefinition(
             id=workflow_db.id,
             name=workflow_db.name,
@@ -385,6 +532,7 @@ class WorkflowService:
             priority=workflow_db.priority,
             max_executions_per_hour=workflow_db.max_executions_per_hour,
             cooldown_seconds=workflow_db.cooldown_seconds,
+            circuit_breaker=circuit_breaker,
             created_at=workflow_db.created_at,
             updated_at=workflow_db.updated_at,
             created_by=workflow_db.created_by,
@@ -409,5 +557,6 @@ class WorkflowService:
             started_at=execution_db.started_at,
             completed_at=execution_db.completed_at,
             duration_ms=execution_db.duration_ms,
-            workflow_snapshot=execution_db.workflow_snapshot
+            workflow_snapshot=execution_db.workflow_snapshot,
+            circuit_breaker_key=execution_db.circuit_breaker_key
         )

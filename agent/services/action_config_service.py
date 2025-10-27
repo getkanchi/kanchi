@@ -2,7 +2,7 @@
 
 import logging
 import uuid
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 
@@ -22,12 +22,14 @@ class ActionConfigService:
         """Create a new action configuration."""
         config_id = str(uuid.uuid4())
 
+        sanitized_config = self._sanitize_config(config_data.action_type, config_data.config)
+
         config_db = ActionConfigDB(
             id=config_id,
             name=config_data.name,
             description=config_data.description,
             action_type=config_data.action_type,
-            config=config_data.config
+            config=sanitized_config
         )
 
         self.session.add(config_db)
@@ -79,6 +81,8 @@ class ActionConfigService:
         update_dict = updates.dict(exclude_unset=True)
 
         for field, value in update_dict.items():
+            if field == "config" and value is not None:
+                value = self._sanitize_config(config_db.action_type, value)
             if hasattr(config_db, field):
                 setattr(config_db, field, value)
 
@@ -110,6 +114,19 @@ class ActionConfigService:
             config_db.usage_count += 1
             config_db.last_used_at = datetime.now(timezone.utc)
             self.session.commit()
+
+    def _sanitize_config(self, action_type: str, config: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """Restrict config fields to the ones supported by the action type."""
+        if not config:
+            return {}
+
+        if action_type == "slack.notify":
+            webhook_url = config.get("webhook_url", "")
+            if isinstance(webhook_url, str):
+                webhook_url = webhook_url.strip()
+            return {"webhook_url": webhook_url} if webhook_url else {}
+
+        return dict(config)
 
     def _db_to_config(self, config_db: ActionConfigDB) -> ActionConfigDefinition:
         """Convert database model to Pydantic model."""

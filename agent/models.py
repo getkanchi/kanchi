@@ -436,6 +436,35 @@ class ConditionGroup(BaseModel):
     conditions: List[Condition] = Field(default_factory=list)
 
 
+class CircuitBreakerConfig(BaseModel):
+    """Configuration for workflow-level circuit breaking."""
+    enabled: bool = True
+    max_executions: int = Field(default=1, ge=1, description="Number of executions allowed per window")
+    window_seconds: int = Field(default=300, ge=1, description="Sliding window size in seconds")
+    context_field: Optional[str] = Field(
+        default=None,
+        description="Event context field used to group executions (e.g., root_id, task_id)"
+    )
+
+    @field_validator('context_field')
+    @classmethod
+    def validate_context_field(cls, v):
+        if v is None:
+            return v
+        value = v.strip()
+        if not value:
+            raise ValueError("context_field cannot be empty")
+        return value
+
+
+class CircuitBreakerState(BaseModel):
+    """Result of circuit breaker check."""
+    is_open: bool
+    reason: Optional[str] = None
+    key: Optional[str] = None
+    field: Optional[str] = None
+
+
 class ActionConfig(BaseModel):
     """Configuration for a single action."""
     type: str
@@ -467,6 +496,7 @@ class WorkflowDefinition(BaseModel):
     priority: int = 100
     max_executions_per_hour: Optional[int] = None
     cooldown_seconds: int = 0
+    circuit_breaker: Optional[CircuitBreakerConfig] = None
 
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -492,6 +522,7 @@ class WorkflowCreateRequest(BaseModel):
     priority: int = 100
     max_executions_per_hour: Optional[int] = None
     cooldown_seconds: int = 0
+    circuit_breaker: Optional[CircuitBreakerConfig] = None
 
 
 class WorkflowUpdateRequest(BaseModel):
@@ -505,6 +536,7 @@ class WorkflowUpdateRequest(BaseModel):
     priority: Optional[int] = None
     max_executions_per_hour: Optional[int] = None
     cooldown_seconds: Optional[int] = None
+    circuit_breaker: Optional[CircuitBreakerConfig] = None
 
 
 class WorkflowExecutionRecord(BaseModel):
@@ -514,7 +546,7 @@ class WorkflowExecutionRecord(BaseModel):
     triggered_at: datetime
     trigger_type: str
     trigger_event: Dict[str, Any]
-    status: Literal["pending", "running", "completed", "failed", "rate_limited"]
+    status: Literal["pending", "running", "completed", "failed", "rate_limited", "circuit_open"]
     actions_executed: Optional[List[Dict[str, Any]]] = None
     error_message: Optional[str] = None
     stack_trace: Optional[str] = None
@@ -522,6 +554,7 @@ class WorkflowExecutionRecord(BaseModel):
     completed_at: Optional[datetime] = None
     duration_ms: Optional[int] = None
     workflow_snapshot: Optional[Dict[str, Any]] = None
+    circuit_breaker_key: Optional[str] = None
 
     class Config:
         from_attributes = True

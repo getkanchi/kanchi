@@ -37,6 +37,15 @@ export interface TriggerConfig {
   config?: Record<string, any>
 }
 
+// ==================== Circuit Breaker Types ====================
+
+export interface CircuitBreakerConfig {
+  enabled: boolean
+  max_executions: number
+  window_seconds: number
+  context_field?: string
+}
+
 // ==================== Action Types ====================
 
 export interface ActionConfig {
@@ -67,6 +76,7 @@ export interface WorkflowDefinition {
   priority: number
   max_executions_per_hour?: number
   cooldown_seconds: number
+  circuit_breaker?: CircuitBreakerConfig
   created_at?: string
   updated_at?: string
   created_by?: string
@@ -86,6 +96,7 @@ export interface WorkflowCreateRequest {
   priority?: number
   max_executions_per_hour?: number
   cooldown_seconds?: number
+  circuit_breaker?: CircuitBreakerConfig
 }
 
 export interface WorkflowUpdateRequest {
@@ -98,6 +109,7 @@ export interface WorkflowUpdateRequest {
   priority?: number
   max_executions_per_hour?: number
   cooldown_seconds?: number
+  circuit_breaker?: CircuitBreakerConfig
 }
 
 // ==================== Workflow Execution Types ====================
@@ -108,6 +120,7 @@ export type WorkflowExecutionStatus =
   | 'completed'
   | 'failed'
   | 'rate_limited'
+  | 'circuit_open'
 
 export interface WorkflowExecutionRecord {
   id: number

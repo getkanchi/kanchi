@@ -31,12 +31,12 @@
               <NavigationMenuItem>
                 <NavigationMenuLink
                   as-child
-                  :active="$route.path === '/tasks'"
+                  :active="$route.path.startsWith('/tasks')"
                 >
                   <NuxtLink
                     to="/tasks"
                     class="px-4 py-2 text-sm font-medium rounded-md transition-colors"
-                    :class="$route.path === '/tasks'
+                    :class="$route.path.startsWith('/tasks')
                       ? 'bg-background-active text-text-primary'
                       : 'text-text-secondary hover:bg-background-hover hover:text-text-primary'"
                   >
@@ -45,7 +45,7 @@
                 </NavigationMenuLink>
               </NavigationMenuItem>
 
-              <NavigationMenuItem v-if="false">
+              <NavigationMenuItem>
                 <NavigationMenuLink
                   as-child
                   :active="$route.path.startsWith('/workflows')"

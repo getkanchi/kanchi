@@ -200,28 +200,23 @@ def create_router(app_state) -> APIRouter:
         """Retry a failed task by creating a new task with the same parameters."""
         if not app_state.monitor_instance:
             raise HTTPException(status_code=500, detail="Monitor not initialized")
-        
+
         task_service = TaskService(session)
-        
+
         # Find the original task
         task_events = task_service.get_task_events(task_id)
         if not task_events:
             raise HTTPException(status_code=404, detail="Task not found")
-        
+
         original_task = task_events[-1]
 
         orphaned_task = session.query(TaskEventDB).filter_by(
             task_id=task_id,
             is_orphan=True
         ).first()
-        
-        try:
-            import ast
-            args = ast.literal_eval(original_task.args) if original_task.args and original_task.args != "()" else ()
-            kwargs = ast.literal_eval(original_task.kwargs) if original_task.kwargs and original_task.kwargs != "{}" else {}
-        except (ValueError, SyntaxError):
-            args = ()
-            kwargs = {}
+
+        args = tuple(original_task.args) if original_task.args else ()
+        kwargs = original_task.kwargs if original_task.kwargs else {}
 
         queue_name = original_task.queue if original_task.queue else 'default'
 

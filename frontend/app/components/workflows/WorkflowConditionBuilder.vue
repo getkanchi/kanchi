@@ -93,11 +93,15 @@ const emit = defineEmits<{
 const availableFields = [
   { value: 'task_name', label: 'Task Name' },
   { value: 'task_id', label: 'Task ID' },
+  { value: 'root_id', label: 'Root ID (Task Chain)' },
+  { value: 'parent_id', label: 'Parent ID' },
   { value: 'queue', label: 'Queue' },
+  { value: 'routing_key', label: 'Routing Key' },
   { value: 'retry_count', label: 'Retry Count' },
   { value: 'exception', label: 'Exception' },
   { value: 'runtime', label: 'Runtime (seconds)' },
   { value: 'hostname', label: 'Hostname' },
+  { value: 'worker_name', label: 'Worker Name' },
   { value: 'event_type', label: 'Event Type' },
   { value: 'state', label: 'State' }
 ]

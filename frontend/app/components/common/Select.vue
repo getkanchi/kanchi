@@ -15,7 +15,7 @@ import { cva } from "class-variance-authority"
 import type { VariantProps } from "class-variance-authority"
 
 export const selectVariants = cva(
-  "border rounded transition-colors focus:outline-none focus:ring-1 font-mono",
+  "border rounded transition-colors focus:outline-none focus:ring-1",
   {
     variants: {
       variant: {
