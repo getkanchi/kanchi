@@ -145,14 +145,6 @@ const handleKeydown = (e: KeyboardEvent) => {
       open.value = false
     }
   }
-  
-  // Quick actions when palette is closed
-  if (!open.value) {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'l') {
-      e.preventDefault()
-      emit('toggle-live-mode')
-    }
-  }
 }
 
 const handleMouseMove = (e: MouseEvent) => {
@@ -270,7 +262,7 @@ onUnmounted(() => {
               <template v-if="!isRerunMode">
                 <CommandEmpty class="text-text-secondary py-4 text-center text-sm">No results found.</CommandEmpty>
                 <CommandGroup heading="Actions" class="command-group text-text-secondary">
-                  <div 
+                  <div
                     @click="toggleLiveMode"
                     :class="[
                       'command-item cursor-pointer',
@@ -280,7 +272,6 @@ onUnmounted(() => {
                     <Activity v-if="isLiveMode" class="w-4 h-4 text-status-success" />
                     <Pause v-else class="w-4 h-4 text-text-secondary" />
                     <span class="text-text-primary">{{ isLiveMode ? 'Disable Live Mode' : 'Enable Live Mode' }}</span>
-                    <Pill variant="shortcut" size="sm">⌘L</Pill>
                   </div>
                   <div 
                     @click="enterRerunMode"
