@@ -38,7 +38,7 @@ RUN npm ci --production
 
 WORKDIR /app
 
-ENV RABBITMQ_URL=amqp://guest:guest@localhost:5672//
+ENV CELERY_BROKER_URL=amqp://guest:guest@localhost:5672//
 ENV WS_HOST=0.0.0.0
 ENV WS_PORT=8765
 ENV LOG_LEVEL=INFO

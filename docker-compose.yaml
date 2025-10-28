@@ -10,8 +10,8 @@ services:
       - "8765:8765"
       - "3000:3000"
     environment:
-      # Required: point to your existing RabbitMQ broker
-      RABBITMQ_URL: ${RABBITMQ_URL:?Set RABBITMQ_URL to your RabbitMQ connection string}
+      # Required: point to your existing Celery broker (RabbitMQ or Redis)
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:?Set CELERY_BROKER_URL to your broker connection string}
 
       # Optional overrides (defaults shown)
       DATABASE_URL: ${DATABASE_URL:-sqlite:////data/kanchi.db}

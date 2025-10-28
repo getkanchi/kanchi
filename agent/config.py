@@ -7,8 +7,8 @@ from typing import Optional
 class Config:
     """Configuration for the Celery WebSocket Bridge"""
 
-    # Celery broker configuration (RabbitMQ URL)
-    broker_url: str = os.getenv('RABBITMQ_URL')
+    # Celery broker configuration (supports both RabbitMQ and Redis)
+    broker_url: str = os.getenv('CELERY_BROKER_URL')
 
     # Database configuration
     database_url: str = os.getenv('DATABASE_URL', 'sqlite:///kanchi.db')  # Default to SQLite
