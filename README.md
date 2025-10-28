@@ -26,7 +26,7 @@ These steps mirror the Docmost deployment experience—download the compose file
 ### Prerequisites
 
 - Docker Engine + Docker Compose plug-in installed on your host. Follow the [official Docker installation guide](https://docs.docker.com/engine/install/) for your OS.
-- Running RabbitMQ instance (and optionally PostgreSQL) reachable from the host.
+- Running Celery broker (RabbitMQ or Redis) instance (and optionally PostgreSQL) reachable from the host.
 
 1. **Create a directory and download the compose file**
 
@@ -35,14 +35,18 @@ These steps mirror the Docmost deployment experience—download the compose file
    curl -O https://raw.githubusercontent.com/<YOUR_ORG_OR_USER>/kanchi/main/docker-compose.yaml
    ```
 
-   Replace `<YOUR_ORG_OR_USER>` with the GitHub namespace that hosts your Kanchi fork (for example, `kanchi-project`). The downloaded `docker-compose.yaml` contains sensible defaults and expects you to provide a RabbitMQ connection string—Kanchi does not manage your broker or database.
+   Replace `<YOUR_ORG_OR_USER>` with the GitHub namespace that hosts your Kanchi fork (for example, `kanchi-project`). The downloaded `docker-compose.yaml` contains sensible defaults and expects you to provide a Celery broker connection string—Kanchi does not manage your broker or database.
 
 2. **Set required environment values**
 
-   At minimum, export `RABBITMQ_URL` or place it in a `.env` file alongside `docker-compose.yaml`. Example:
+   At minimum, export `CELERY_BROKER_URL` or place it in a `.env` file alongside `docker-compose.yaml`. Example:
 
    ```bash
-   export RABBITMQ_URL=amqp://user:pass@rabbitmq-host:5672//
+   # For RabbitMQ:
+   export CELERY_BROKER_URL=amqp://user:pass@rabbitmq-host:5672//
+
+   # For Redis:
+   export CELERY_BROKER_URL=redis://localhost:6379/0
    ```
 
    Optional overrides (fallback defaults shown in `docker-compose.yaml`):
@@ -76,7 +80,7 @@ These steps mirror the Docmost deployment experience—download the compose file
    docker compose -f docker-compose.yaml restart kanchi   # Restart without rebuild
    ```
 
-Kanchi expects RabbitMQ and (if desired) PostgreSQL to be managed separately—point `RABBITMQ_URL` and `DATABASE_URL` to the infrastructure you already run.
+Kanchi expects a Celery broker (RabbitMQ or Redis) and (if desired) PostgreSQL to be managed separately—point `CELERY_BROKER_URL` and `DATABASE_URL` to the infrastructure you already run.
 
 Migrations run automatically on startup.
 
@@ -87,7 +91,7 @@ Migrations run automatically on startup.
 - Python 3.8+
 - Poetry
 - Node.js 20+
-- RabbitMQ
+- Celery broker (RabbitMQ or Redis)
 
 ### Installation
 

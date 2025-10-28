@@ -90,8 +90,8 @@ docker run -p 8765:8765 -p 3000:3000 kanchi
 # Or use Docker Compose (from root)
 docker-compose up
 
-# With custom RabbitMQ URL
-docker run -p 8765:8765 -p 3000:3000 -e RABBITMQ_URL=amqp://user:pass@host:5672// kanchi
+# With custom broker URL
+docker run -p 8765:8765 -p 3000:3000 -e CELERY_BROKER_URL=amqp://user:pass@host:5672// kanchi
 ```
 
 ## Architecture
@@ -202,7 +202,7 @@ NUXT_PUBLIC_API_URL=http://localhost:8765
 NUXT_PUBLIC_WS_URL=ws://localhost:8765/ws
 
 # Docker environment
-RABBITMQ_URL=amqp://guest:guest@localhost:5672//
+CELERY_BROKER_URL=amqp://guest:guest@localhost:5672//
 NITRO_PORT=3000
 NITRO_HOST=0.0.0.0
 ```

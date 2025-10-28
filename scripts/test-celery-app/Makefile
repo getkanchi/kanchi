@@ -35,7 +35,7 @@ shell: ## Open shell in worker container
 	docker-compose run --rm worker1 /bin/bash
 
 test-simple: ## Generate simple test tasks
-	docker-compose run --rm -e REDIS_URL=redis://redis:6379/0 -e CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672// worker1 python test_producer.py --mode simple --count 1
+	docker-compose run --rm -e REDIS_URL=redis://redis:6379/0 -e CELERY_BROKER_URL=redis://redis:6379/0 worker1 python test_producer.py --mode simple --count 1
 
 test-mixed: ## Generate mixed load for 60 seconds
 	docker-compose run --rm -e REDIS_URL=redis://redis:6379/0 -e CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672// worker1 python test_producer.py --mode mixed --duration 60

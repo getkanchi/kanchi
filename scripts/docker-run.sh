@@ -166,7 +166,7 @@ ACTUAL_HOST=$(detect_docker_host)
 ENCODED_VHOST=$(printf '%s' "$RABBITMQ_VHOST" | sed 's|/|%2F|g')
 
 # Construct the AMQP URL
-RABBITMQ_URL="amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@${ACTUAL_HOST}:${RABBITMQ_PORT}/${ENCODED_VHOST}"
+CELERY_BROKER_URL="amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@${ACTUAL_HOST}:${RABBITMQ_PORT}/${ENCODED_VHOST}"
 
 # Construct the WebSocket URL for the frontend
 WS_URL="ws://${WS_PUBLIC_HOST}:${WS_PORT}/ws"
@@ -175,7 +175,7 @@ echo "========================================="
 echo "Kanchi Docker Container Configuration"
 echo "========================================="
 echo "Image:        $IMAGE_NAME"
-echo "RabbitMQ URL: $RABBITMQ_URL"
+echo "Broker URL:   $CELERY_BROKER_URL"
 echo "WebSocket:    http://localhost:$WS_PORT (internal)"
 echo "              $WS_URL (public)"
 echo "Frontend:     http://localhost:$FRONTEND_PORT"
@@ -200,7 +200,7 @@ docker run \
     -it \
     -p "${WS_PORT}:8765" \
     -p "${FRONTEND_PORT}:3000" \
-    -e "RABBITMQ_URL=${RABBITMQ_URL}" \
+    -e "CELERY_BROKER_URL=${CELERY_BROKER_URL}" \
     -e "LOG_LEVEL=${LOG_LEVEL}" \
     -e "NUXT_PUBLIC_WS_URL=${WS_URL}" \
     "$IMAGE_NAME"

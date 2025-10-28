@@ -126,9 +126,10 @@ python run_worker.py --pool solo --loglevel debug
 - URL: http://localhost:5555
 
 ### Kanchi Agent
-When testing Kanchi, point the agent to:
-- Broker: amqp://guest:guest@localhost:5672//
-- Backend: redis://localhost:6379/0
+When testing Kanchi, set CELERY_BROKER_URL to point to your broker:
+- RabbitMQ: amqp://guest:guest@localhost:5672//
+- Redis: redis://localhost:6379/0
+- Result Backend: redis://localhost:6379/0
 
 ## Task Types
 

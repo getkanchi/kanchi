@@ -36,7 +36,7 @@ services:
   worker1:
     build: .
     environment:
-      CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
+      CELERY_BROKER_URL: redis://redis:6379/0
       REDIS_URL: redis://redis:6379/0
       PYTHONUNBUFFERED: 1
     depends_on:
@@ -50,7 +50,7 @@ services:
   worker2:
     build: .
     environment:
-      CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
+      CELERY_BROKER_URL: redis://redis:6379/0
       REDIS_URL: redis://redis:6379/0
       PYTHONUNBUFFERED: 1
     depends_on:
@@ -64,7 +64,7 @@ services:
   worker3:
     build: .
     environment:
-      CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
+      CELERY_BROKER_URL: redis://redis:6379/0
       REDIS_URL: redis://redis:6379/0
       PYTHONUNBUFFERED: 1
     depends_on:
@@ -78,7 +78,7 @@ services:
   beat:
     build: .
     environment:
-      CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
+      CELERY_BROKER_URL: redis://redis:6379/0
       REDIS_URL: redis://redis:6379/0
       PYTHONUNBUFFERED: 1
     depends_on:
