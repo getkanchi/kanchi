@@ -179,7 +179,6 @@ class SessionService:
         logger.info(f"Deleted session: {session_id}")
         return True
 
-    # ------------------------------------------------------------------
     def _ensure_session_owner(
         self,
         session_db: UserSessionDB,

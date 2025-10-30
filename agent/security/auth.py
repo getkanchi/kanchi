@@ -93,9 +93,7 @@ class AuthManager:
         self.token_manager = TokenManager(config.token_secret_key)
         self._state_token_manager = TokenManager(config.session_secret_key)
 
-    # ------------------------------------------------------------------
     # Basic authentication
-    # ------------------------------------------------------------------
     def verify_basic_credentials(self, username: str, password: str) -> bool:
         if not self.config.auth_basic_enabled:
             raise AuthError("Basic authentication is disabled")
@@ -126,9 +124,7 @@ class AuthManager:
             raise AuthError("Failed to decode basic credentials") from exc
         return username, password
 
-    # ------------------------------------------------------------------
     # OAuth helpers
-    # ------------------------------------------------------------------
     def get_oauth_provider(self, provider: str) -> OAuthProviderConfig:
         provider = provider.lower()
         if provider == "google":
@@ -208,9 +204,7 @@ class AuthManager:
             resolved[key] = str(value)
         return resolved
 
-    # ------------------------------------------------------------------
     # Token helpers
-    # ------------------------------------------------------------------
     def create_access_token(self, user_id: str, session_id: str, scopes: Tuple[str, ...] = ()) -> Tuple[str, datetime]:
         return self.token_manager.create_token(
             token_type="access",
@@ -235,18 +229,14 @@ class AuthManager:
     def decode_refresh_token(self, token: str) -> TokenPayload:
         return self.token_manager.decode(token, expected_type="refresh")
 
-    # ------------------------------------------------------------------
     # Email validation
-    # ------------------------------------------------------------------
     def is_email_allowed(self, email: str) -> bool:
         patterns = self.config.allowed_email_patterns
         if not patterns:
             return True  # Allow all if no patterns supplied
         return any(fnmatch.fnmatch(email.lower(), pattern.lower()) for pattern in patterns)
 
-    # ------------------------------------------------------------------
     # HTTP helpers
-    # ------------------------------------------------------------------
     @staticmethod
     def auth_required_exception(detail: str = "Authentication required") -> HTTPException:
         return HTTPException(

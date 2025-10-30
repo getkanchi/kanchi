@@ -63,7 +63,6 @@ def create_router(app_state) -> APIRouter:
             return None
         return await deps.optional_user(request)  # type: ignore[func-returns-value]
 
-    # ------------------------------------------------------------------
     @router.get("/config", response_model=AuthConfigResponse)
     async def fetch_auth_config(config: Config = Depends(get_config)):
         manager = app_state.auth_manager
@@ -81,7 +80,6 @@ def create_router(app_state) -> APIRouter:
             allowed_email_patterns=config.allowed_email_patterns or [],
         )
 
-    # ------------------------------------------------------------------
     @router.post("/basic/login", response_model=LoginResponse)
     async def basic_login(
         payload: BasicLoginRequest,
@@ -103,7 +101,6 @@ def create_router(app_state) -> APIRouter:
 
         return _login_result_to_response(result)
 
-    # ------------------------------------------------------------------
     @router.post("/refresh", response_model=LoginResponse)
     async def refresh_tokens(
         payload: RefreshRequest,
@@ -116,7 +113,6 @@ def create_router(app_state) -> APIRouter:
 
         return _login_result_to_response(result)
 
-    # ------------------------------------------------------------------
     @router.post("/logout", status_code=204)
     async def logout(
         payload: LogoutRequest,
@@ -130,7 +126,6 @@ def create_router(app_state) -> APIRouter:
         auth_service.logout_session(session_id)
         return Response(status_code=204)
 
-    # ------------------------------------------------------------------
     @router.get("/me", response_model=UserInfo)
     async def get_current_user(
         db_session=Depends(get_db),
@@ -152,7 +147,6 @@ def create_router(app_state) -> APIRouter:
             avatar_url=user.avatar_url,
         )
 
-    # ------------------------------------------------------------------
     @router.get("/oauth/{provider}/authorize")
     async def oauth_authorize(  # type: ignore[override]
         provider: str,
@@ -171,7 +165,6 @@ def create_router(app_state) -> APIRouter:
 
         return {"authorization_url": authorization_url, "state": state}
 
-    # ------------------------------------------------------------------
     @router.get("/oauth/{provider}/callback")
     async def oauth_callback(  # type: ignore[override]
         provider: str,
@@ -221,7 +214,6 @@ def create_router(app_state) -> APIRouter:
     return router
 
 
-# ----------------------------------------------------------------------
 def _login_result_to_response(result) -> LoginResponse:
     payload = _login_result_to_dict(result)
     return LoginResponse(
@@ -312,7 +304,10 @@ def _build_oauth_callback_html(payload: dict, redirect: str, allowed_origins: It
       window.location.href = redirectTarget;
       return;
     }}
-    document.body.innerHTML = '<pre>' + JSON.stringify(payload, null, 2) + '</pre>';
+    const pre = document.createElement('pre');
+    pre.textContent = JSON.stringify(payload, null, 2);
+    document.body.textContent = '';
+    document.body.appendChild(pre);
   }})();
 </script>
 </body>

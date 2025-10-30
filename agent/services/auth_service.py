@@ -47,9 +47,7 @@ class AuthService:
             return value.replace(tzinfo=timezone.utc)
         return value
 
-    # ------------------------------------------------------------------
     # Core helpers
-    # ------------------------------------------------------------------
     def authenticate_access_token(self, token: str) -> AuthenticatedUser:
         payload = self.auth_manager.decode_access_token(token)
 
@@ -120,9 +118,7 @@ class AuthService:
         session_db.last_active = datetime.now(timezone.utc)
         self.session.commit()
 
-    # ------------------------------------------------------------------
     # Login flows
-    # ------------------------------------------------------------------
     def basic_login(self, username: str, password: str, session_id: Optional[str] = None) -> LoginResult:
         if not self.auth_manager.verify_basic_credentials(username, password):
             raise AuthError("Invalid username or password")
@@ -222,9 +218,7 @@ class AuthService:
         )
         return login_result, redirect_to
 
-    # ------------------------------------------------------------------
     # Token lifecycle
-    # ------------------------------------------------------------------
     def refresh_tokens(self, refresh_token: str) -> LoginResult:
         session_db = self.authenticate_refresh_token(refresh_token)
         user = self.session.query(UserDB).filter(UserDB.id == session_db.user_id).first()
@@ -257,9 +251,7 @@ class AuthService:
             refresh_token_expires_at=refresh_exp,
         )
 
-    # ------------------------------------------------------------------
     # Internal utilities
-    # ------------------------------------------------------------------
     def _create_session_for_user(
         self,
         user: UserDB,
