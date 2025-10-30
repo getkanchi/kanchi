@@ -193,7 +193,7 @@
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel @click="workflowToDelete = null">Cancel</AlertDialogCancel>
           <AlertDialogAction
             class="bg-status-error hover:bg-status-error-hover"
             @click="deleteWorkflow(workflowToDelete!)"
