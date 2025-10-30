@@ -7,6 +7,7 @@ from .task_registry_service import TaskRegistryService
 from .daily_stats_service import DailyStatsService
 from .environment_service import EnvironmentService
 from .session_service import SessionService
+from .auth_service import AuthService
 
 __all__ = [
     'TaskService',
@@ -15,5 +16,6 @@ __all__ = [
     'TaskRegistryService',
     'DailyStatsService',
     'EnvironmentService',
-    'SessionService'
+    'SessionService',
+    'AuthService'
 ]

@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 
 from models import EnvironmentResponse, EnvironmentCreate, EnvironmentUpdate
 from services import EnvironmentService
+from config import Config
+from security.dependencies import get_auth_dependency
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +17,12 @@ logger = logging.getLogger(__name__)
 def create_router(app_state) -> APIRouter:
     """Create environment router with dependency injection."""
     router = APIRouter(prefix="/api/environments", tags=["environments"])
+
+    config = app_state.config or Config.from_env()
+    require_user_dep = get_auth_dependency(app_state, require=True)
+
+    if config.auth_enabled:
+        router.dependencies.append(Depends(require_user_dep))
 
     def get_db() -> Session:
         """FastAPI dependency for database sessions."""

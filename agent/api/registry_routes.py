@@ -13,11 +13,21 @@ from models import (
     TaskDailyStatsResponse,
     TaskTimelineResponse
 )
+from config import Config
+from security.auth import AuthenticatedUser
+from security.dependencies import get_auth_dependency
 
 
 def create_router(app_state) -> APIRouter:
     """Create task registry router with dependency injection."""
     router = APIRouter(prefix="/api/registry", tags=["registry"])
+
+    config = app_state.config or Config.from_env()
+    require_user_dep = get_auth_dependency(app_state, require=True)
+    optional_user_dep = get_auth_dependency(app_state, require=False)
+
+    if config.auth_enabled:
+        router.dependencies.append(Depends(require_user_dep))
 
     def get_db() -> Session:
         """FastAPI dependency for database sessions."""
@@ -28,14 +38,19 @@ def create_router(app_state) -> APIRouter:
 
     async def get_active_env(
         session: Session = Depends(get_db),
-        x_session_id: Optional[str] = Header(None)
+        x_session_id: Optional[str] = Header(None),
+        current_user: Optional[AuthenticatedUser] = Depends(optional_user_dep)
     ):
         """Dependency to get active environment from session."""
         if not x_session_id:
             return None
 
         session_service = SessionService(session)
-        env_id = session_service.get_active_environment_id(x_session_id)
+        user_id = current_user.id if isinstance(current_user, AuthenticatedUser) else None
+        try:
+            env_id = session_service.get_active_environment_id(x_session_id, user_id=user_id)
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
 
         if not env_id:
             return None

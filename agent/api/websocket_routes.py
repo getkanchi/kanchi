@@ -11,6 +11,10 @@ from models import (
     StoredEventsResponse, PingMessage, SubscribeMessage, SetModeMessage,
     GetStoredMessage, TaskEvent
 )
+from config import Config
+from services.auth_service import AuthService
+from security.auth import AuthError
+from security.tokens import TokenError
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +53,8 @@ def create_router(app_state) -> APIRouter:
     """Create websocket router with dependency injection."""
     router = APIRouter(tags=["websocket"])
 
+    config = app_state.config or Config.from_env()
+
 
     @router.websocket("/ws")
     async def websocket_endpoint(websocket: WebSocket):
@@ -56,7 +62,31 @@ def create_router(app_state) -> APIRouter:
         if not app_state.connection_manager:
             await websocket.close(code=1011, reason="Server not initialized")
             return
-        
+
+        if config.auth_enabled:
+            token = websocket.query_params.get("token")
+            if not token:
+                auth_header = websocket.headers.get("Authorization")
+                if auth_header and auth_header.startswith("Bearer "):
+                    token = auth_header[len("Bearer "):].strip()
+            if not token:
+                await websocket.close(code=4401, reason="Authentication required")
+                return
+
+            if not app_state.auth_manager or not app_state.db_manager:
+                await websocket.close(code=1011, reason="Authentication not initialized")
+                return
+
+            try:
+                with app_state.db_manager.get_session() as session:
+                    auth_service = AuthService(session, app_state.auth_manager)
+                    auth_context = auth_service.authenticate_access_token(token)
+                    websocket.scope["auth_user"] = auth_context  # type: ignore[assignment]
+            except (AuthError, TokenError) as exc:
+                logger.warning("WebSocket authentication failed: %s", exc)
+                await websocket.close(code=4401, reason="Unauthorized")
+                return
+
         await app_state.connection_manager.connect(websocket)
         
         welcome = ConnectionInfo(

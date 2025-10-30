@@ -2,14 +2,52 @@
  * Centralized API service using auto-generated types
  */
 import { Api } from '../src/types/api'
-import type { 
-  TaskStats, 
-  TaskEventResponse, 
+import type {
+  TaskStats,
+  TaskEventResponse,
   WorkerInfo
 } from '../src/types/api'
 
+export type AuthProvider = 'google' | 'github'
+
+export interface UserInfoDTO {
+  id: string
+  email: string
+  provider: string
+  name?: string | null
+  avatar_url?: string | null
+}
+
+export interface AuthTokensDTO {
+  access_token: string
+  refresh_token: string
+  token_type: string
+  expires_in: number
+  refresh_expires_in: number
+  session_id: string
+}
+
+export interface AuthConfigDTO {
+  auth_enabled: boolean
+  basic_enabled: boolean
+  oauth_providers: string[]
+  allowed_email_patterns: string[]
+}
+
+export interface LoginResponseDTO {
+  user: UserInfoDTO
+  tokens: AuthTokensDTO
+  provider: string
+}
+
 class ApiService {
   private api: Api<unknown>
+
+  private accessToken: string | null = null
+
+  private sessionId: string | null = null
+
+  private onUnauthorized: (() => Promise<boolean>) | null = null
 
   constructor(baseURL: string) {
     // The axios-generated Api class expects configuration directly
@@ -21,12 +59,102 @@ class ApiService {
     })
 
     this.api.instance.interceptors.request.use((config) => {
-      const sessionId = localStorage.getItem('kanchi_session_id')
-      if (sessionId) {
-        config.headers['X-Session-Id'] = sessionId
+      if (this.sessionId) {
+        config.headers['X-Session-Id'] = this.sessionId
+      }
+      if (this.accessToken) {
+        config.headers['Authorization'] = `Bearer ${this.accessToken}`
       }
       return config
     })
+
+    this.api.instance.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        const status = error?.response?.status
+        const requestConfig = (error?.config ?? {}) as any
+
+        if (status === 401 && this.onUnauthorized && !requestConfig.__isRetryRequest) {
+          requestConfig.__isRetryRequest = true
+          const refreshed = await this.onUnauthorized()
+          if (refreshed) {
+            return this.api.instance.request(requestConfig)
+          }
+        }
+
+        return Promise.reject(error)
+      }
+    )
+  }
+
+  setAuthContext(accessToken: string | null, sessionId: string | null) {
+    this.accessToken = accessToken
+    this.sessionId = sessionId
+  }
+
+  clearAuthContext() {
+    this.accessToken = null
+    this.sessionId = null
+  }
+
+  registerUnauthorizedHandler(handler: (() => Promise<boolean>) | null) {
+    this.onUnauthorized = handler
+  }
+
+  getSessionId(): string | null {
+    return this.sessionId
+  }
+
+  getAccessToken(): string | null {
+    return this.accessToken
+  }
+
+  async getAuthConfig(): Promise<AuthConfigDTO> {
+    const response = await this.api.instance.get<AuthConfigDTO>('/api/auth/config')
+    return response.data
+  }
+
+  async loginWithBasic(username: string, password: string, sessionId?: string): Promise<LoginResponseDTO> {
+    const response = await this.api.instance.post<LoginResponseDTO>('/api/auth/basic/login', {
+      username,
+      password,
+      session_id: sessionId,
+    })
+    return response.data
+  }
+
+  async refreshAuthToken(refreshToken: string): Promise<LoginResponseDTO> {
+    const response = await this.api.instance.post<LoginResponseDTO>('/api/auth/refresh', {
+      refresh_token: refreshToken,
+    })
+    return response.data
+  }
+
+  async logout(sessionId?: string): Promise<void> {
+    await this.api.instance.post('/api/auth/logout', {
+      session_id: sessionId,
+    })
+  }
+
+  async getCurrentUser(): Promise<UserInfoDTO> {
+    const response = await this.api.instance.get<UserInfoDTO>('/api/auth/me')
+    return response.data
+  }
+
+  async getOAuthAuthorizationUrl(
+    provider: AuthProvider,
+    params?: { redirectTo?: string; sessionId?: string }
+  ): Promise<{ authorization_url: string; state: string }> {
+    const response = await this.api.instance.get<{ authorization_url: string; state: string }>(
+      `/api/auth/oauth/${provider}/authorize`,
+      {
+        params: {
+          redirect_to: params?.redirectTo,
+          session_id: params?.sessionId,
+        },
+      }
+    )
+    return response.data
   }
 
   // Task-related endpoints

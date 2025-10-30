@@ -3,6 +3,14 @@ import { ref } from 'vue'
 import { v4 as uuidv4 } from '@lukeed/uuid'
 import { useApiService, type UserSessionResponse } from '~/services/apiClient'
 
+interface InitializeOptions {
+  persist?: boolean
+}
+
+interface ResetOptions {
+  reload?: boolean
+}
+
 export const useSessionStore = defineStore('session', () => {
   const apiService = useApiService()
 
@@ -12,7 +20,24 @@ export const useSessionStore = defineStore('session', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  async function initialize() {
+  function setSessionId(id: string | null, persist = true) {
+    sessionId.value = id
+    apiService.setAuthContext(apiService.getAccessToken(), id)
+
+    if (!process.client) {
+      return
+    }
+
+    if (persist) {
+      if (id) {
+        localStorage.setItem('kanchi_session_id', id)
+      } else {
+        localStorage.removeItem('kanchi_session_id')
+      }
+    }
+  }
+
+  async function initialize(providedSessionId?: string, options: InitializeOptions = {}) {
     if (isInitialized.value) {
       return
     }
@@ -21,16 +46,20 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
 
     try {
-      let storedSessionId = localStorage.getItem('kanchi_session_id')
+      const persist = options.persist ?? true
+      let activeSessionId = providedSessionId || sessionId.value
 
-      if (!storedSessionId) {
-        storedSessionId = uuidv4()
-        localStorage.setItem('kanchi_session_id', storedSessionId)
+      if (!activeSessionId && process.client) {
+        activeSessionId = localStorage.getItem('kanchi_session_id')
       }
 
-      sessionId.value = storedSessionId
+      if (!activeSessionId) {
+        activeSessionId = uuidv4()
+      }
 
-      session.value = await apiService.initializeSession(storedSessionId)
+      setSessionId(activeSessionId, persist)
+
+      session.value = await apiService.initializeSession(activeSessionId)
       isInitialized.value = true
 
       console.log('[Session] Initialized:', session.value.session_id)
@@ -41,6 +70,17 @@ export const useSessionStore = defineStore('session', () => {
     } finally {
       loading.value = false
     }
+  }
+
+  async function ensureInitialized(options: InitializeOptions = {}) {
+    if (!isInitialized.value) {
+      await initialize(undefined, options)
+    }
+  }
+
+  async function initializeWithSessionId(id: string, options: InitializeOptions = {}) {
+    setSessionId(id, options.persist ?? true)
+    await ensureInitialized(options)
   }
 
   async function updatePreferences(preferences: Record<string, any>) {
@@ -104,12 +144,26 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  function reset() {
-    localStorage.removeItem('kanchi_session_id')
-    sessionId.value = null
+  function adoptSession(sessionResponse: UserSessionResponse, options: InitializeOptions = {}) {
+    session.value = sessionResponse
+    isInitialized.value = true
+    setSessionId(sessionResponse.session_id, options.persist ?? true)
+  }
+
+  function reset(options: ResetOptions = {}) {
+    const reload = options.reload ?? true
+
+    if (process.client) {
+      localStorage.removeItem('kanchi_session_id')
+    }
+
+    setSessionId(null, false)
     session.value = null
     isInitialized.value = false
-    window.location.reload()
+
+    if (reload) {
+      window.location.reload()
+    }
   }
 
   return {
@@ -120,9 +174,13 @@ export const useSessionStore = defineStore('session', () => {
     error,
 
     initialize,
+    ensureInitialized,
+    initializeWithSessionId,
+    adoptSession,
     updatePreferences,
     setActiveEnvironment,
     refresh,
-    reset
+    reset,
+    setSessionId,
   }
 })

@@ -13,11 +13,19 @@ from models import (
 from services.workflow_service import WorkflowService
 from services.action_executor import ActionExecutor
 from services.workflow_catalog import TRIGGER_METADATA
+from config import Config
+from security.dependencies import get_auth_dependency
 
 
 def create_router(app_state) -> APIRouter:
     """Create workflow router with dependency injection."""
     router = APIRouter(prefix="/api/workflows", tags=["workflows"])
+
+    config = app_state.config or Config.from_env()
+    require_user_dep = get_auth_dependency(app_state, require=True)
+
+    if config.auth_enabled:
+        router.dependencies.append(Depends(require_user_dep))
 
     def get_db() -> Session:
         """FastAPI dependency for database sessions."""
