@@ -184,7 +184,7 @@
     </div>
 
     <!-- Delete Confirmation Dialog -->
-    <AlertDialog :open="!!workflowToDelete" @update:open="(open) => !open && (workflowToDelete = null)">
+    <AlertDialog :open="!!workflowToDelete" @update:open="(open) => !open">
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Delete Workflow</AlertDialogTitle>
