@@ -184,7 +184,7 @@
     </div>
 
     <!-- Delete Confirmation Dialog -->
-    <AlertDialog :open="!!workflowToDelete" @update:open="(open) => !open && (workflowToDelete = null)">
+    <AlertDialog :open="!!workflowToDelete" @update:open="(open) => !open">
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Delete Workflow</AlertDialogTitle>
@@ -193,7 +193,7 @@
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel @click="workflowToDelete = null">Cancel</AlertDialogCancel>
           <AlertDialogAction
             class="bg-status-error hover:bg-status-error-hover"
             @click="deleteWorkflow(workflowToDelete!)"
