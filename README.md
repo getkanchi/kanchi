@@ -115,7 +115,7 @@ Migrations run automatically on startup.
 
 ### Authentication
 
-Authentication is opt-in. When `AUTH_ENABLED=false` (the default) Kanchi behaves exactly as before—anyone who can reach the backend may read metrics and connect over WebSockets. Enable authentication to require access tokens for all API routes and WebSocket connections.
+Authentication is opt-in. When `AUTH_ENABLED=false` (the default) anyone who can reach the backend may read metrics and connect over WebSockets. Enable authentication to require access tokens for all API routes and WebSocket connections.
 
 #### Basic HTTP authentication
 
