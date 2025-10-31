@@ -2,9 +2,23 @@
 
 from datetime import datetime, timezone
 from typing import Dict, Any
-from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, DateTime, Date, JSON, Text, Index
+from sqlalchemy import (
+    create_engine,
+    Column,
+    String,
+    Integer,
+    Float,
+    Boolean,
+    DateTime,
+    Date,
+    JSON,
+    Text,
+    Index,
+    ForeignKey,
+    UniqueConstraint,
+)
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import sessionmaker, Session, relationship
 from sqlalchemy.pool import StaticPool, NullPool
 from contextlib import contextmanager
 import json
@@ -296,11 +310,58 @@ class EnvironmentDB(Base):
         }
 
 
+class UserDB(Base):
+    """SQLAlchemy model for authenticated users."""
+    __tablename__ = 'users'
+
+    id = Column(String(36), primary_key=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    name = Column(String(255))
+    provider = Column(String(50), nullable=False, index=True)
+    provider_account_id = Column(String(255), index=True)
+    avatar_url = Column(String(512))
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+    last_login_at = Column(DateTime(timezone=True))
+
+    sessions = relationship("UserSessionDB", back_populates="user", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index('idx_users_provider_email', 'provider', 'email'),
+        UniqueConstraint('provider', 'provider_account_id', name='uq_users_provider_account'),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for API responses."""
+        return {
+            'id': self.id,
+            'email': self.email,
+            'name': self.name,
+            'provider': self.provider,
+            'provider_account_id': self.provider_account_id,
+            'avatar_url': self.avatar_url,
+            'is_active': self.is_active,
+            'created_at': ensure_utc_isoformat(self.created_at),
+            'updated_at': ensure_utc_isoformat(self.updated_at),
+            'last_login_at': ensure_utc_isoformat(self.last_login_at),
+        }
+
+
 class UserSessionDB(Base):
     """SQLAlchemy model for anonymous user sessions."""
     __tablename__ = 'user_sessions'
 
     session_id = Column(String(36), primary_key=True)  # UUID
+
+    user_id = Column(String(36), ForeignKey('users.id', ondelete='SET NULL'), index=True, nullable=True)
+    auth_provider = Column(String(50), index=True)
+
+    access_token_hash = Column(String(128), index=True, nullable=True)
+    refresh_token_hash = Column(String(128), index=True, nullable=True)
+    access_token_expires_at = Column(DateTime(timezone=True))
+    refresh_token_expires_at = Column(DateTime(timezone=True))
+    token_scopes = Column(JSON, default=list)
 
     # User preferences
     active_environment_id = Column(String(36), index=True)  # FK to environments.id (nullable)
@@ -310,8 +371,11 @@ class UserSessionDB(Base):
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     last_active = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False, index=True)
 
+    user = relationship("UserDB", back_populates="sessions")
+
     __table_args__ = (
         Index('idx_session_last_active', 'last_active'),
+        Index('idx_session_user', 'user_id'),
     )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -319,9 +383,14 @@ class UserSessionDB(Base):
         return {
             'session_id': self.session_id,
             'active_environment_id': self.active_environment_id,
+            'user_id': self.user_id,
+            'auth_provider': self.auth_provider,
             'preferences': self.preferences or {},
             'created_at': ensure_utc_isoformat(self.created_at),
             'last_active': ensure_utc_isoformat(self.last_active),
+            'access_token_expires_at': ensure_utc_isoformat(self.access_token_expires_at),
+            'refresh_token_expires_at': ensure_utc_isoformat(self.refresh_token_expires_at),
+            'token_scopes': self.token_scopes or [],
         }
 
 

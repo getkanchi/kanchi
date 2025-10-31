@@ -57,7 +57,36 @@ These steps mirror the Docmost deployment experience—download the compose file
    export DEVELOPMENT_MODE=false
    export NUXT_PUBLIC_API_URL=http://your-kanchi-host:8765
    export NUXT_PUBLIC_WS_URL=ws://your-kanchi-host:8765/ws
-   ```
+   # Authentication / security (all optional)
+    
+    # Toggle authentication globally (defaults to false for backward compatibility)
+    export AUTH_ENABLED=true
+
+    # Basic HTTP auth (PBKDF2 hash recommended)
+    export AUTH_BASIC_ENABLED=true
+    export BASIC_AUTH_USERNAME=kanchi-admin
+    export BASIC_AUTH_PASSWORD_HASH=pbkdf2_sha256$260000$mysalt$N8Dk...  # see below
+
+    # OAuth (set redirect base URL to the public address of the backend)
+    export AUTH_GOOGLE_ENABLED=true
+    export GOOGLE_CLIENT_ID=...
+    export GOOGLE_CLIENT_SECRET=...
+    export AUTH_GITHUB_ENABLED=true
+    export GITHUB_CLIENT_ID=...
+    export GITHUB_CLIENT_SECRET=...
+    export OAUTH_REDIRECT_BASE_URL=https://your-kanchi-host
+
+    # Allowed email addresses for OAuth logins (wildcards supported)
+    export ALLOWED_EMAIL_PATTERNS='*@example.com,*@example.org'
+
+    # CORS and host controls
+    export ALLOWED_ORIGINS=https://your-kanchi-host,http://localhost:3000
+    export ALLOWED_HOSTS=your-kanchi-host,localhost,127.0.0.1
+    
+    # Token secrets (must be non-default in production)
+    export SESSION_SECRET_KEY=$(openssl rand -hex 32)
+    export TOKEN_SECRET_KEY=$(openssl rand -hex 32)
+    ```
 
 3. **Start or update Kanchi in one command**
 
@@ -83,6 +112,37 @@ These steps mirror the Docmost deployment experience—download the compose file
 Kanchi expects a Celery broker (RabbitMQ or Redis) and (if desired) PostgreSQL to be managed separately—point `CELERY_BROKER_URL` and `DATABASE_URL` to the infrastructure you already run.
 
 Migrations run automatically on startup.
+
+### Authentication
+
+Authentication is opt-in. When `AUTH_ENABLED=false` (the default) anyone who can reach the backend may read metrics and connect over WebSockets. Enable authentication to require access tokens for all API routes and WebSocket connections.
+
+#### Basic HTTP authentication
+
+1. Generate a PBKDF2 hash for the password (for example using Python):
+
+   ```bash
+   python - <<'PY'
+   import os, base64, hashlib
+
+   password = os.environ.get('KANCHI_BASIC_PASSWORD', 'change-me').encode('utf-8')
+   salt = base64.b64encode(os.urandom(16)).decode('ascii').strip('=')
+   iterations = 260000
+   dk = hashlib.pbkdf2_hmac('sha256', password, salt.encode('utf-8'), iterations)
+   print(f"pbkdf2_sha256${iterations}${salt}${base64.b64encode(dk).decode('ascii')}")
+   PY
+   ```
+
+2. Set `AUTH_ENABLED=true`, `AUTH_BASIC_ENABLED=true`, `BASIC_AUTH_USERNAME`, and `BASIC_AUTH_PASSWORD_HASH` (or `BASIC_AUTH_PASSWORD` for local testing only).
+
+#### OAuth (Google, GitHub)
+
+1. Configure `AUTH_GOOGLE_ENABLED` and/or `AUTH_GITHUB_ENABLED` with the provider credentials.
+2. Set `OAUTH_REDIRECT_BASE_URL` to the publicly reachable backend URL (e.g., `https://kanchi.example.com`).
+3. Add allowed email patterns via `ALLOWED_EMAIL_PATTERNS` to restrict who can sign in.
+4. The frontend exposes convenient buttons for OAuth providers once enabled.
+
+Every login issues short-lived access tokens plus refresh tokens. You can adjust lifetimes through `ACCESS_TOKEN_LIFETIME_MINUTES` and `REFRESH_TOKEN_LIFETIME_HOURS` if required.
 
 ## Local Development
 

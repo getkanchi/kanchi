@@ -10,11 +10,19 @@ from models import (
     ActionConfigUpdateRequest
 )
 from services.action_config_service import ActionConfigService
+from config import Config
+from security.dependencies import get_auth_dependency
 
 
 def create_router(app_state) -> APIRouter:
     """Create action config router with dependency injection."""
     router = APIRouter(prefix="/api/action-configs", tags=["action-configs"])
+
+    config = app_state.config or Config.from_env()
+    require_user_dep = get_auth_dependency(app_state, require=True)
+
+    if config.auth_enabled:
+        router.dependencies.append(Depends(require_user_dep))
 
     def get_db() -> Session:
         """FastAPI dependency for database sessions."""

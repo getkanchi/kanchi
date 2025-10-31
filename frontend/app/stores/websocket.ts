@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia'
-import { ref, computed, readonly } from 'vue'
+import { ref, computed, readonly, watch } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useAuthStore } from './auth'
 import { useTasksStore } from './tasks'
 import { useWorkersStore } from './workers'
 import { useOrphanTasksStore } from './orphanTasks'
@@ -35,6 +37,9 @@ export const useWebSocketStore = defineStore('websocket', () => {
   const clientFilters = ref<Record<string, any>>({})
   const clientMode = ref<'live' | 'static'>('live')
 
+  const authStore = useAuthStore()
+  const { authEnabled, isAuthenticated, accessToken, configLoading } = storeToRefs(authStore)
+
   const canReconnect = computed(() =>
     reconnectAttempts.value < maxReconnectAttempts
   )
@@ -44,12 +49,26 @@ export const useWebSocketStore = defineStore('websocket', () => {
       return
     }
 
+    if (authEnabled.value && !isAuthenticated.value) {
+      return
+    }
+
     try {
       isConnecting.value = true
       error.value = null
 
       const config = useRuntimeConfig()
-      const wsUrl = config.public.wsUrl as string
+      let wsUrl = config.public.wsUrl as string
+
+      if (authEnabled.value && accessToken.value) {
+        try {
+          const parsed = new URL(wsUrl)
+          parsed.searchParams.set('token', accessToken.value)
+          wsUrl = parsed.toString()
+        } catch (err) {
+          console.error('[WebSocket] Invalid WS URL:', err)
+        }
+      }
 
       ws.value = new WebSocket(wsUrl)
 
@@ -188,7 +207,25 @@ export const useWebSocketStore = defineStore('websocket', () => {
   }
 
   if (process.client) {
-    connect()
+    watch([authEnabled, isAuthenticated, accessToken], () => {
+      if (configLoading.value) {
+        return
+      }
+
+      if (!authEnabled.value) {
+        if (!isConnected.value) {
+          connect()
+        }
+        return
+      }
+
+      if (isAuthenticated.value) {
+        disconnect()
+        connect()
+      } else {
+        disconnect()
+      }
+    }, { immediate: true })
   }
 
   return {

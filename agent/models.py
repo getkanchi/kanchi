@@ -329,6 +329,57 @@ class UserSessionUpdate(BaseModel):
     preferences: Optional[Dict[str, Any]] = None
 
 
+class UserInfo(BaseModel):
+    """Authenticated user information returned to clients."""
+    id: str
+    email: str
+    provider: str
+    name: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+
+class AuthTokens(BaseModel):
+    """Token bundle returned after login/refresh."""
+    access_token: str
+    refresh_token: str
+    token_type: Literal['bearer'] = 'bearer'
+    expires_in: int
+    refresh_expires_in: int
+    session_id: str
+
+
+class AuthConfigResponse(BaseModel):
+    """Backend authentication configuration."""
+    auth_enabled: bool
+    basic_enabled: bool
+    oauth_providers: List[str] = Field(default_factory=list)
+    allowed_email_patterns: List[str] = Field(default_factory=list)
+
+
+class LoginResponse(BaseModel):
+    """Login response payload."""
+    user: UserInfo
+    tokens: AuthTokens
+    provider: str
+
+
+class BasicLoginRequest(BaseModel):
+    """Basic authentication request payload."""
+    username: str
+    password: str
+    session_id: Optional[str] = None
+
+
+class RefreshRequest(BaseModel):
+    """Refresh token request payload."""
+    refresh_token: str
+
+
+class LogoutRequest(BaseModel):
+    """Logout request payload."""
+    session_id: Optional[str] = None
+
+
 class TimelineBucket(BaseModel):
     """Single time bucket in timeline"""
     timestamp: datetime
