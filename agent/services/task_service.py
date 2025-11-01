@@ -16,6 +16,72 @@ from services.utils import EnvironmentFilter, GenericFilter, parse_filter_string
 logger = logging.getLogger(__name__)
 
 
+def make_json_serializable(obj: Any) -> Any:
+    """
+    Recursively convert Python objects to JSON-serializable equivalents.
+
+    Handles common non-serializable types from Celery events:
+    - Ellipsis (...) -> string "..."
+    - set -> list
+    - tuple -> list
+    - bytes -> base64 string or repr
+    - Other objects -> string representation
+
+    Args:
+        obj: Object to convert
+
+    Returns:
+        JSON-serializable version of the object
+    """
+    # Handle None and basic JSON types
+    if obj is None or isinstance(obj, (bool, int, float, str)):
+        return obj
+
+    # Handle Ellipsis
+    if obj is Ellipsis or obj == Ellipsis:
+        return "..."
+
+    # Handle sets - convert to sorted list for consistency
+    if isinstance(obj, set):
+        try:
+            return sorted(list(obj))
+        except TypeError:
+            # If items aren't sortable, just convert to list
+            return list(obj)
+
+    # Handle tuples - convert to list
+    if isinstance(obj, tuple):
+        return [make_json_serializable(item) for item in obj]
+
+    # Handle lists - recursively process items
+    if isinstance(obj, list):
+        return [make_json_serializable(item) for item in obj]
+
+    # Handle dicts - recursively process keys and values
+    if isinstance(obj, dict):
+        return {
+            str(k): make_json_serializable(v)
+            for k, v in obj.items()
+        }
+
+    # Handle bytes
+    if isinstance(obj, bytes):
+        try:
+            return obj.decode('utf-8')
+        except UnicodeDecodeError:
+            # If not UTF-8, use base64
+            import base64
+            return f"base64:{base64.b64encode(obj).decode('ascii')}"
+
+    # For any other type, convert to string representation
+    try:
+        # Try to use repr for better debugging
+        return repr(obj)
+    except Exception:
+        # Fallback to type name if repr fails
+        return f"<{type(obj).__name__}>"
+
+
 class TaskService:
     """Service for managing task events and statistics."""
 
@@ -487,6 +553,20 @@ class TaskService:
         Returns:
             TaskEventDB instance ready for insertion
         """
+        # Sanitize args, kwargs, and result to ensure JSON serialization
+        sanitized_args = make_json_serializable(args)
+        sanitized_kwargs = make_json_serializable(kwargs)
+
+        # Handle result field - sanitize it as well
+        if task_event.result is not None:
+            if isinstance(task_event.result, (list, dict)):
+                sanitized_result = make_json_serializable(task_event.result)
+            else:
+                # Convert non-dict/list results to string
+                sanitized_result = str(task_event.result)
+        else:
+            sanitized_result = None
+
         return TaskEventDB(
             task_id=task_event.task_id,
             task_name=task_event.task_name,
@@ -499,16 +579,12 @@ class TaskService:
             routing_key=routing_key,
             root_id=task_event.root_id,
             parent_id=task_event.parent_id,
-            args=args,
-            kwargs=kwargs,
+            args=sanitized_args,
+            kwargs=sanitized_kwargs,
             retries=task_event.retries,
             eta=task_event.eta,
             expires=task_event.expires,
-            result=(
-                task_event.result
-                if isinstance(task_event.result, (list, dict))
-                else str(task_event.result) if task_event.result else None
-            ),
+            result=sanitized_result,
             runtime=task_event.runtime,
             exception=task_event.exception,
             traceback=task_event.traceback,
