@@ -21,7 +21,7 @@ Kanchi is a real-time Celery task monitoring (and management) system with an enj
 
 ## Quick Start (Docker Compose)
 
-These steps mirror the Docmost deployment experience—download the compose file, set a few environment variables, and bring the stack up with a single command.
+Download the compose file, set a few environment variables, and bring the stack up with a single command.
 
 ### Prerequisites
 
@@ -32,10 +32,10 @@ These steps mirror the Docmost deployment experience—download the compose file
 
    ```bash
    mkdir kanchi && cd kanchi
-   curl -O https://raw.githubusercontent.com/<YOUR_ORG_OR_USER>/kanchi/main/docker-compose.yaml
+   curl -O https://raw.githubusercontent.com/getkanchi/kanchi/main/docker-compose.yaml
    ```
 
-   Replace `<YOUR_ORG_OR_USER>` with the GitHub namespace that hosts your Kanchi fork (for example, `kanchi-project`). The downloaded `docker-compose.yaml` contains sensible defaults and expects you to provide a Celery broker connection string—Kanchi does not manage your broker or database.
+   The downloaded `docker-compose.yaml` contains sensible defaults and expects you to provide a Celery broker connection string—Kanchi does not manage your broker or database.
 
 2. **Set required environment values**
 
