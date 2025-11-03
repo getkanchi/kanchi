@@ -204,6 +204,6 @@ npx swagger-typescript-api generate -p http://localhost:8765/openapi.json -o app
 
 ## License
 
-Licensed under [AGPL-3.0](LICENSE)
+Licensed under [MIT](LICENSE)
 
 
