@@ -204,4 +204,6 @@ npx swagger-typescript-api generate -p http://localhost:8765/openapi.json -o app
 
 ## License
 
-Copyright 2025 Kanchi Project. Licensed for non-commercial use only. This license will automatically convert to Apache License 2.0 after 2 years from first public release. See LICENSE.txt for full details.
+Licensed under [AGPL-3.0](LICENSE)
+
+
