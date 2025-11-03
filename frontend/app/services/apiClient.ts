@@ -240,6 +240,12 @@ class ApiService {
     return response.data
   }
 
+  // Health details check
+  async healthDetailsCheck(): Promise<any> {
+    const response = await this.api.api.healthDetailsApiHealthDetailsGet()
+    return response.data
+  }
+
   // WebSocket message types
   async getWebSocketMessageTypes(): Promise<any> {
     const response = await this.api.api.getWebsocketMessageTypesApiWebsocketMessageTypesGet()

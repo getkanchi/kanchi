@@ -199,7 +199,7 @@ poetry run alembic revision --autogenerate -m "description"  # Migration
 ```bash
 cd frontend
 npm run build                   # Build
-npx swagger-typescript-api generate -p http://localhost:8765/openapi.json -o app/src/types -n api.ts --modular
+npx swagger-typescript-api generate -p http://localhost:8765/openapi.json -o app/src/types -n api.ts --http-client axios
 ```
 
 ## License
