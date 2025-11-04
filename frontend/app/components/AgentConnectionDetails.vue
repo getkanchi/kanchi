@@ -140,7 +140,7 @@ const displayConnected = computed(() => isClientSide.value && wsStore.isConnecte
 
 const fetchHealthData = async () => {
   try {
-    if (needsLogin) {
+    if (needsLogin.value) {
       await healthStore.fetchHealth()
     } else {
       await healthStore.fetchHealthDetails()
