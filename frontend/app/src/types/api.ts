@@ -106,6 +106,87 @@ export interface ActionConfigUpdateRequest {
 }
 
 /**
+ * AuthConfigResponse
+ * Backend authentication configuration.
+ */
+export interface AuthConfigResponse {
+  /** Auth Enabled */
+  auth_enabled: boolean;
+  /** Basic Enabled */
+  basic_enabled: boolean;
+  /** Oauth Providers */
+  oauth_providers?: string[];
+  /** Allowed Email Patterns */
+  allowed_email_patterns?: string[];
+}
+
+/**
+ * AuthTokens
+ * Token bundle returned after login/refresh.
+ */
+export interface AuthTokens {
+  /** Access Token */
+  access_token: string;
+  /** Refresh Token */
+  refresh_token: string;
+  /**
+   * Token Type
+   * @default "bearer"
+   */
+  token_type?: "bearer";
+  /** Expires In */
+  expires_in: number;
+  /** Refresh Expires In */
+  refresh_expires_in: number;
+  /** Session Id */
+  session_id: string;
+}
+
+/**
+ * BasicLoginRequest
+ * Basic authentication request payload.
+ */
+export interface BasicLoginRequest {
+  /** Username */
+  username: string;
+  /** Password */
+  password: string;
+  /** Session Id */
+  session_id?: string | null;
+}
+
+/**
+ * CircuitBreakerConfig
+ * Configuration for workflow-level circuit breaking.
+ */
+export interface CircuitBreakerConfig {
+  /**
+   * Enabled
+   * @default true
+   */
+  enabled?: boolean;
+  /**
+   * Max Executions
+   * Number of executions allowed per window
+   * @min 1
+   * @default 1
+   */
+  max_executions?: number;
+  /**
+   * Window Seconds
+   * Sliding window size in seconds
+   * @min 1
+   * @default 300
+   */
+  window_seconds?: number;
+  /**
+   * Context Field
+   * Event context field used to group executions (e.g., root_id, task_id)
+   */
+  context_field?: string | null;
+}
+
+/**
  * Condition
  * Single condition for workflow filtering.
  */
@@ -242,6 +323,37 @@ export interface LogEntry {
 }
 
 /**
+ * LoginResponse
+ * Login response payload.
+ */
+export interface LoginResponse {
+  /** Authenticated user information returned to clients. */
+  user: UserInfo;
+  /** Token bundle returned after login/refresh. */
+  tokens: AuthTokens;
+  /** Provider */
+  provider: string;
+}
+
+/**
+ * LogoutRequest
+ * Logout request payload.
+ */
+export interface LogoutRequest {
+  /** Session Id */
+  session_id?: string | null;
+}
+
+/**
+ * RefreshRequest
+ * Refresh token request payload.
+ */
+export interface RefreshRequest {
+  /** Refresh Token */
+  refresh_token: string;
+}
+
+/**
  * TaskDailyStatsResponse
  * Daily statistics response model
  */
@@ -307,10 +419,10 @@ export interface TaskDailyStatsResponse {
 }
 
 /**
- * TaskEventResponse
- * Pydantic model for API responses with nested retry relationships
+ * TaskEvent
+ * Represents a Celery task event
  */
-export interface TaskEventResponse {
+export interface TaskEvent {
   /** Task Id */
   task_id: string;
   /** Task Name */
@@ -322,11 +434,8 @@ export interface TaskEventResponse {
    * @format date-time
    */
   timestamp: string;
-  /**
-   * Args
-   * @default []
-   */
-  args?: any;
+  /** Args */
+  args?: any[];
   /** Kwargs */
   kwargs?: object;
   /**
@@ -340,6 +449,10 @@ export interface TaskEventResponse {
   expires?: string | null;
   /** Hostname */
   hostname?: string | null;
+  /** Worker Name */
+  worker_name?: string | null;
+  /** Queue */
+  queue?: string | null;
   /**
    * Exchange
    * @default ""
@@ -362,9 +475,9 @@ export interface TaskEventResponse {
   exception?: string | null;
   /** Traceback */
   traceback?: string | null;
-  retry_of?: TaskEventResponse | null;
+  retry_of?: TaskEvent | null;
   /** Retried By */
-  retried_by?: TaskEventResponse[];
+  retried_by?: TaskEvent[];
   /**
    * Is Retry
    * @default false
@@ -544,6 +657,23 @@ export interface TriggerConfig {
 }
 
 /**
+ * UserInfo
+ * Authenticated user information returned to clients.
+ */
+export interface UserInfo {
+  /** Id */
+  id: string;
+  /** Email */
+  email: string;
+  /** Provider */
+  provider: string;
+  /** Name */
+  name?: string | null;
+  /** Avatar Url */
+  avatar_url?: string | null;
+}
+
+/**
  * UserSessionResponse
  * User session API response model
  */
@@ -654,6 +784,7 @@ export interface WorkflowCreateRequest {
    * @default 0
    */
   cooldown_seconds?: number;
+  circuit_breaker?: CircuitBreakerConfig | null;
 }
 
 /**
@@ -689,6 +820,7 @@ export interface WorkflowDefinition {
    * @default 0
    */
   cooldown_seconds?: number;
+  circuit_breaker?: CircuitBreakerConfig | null;
   /** Created At */
   created_at?: string | null;
   /** Updated At */
@@ -733,7 +865,13 @@ export interface WorkflowExecutionRecord {
   /** Trigger Event */
   trigger_event: object;
   /** Status */
-  status: "pending" | "running" | "completed" | "failed" | "rate_limited";
+  status:
+    | "pending"
+    | "running"
+    | "completed"
+    | "failed"
+    | "rate_limited"
+    | "circuit_open";
   /** Actions Executed */
   actions_executed?: object[] | null;
   /** Error Message */
@@ -748,6 +886,8 @@ export interface WorkflowExecutionRecord {
   duration_ms?: number | null;
   /** Workflow Snapshot */
   workflow_snapshot?: object | null;
+  /** Circuit Breaker Key */
+  circuit_breaker_key?: string | null;
 }
 
 /**
@@ -771,6 +911,7 @@ export interface WorkflowUpdateRequest {
   max_executions_per_hour?: number | null;
   /** Cooldown Seconds */
   cooldown_seconds?: number | null;
+  circuit_breaker?: CircuitBreakerConfig | null;
 }
 
 import type {
@@ -1029,7 +1170,7 @@ export class Api<
       taskId: string,
       params: RequestParams = {},
     ) =>
-      this.request<TaskEventResponse[], HTTPValidationError>({
+      this.request<TaskEvent[], HTTPValidationError>({
         path: `/api/events/${taskId}`,
         method: "GET",
         format: "json",
@@ -1045,7 +1186,7 @@ export class Api<
      * @request GET:/api/tasks/active
      */
     getActiveTasksApiTasksActiveGet: (params: RequestParams = {}) =>
-      this.request<TaskEventResponse[], HTTPValidationError>({
+      this.request<TaskEvent[], HTTPValidationError>({
         path: `/api/tasks/active`,
         method: "GET",
         format: "json",
@@ -1061,9 +1202,45 @@ export class Api<
      * @request GET:/api/tasks/orphaned
      */
     getOrphanedTasksApiTasksOrphanedGet: (params: RequestParams = {}) =>
-      this.request<TaskEventResponse[], HTTPValidationError>({
+      this.request<TaskEvent[], HTTPValidationError>({
         path: `/api/tasks/orphaned`,
         method: "GET",
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Get failed tasks within the last ``hours`` window.
+     *
+     * @tags tasks
+     * @name GetRecentFailedTasksApiTasksFailedRecentGet
+     * @summary Get Recent Failed Tasks
+     * @request GET:/api/tasks/failed/recent
+     */
+    getRecentFailedTasksApiTasksFailedRecentGet: (
+      query?: {
+        /**
+         * Hours
+         * @default 24
+         */
+        hours?: number;
+        /**
+         * Limit
+         * @default 50
+         */
+        limit?: number;
+        /**
+         * Include Retried
+         * @default false
+         */
+        include_retried?: boolean;
+      },
+      params: RequestParams = {},
+    ) =>
+      this.request<TaskEvent[], HTTPValidationError>({
+        path: `/api/tasks/failed/recent`,
+        method: "GET",
+        query: query,
         format: "json",
         ...params,
       }),
@@ -1323,7 +1500,7 @@ export class Api<
      * @request GET:/api/registry/tags
      */
     getAllTagsApiRegistryTagsGet: (params: RequestParams = {}) =>
-      this.request<string[], any>({
+      this.request<string[], HTTPValidationError>({
         path: `/api/registry/tags`,
         method: "GET",
         format: "json",
@@ -1453,24 +1630,6 @@ export class Api<
       }),
 
     /**
-     * @description Get the currently active environment.
-     *
-     * @tags environments
-     * @name GetActiveEnvironmentApiEnvironmentsActiveGet
-     * @summary Get Active Environment
-     * @request GET:/api/environments/active
-     */
-    getActiveEnvironmentApiEnvironmentsActiveGet: (
-      params: RequestParams = {},
-    ) =>
-      this.request<EnvironmentResponse | null, any>({
-        path: `/api/environments/active`,
-        method: "GET",
-        format: "json",
-        ...params,
-      }),
-
-    /**
      * @description Get environment by ID.
      *
      * @tags environments
@@ -1526,42 +1685,6 @@ export class Api<
       this.request<void, HTTPValidationError>({
         path: `/api/environments/${envId}`,
         method: "DELETE",
-        ...params,
-      }),
-
-    /**
-     * @description Activate an environment (deactivates all others).
-     *
-     * @tags environments
-     * @name ActivateEnvironmentApiEnvironmentsEnvIdActivatePost
-     * @summary Activate Environment
-     * @request POST:/api/environments/{env_id}/activate
-     */
-    activateEnvironmentApiEnvironmentsEnvIdActivatePost: (
-      envId: string,
-      params: RequestParams = {},
-    ) =>
-      this.request<EnvironmentResponse, HTTPValidationError>({
-        path: `/api/environments/${envId}/activate`,
-        method: "POST",
-        format: "json",
-        ...params,
-      }),
-
-    /**
-     * @description Deactivate all environments (show all data).
-     *
-     * @tags environments
-     * @name DeactivateAllEnvironmentsApiEnvironmentsDeactivateAllPost
-     * @summary Deactivate All Environments
-     * @request POST:/api/environments/deactivate-all
-     */
-    deactivateAllEnvironmentsApiEnvironmentsDeactivateAllPost: (
-      params: RequestParams = {},
-    ) =>
-      this.request<void, any>({
-        path: `/api/environments/deactivate-all`,
-        method: "POST",
         ...params,
       }),
 
@@ -1651,6 +1774,22 @@ export class Api<
       this.request<UserSessionResponse, HTTPValidationError>({
         path: `/api/sessions/me/environment`,
         method: "DELETE",
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Expose supported triggers and actions.
+     *
+     * @tags workflows
+     * @name GetWorkflowMetadataApiWorkflowsMetadataGet
+     * @summary Get Workflow Metadata
+     * @request GET:/api/workflows/metadata
+     */
+    getWorkflowMetadataApiWorkflowsMetadataGet: (params: RequestParams = {}) =>
+      this.request<any, any>({
+        path: `/api/workflows/metadata`,
+        method: "GET",
         format: "json",
         ...params,
       }),
@@ -1974,7 +2113,157 @@ export class Api<
       }),
 
     /**
-     * @description Health check endpoint with detailed system information.
+     * No description
+     *
+     * @tags auth
+     * @name FetchAuthConfigApiAuthConfigGet
+     * @summary Fetch Auth Config
+     * @request GET:/api/auth/config
+     */
+    fetchAuthConfigApiAuthConfigGet: (params: RequestParams = {}) =>
+      this.request<AuthConfigResponse, any>({
+        path: `/api/auth/config`,
+        method: "GET",
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * No description
+     *
+     * @tags auth
+     * @name BasicLoginApiAuthBasicLoginPost
+     * @summary Basic Login
+     * @request POST:/api/auth/basic/login
+     */
+    basicLoginApiAuthBasicLoginPost: (
+      data: BasicLoginRequest,
+      params: RequestParams = {},
+    ) =>
+      this.request<LoginResponse, HTTPValidationError>({
+        path: `/api/auth/basic/login`,
+        method: "POST",
+        body: data,
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * No description
+     *
+     * @tags auth
+     * @name RefreshTokensApiAuthRefreshPost
+     * @summary Refresh Tokens
+     * @request POST:/api/auth/refresh
+     */
+    refreshTokensApiAuthRefreshPost: (
+      data: RefreshRequest,
+      params: RequestParams = {},
+    ) =>
+      this.request<LoginResponse, HTTPValidationError>({
+        path: `/api/auth/refresh`,
+        method: "POST",
+        body: data,
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * No description
+     *
+     * @tags auth
+     * @name LogoutApiAuthLogoutPost
+     * @summary Logout
+     * @request POST:/api/auth/logout
+     */
+    logoutApiAuthLogoutPost: (
+      data: LogoutRequest,
+      params: RequestParams = {},
+    ) =>
+      this.request<void, HTTPValidationError>({
+        path: `/api/auth/logout`,
+        method: "POST",
+        body: data,
+        type: ContentType.Json,
+        ...params,
+      }),
+
+    /**
+     * No description
+     *
+     * @tags auth
+     * @name GetCurrentUserApiAuthMeGet
+     * @summary Get Current User
+     * @request GET:/api/auth/me
+     */
+    getCurrentUserApiAuthMeGet: (params: RequestParams = {}) =>
+      this.request<UserInfo, any>({
+        path: `/api/auth/me`,
+        method: "GET",
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * No description
+     *
+     * @tags auth
+     * @name OauthAuthorizeApiAuthOauthProviderAuthorizeGet
+     * @summary Oauth Authorize
+     * @request GET:/api/auth/oauth/{provider}/authorize
+     */
+    oauthAuthorizeApiAuthOauthProviderAuthorizeGet: (
+      provider: string,
+      query?: {
+        /** Redirect To */
+        redirect_to?: string | null;
+        /** Session Id */
+        session_id?: string | null;
+      },
+      params: RequestParams = {},
+    ) =>
+      this.request<any, HTTPValidationError>({
+        path: `/api/auth/oauth/${provider}/authorize`,
+        method: "GET",
+        query: query,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * No description
+     *
+     * @tags auth
+     * @name OauthCallbackApiAuthOauthProviderCallbackGet
+     * @summary Oauth Callback
+     * @request GET:/api/auth/oauth/{provider}/callback
+     */
+    oauthCallbackApiAuthOauthProviderCallbackGet: (
+      provider: string,
+      query?: {
+        /** Code */
+        code?: string | null;
+        /** State */
+        state?: string | null;
+        /** Error */
+        error?: string | null;
+        /** Session Id */
+        session_id?: string | null;
+      },
+      params: RequestParams = {},
+    ) =>
+      this.request<any, HTTPValidationError>({
+        path: `/api/auth/oauth/${provider}/callback`,
+        method: "GET",
+        query: query,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Public health endpoint without sensitive data.
      *
      * @name HealthCheckApiHealthGet
      * @summary Health Check
@@ -1983,6 +2272,21 @@ export class Api<
     healthCheckApiHealthGet: (params: RequestParams = {}) =>
       this.request<any, any>({
         path: `/api/health`,
+        method: "GET",
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Detailed health information (authentication required when enabled).
+     *
+     * @name HealthDetailsApiHealthDetailsGet
+     * @summary Health Details
+     * @request GET:/api/health/details
+     */
+    healthDetailsApiHealthDetailsGet: (params: RequestParams = {}) =>
+      this.request<any, any>({
+        path: `/api/health/details`,
         method: "GET",
         format: "json",
         ...params,

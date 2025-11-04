@@ -121,29 +121,11 @@ import StatusDot from '~/components/StatusDot.vue'
 import SecretField from '~/components/SecretField.vue'
 import { Separator } from '@/components/ui/separator'
 
-interface HealthData {
-  status: string
-  monitor_running: boolean
-  connections: number
-  workers: number
-  database_url: string
-  database_url_full: string
-  broker_url: string
-  broker_url_full: string
-  uptime_seconds: number
-  python_version: string
-  platform: string
-  system: string
-  api_version: string
-  development_mode: boolean
-  log_level: string
-  total_tasks_processed: number
-  first_task_at: string | null
-}
-
 const wsStore = useWebSocketStore()
-const config = useRuntimeConfig()
-const apiBaseUrl = config.public.apiUrl
+const healthStore = useHealthStore()
+
+const authStore = useAuthStore()
+const { isAuthenticated } = storeToRefs(authStore)
 
 const healthData = ref<HealthData | null>(null)
 const lastUpdated = ref<string>('')
@@ -158,11 +140,13 @@ const displayConnected = computed(() => isClientSide.value && wsStore.isConnecte
 
 const fetchHealthData = async () => {
   try {
-    const response = await fetch(`${apiBaseUrl}/api/health`)
-    if (response.ok) {
-      healthData.value = await response.json()
-      lastUpdated.value = new Date().toLocaleTimeString()
+    if (! isAuthenticated.value) {
+      await healthStore.fetchHealth()
+    } else {
+      await healthStore.fetchHealthDetails()
     }
+    healthData.value = healthStore.health
+    lastUpdated.value = new Date().toLocaleTimeString()
   } catch (error) {
     console.error('Failed to fetch health data:', error)
   }
