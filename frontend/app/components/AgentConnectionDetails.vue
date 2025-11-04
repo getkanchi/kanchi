@@ -125,7 +125,7 @@ const wsStore = useWebSocketStore()
 const healthStore = useHealthStore()
 
 const authStore = useAuthStore()
-const { needsLogin } = storeToRefs(authStore)
+const { isAuthenticated } = storeToRefs(authStore)
 
 const healthData = ref<HealthData | null>(null)
 const lastUpdated = ref<string>('')
@@ -140,7 +140,7 @@ const displayConnected = computed(() => isClientSide.value && wsStore.isConnecte
 
 const fetchHealthData = async () => {
   try {
-    if (needsLogin.value) {
+    if (! isAuthenticated.value) {
       await healthStore.fetchHealth()
     } else {
       await healthStore.fetchHealthDetails()
