@@ -12,6 +12,7 @@ from database import TaskEventDB, RetryRelationshipDB
 from models import TaskEvent
 from constants import TaskState, EventType, STATE_TO_EVENT_MAP, ACTIVE_EVENT_TYPES
 from services.utils import EnvironmentFilter, GenericFilter, parse_filter_string
+from utils.payload_sanitizer import find_placeholder_paths
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ class TaskService:
         try:
             routing_key, queue = self._inherit_queue_info(task_event)
             args, kwargs = self._parse_task_arguments(task_event)
+            self._log_payload_truncation(task_event, args, kwargs, task_event.result)
 
             task_event_db = self._create_task_event_db(
                 task_event, routing_key, queue, args, kwargs
@@ -412,6 +414,39 @@ class TaskService:
                 queue = existing_sent_event.queue
 
         return routing_key, queue
+
+    def _log_payload_truncation(
+        self,
+        task_event: TaskEvent,
+        args: Any,
+        kwargs: Any,
+        result: Any,
+    ) -> None:
+        """
+        Surface detailed logging whenever Celery truncated parts of the payload.
+        """
+        truncated_segments = []
+        for field_name, value in (("args", args), ("kwargs", kwargs), ("result", result)):
+            if value is None:
+                continue
+            placeholder_paths = find_placeholder_paths(value)
+            if placeholder_paths:
+                truncated_segments.append((field_name, placeholder_paths))
+
+        if not truncated_segments:
+            return
+
+        details = "; ".join(
+            f"{field} @ {', '.join(paths)}" for field, paths in truncated_segments
+        )
+        logger.warning(
+            "Celery truncated payload data for task %s (%s). %s. "
+            "Increase celery.amqp args/kwargs repr limits or serialize large structures "
+            "before enqueuing if you need full visibility.",
+            task_event.task_id,
+            task_event.task_name,
+            details
+        )
 
     def _parse_task_arguments(self, task_event: TaskEvent) -> Tuple[Any, Any]:
         """

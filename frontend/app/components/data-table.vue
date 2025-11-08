@@ -230,11 +230,11 @@ const mapTaskToRetryChainFormat = (task: any) => {
             
             <TableRow v-if="expandedRows.has(row.original.task_id)" class="bg-background-raised border-border">
               <TableCell :colspan="columns.length + 1" class="p-0">
-                <div class="px-8 py-6">
+                <div class="px-8 py-6 w-full max-w-full min-w-0 overflow-hidden">
 
                   <!-- Task Details and Retry Button in one line -->
-                  <div class="flex items-center justify-between gap-6 text-sm mb-6">
-                    <div class="flex items-center gap-6 flex-wrap">
+                  <div class="flex items-center justify-between gap-6 text-sm mb-6 w-full flex-wrap">
+                    <div class="flex items-center gap-6 flex-wrap min-w-0">
                       <div class="flex items-center gap-1.5">
                         <Hash class="h-3.5 w-3.5 text-gray-400" />
                         <span class="text-gray-500">ID:</span>
@@ -304,9 +304,9 @@ const mapTaskToRetryChainFormat = (task: any) => {
                     />
                   </div>
                   
-                  <div class="space-y-4">
+                  <div class="space-y-4 w-full max-w-full min-w-0">
 
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full max-w-full min-w-0">
                       <PythonValueViewer
                         v-if="row.original.args"
                         :value="row.original.args"
