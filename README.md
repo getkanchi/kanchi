@@ -21,21 +21,80 @@ Kanchi is a real-time Celery task monitoring (and management) system with an enj
 
 ## Quick Start (Docker Compose)
 
-Download the compose file, set a few environment variables, and bring the stack up with a single command.
+Run Kanchi using pre-built images from Docker Hub. No repository cloning required—just set a few environment variables and start the container.
 
 ### Prerequisites
 
 - Docker Engine + Docker Compose plug-in installed on your host. Follow the [official Docker installation guide](https://docs.docker.com/engine/install/) for your OS.
 - Running Celery broker (RabbitMQ or Redis) instance (and optionally PostgreSQL) reachable from the host.
 
-1. **Create a directory and download the compose file**
+1. **Create a docker-compose.yaml file**
 
-   ```bash
-   mkdir kanchi && cd kanchi
-   curl -O https://raw.githubusercontent.com/getkanchi/kanchi/main/docker-compose.yaml
+   Create a new directory and save the following as `docker-compose.yaml`:
+
+   ```yaml
+   services:
+     kanchi:
+       image: getkanchi/kanchi:latest
+       container_name: kanchi
+       ports:
+         - "3000:3000"
+         - "8765:8765"
+       environment:
+         # Required: Your Celery broker connection string
+         CELERY_BROKER_URL: ${CELERY_BROKER_URL}
+
+         # Optional: Database (defaults to SQLite)
+         DATABASE_URL: ${DATABASE_URL:-sqlite:////data/kanchi.db}
+
+         # Optional: Logging and development
+         LOG_LEVEL: ${LOG_LEVEL:-INFO}
+         DEVELOPMENT_MODE: ${DEVELOPMENT_MODE:-false}
+
+         # Optional: Frontend URLs
+         NUXT_PUBLIC_API_URL: ${NUXT_PUBLIC_API_URL:-http://localhost:8765}
+         NUXT_PUBLIC_WS_URL: ${NUXT_PUBLIC_WS_URL:-ws://localhost:8765/ws}
+
+         # Optional: Authentication (disabled by default)
+         AUTH_ENABLED: ${AUTH_ENABLED:-false}
+
+         # Optional: Basic HTTP authentication
+         AUTH_BASIC_ENABLED: ${AUTH_BASIC_ENABLED:-false}
+         BASIC_AUTH_USERNAME: ${BASIC_AUTH_USERNAME}
+         BASIC_AUTH_PASSWORD_HASH: ${BASIC_AUTH_PASSWORD_HASH}
+
+         # Optional: OAuth providers
+         AUTH_GOOGLE_ENABLED: ${AUTH_GOOGLE_ENABLED:-false}
+         GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+         GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+         AUTH_GITHUB_ENABLED: ${AUTH_GITHUB_ENABLED:-false}
+         GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+         GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+         OAUTH_REDIRECT_BASE_URL: ${OAUTH_REDIRECT_BASE_URL}
+
+         # Optional: Email restrictions for OAuth
+         ALLOWED_EMAIL_PATTERNS: ${ALLOWED_EMAIL_PATTERNS}
+
+         # Optional: CORS and host controls
+         ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+         ALLOWED_HOSTS: ${ALLOWED_HOSTS}
+
+         # Optional: Security tokens (generate with: openssl rand -hex 32)
+         SESSION_SECRET_KEY: ${SESSION_SECRET_KEY}
+         TOKEN_SECRET_KEY: ${TOKEN_SECRET_KEY}
+       volumes:
+         - kanchi-data:/data
+       restart: unless-stopped
+       healthcheck:
+         test: ["CMD", "curl", "-f", "http://localhost:8765/health"]
+         interval: 30s
+         timeout: 10s
+         retries: 3
+         start_period: 40s
+
+   volumes:
+     kanchi-data:
    ```
-
-   The downloaded `docker-compose.yaml` contains sensible defaults and expects you to provide a Celery broker connection string—Kanchi does not manage your broker or database.
 
 2. **Set required environment values**
 
@@ -49,52 +108,49 @@ Download the compose file, set a few environment variables, and bring the stack 
    export CELERY_BROKER_URL=redis://localhost:6379/0
    ```
 
-   Optional overrides (fallback defaults shown in `docker-compose.yaml`):
+   Optional overrides (see docker-compose.yaml for all available options):
 
    ```bash
-   export DATABASE_URL=sqlite:////data/kanchi.db
+   export DATABASE_URL=postgresql://user:pass@postgres-host:5432/kanchi
    export LOG_LEVEL=INFO
    export DEVELOPMENT_MODE=false
    export NUXT_PUBLIC_API_URL=http://your-kanchi-host:8765
    export NUXT_PUBLIC_WS_URL=ws://your-kanchi-host:8765/ws
+
    # Authentication / security (all optional)
-    
-    # Toggle authentication globally (defaults to false for backward compatibility)
-    export AUTH_ENABLED=true
+   export AUTH_ENABLED=true
+   export AUTH_BASIC_ENABLED=true
+   export BASIC_AUTH_USERNAME=kanchi-admin
+   export BASIC_AUTH_PASSWORD_HASH=pbkdf2_sha256$260000$mysalt$N8Dk...  # see below
 
-    # Basic HTTP auth (PBKDF2 hash recommended)
-    export AUTH_BASIC_ENABLED=true
-    export BASIC_AUTH_USERNAME=kanchi-admin
-    export BASIC_AUTH_PASSWORD_HASH=pbkdf2_sha256$260000$mysalt$N8Dk...  # see below
+   # OAuth
+   export AUTH_GOOGLE_ENABLED=true
+   export GOOGLE_CLIENT_ID=...
+   export GOOGLE_CLIENT_SECRET=...
+   export AUTH_GITHUB_ENABLED=true
+   export GITHUB_CLIENT_ID=...
+   export GITHUB_CLIENT_SECRET=...
+   export OAUTH_REDIRECT_BASE_URL=https://your-kanchi-host
 
-    # OAuth (set redirect base URL to the public address of the backend)
-    export AUTH_GOOGLE_ENABLED=true
-    export GOOGLE_CLIENT_ID=...
-    export GOOGLE_CLIENT_SECRET=...
-    export AUTH_GITHUB_ENABLED=true
-    export GITHUB_CLIENT_ID=...
-    export GITHUB_CLIENT_SECRET=...
-    export OAUTH_REDIRECT_BASE_URL=https://your-kanchi-host
+   # Allowed email addresses for OAuth logins (wildcards supported)
+   export ALLOWED_EMAIL_PATTERNS='*@example.com,*@example.org'
 
-    # Allowed email addresses for OAuth logins (wildcards supported)
-    export ALLOWED_EMAIL_PATTERNS='*@example.com,*@example.org'
+   # CORS and host controls
+   export ALLOWED_ORIGINS=https://your-kanchi-host,http://localhost:3000
+   export ALLOWED_HOSTS=your-kanchi-host,localhost,127.0.0.1
 
-    # CORS and host controls
-    export ALLOWED_ORIGINS=https://your-kanchi-host,http://localhost:3000
-    export ALLOWED_HOSTS=your-kanchi-host,localhost,127.0.0.1
-    
-    # Token secrets (must be non-default in production)
-    export SESSION_SECRET_KEY=$(openssl rand -hex 32)
-    export TOKEN_SECRET_KEY=$(openssl rand -hex 32)
-    ```
+   # Token secrets (must be non-default in production)
+   export SESSION_SECRET_KEY=$(openssl rand -hex 32)
+   export TOKEN_SECRET_KEY=$(openssl rand -hex 32)
+   ```
 
 3. **Start or update Kanchi in one command**
 
    ```bash
-   docker compose -f docker-compose.yaml up -d --build --pull always --force-recreate
+   docker compose up -d --pull always
    ```
 
-   Re-run the same command any time after pulling new code to rebuild and restart the container.
+   Re-run the same command to pull the latest image and restart the container.
 
 4. **Visit the app**
 
@@ -104,9 +160,10 @@ Download the compose file, set a few environment variables, and bring the stack 
 5. **Optional commands**
 
    ```bash
-   docker compose -f docker-compose.yaml logs -f kanchi   # Tail logs
-   docker compose -f docker-compose.yaml down             # Stop and remove the container
-   docker compose -f docker-compose.yaml restart kanchi   # Restart without rebuild
+   docker compose logs -f kanchi      # Tail logs
+   docker compose down                # Stop and remove the container
+   docker compose restart kanchi      # Restart the container
+   docker compose pull                # Pull latest image without restarting
    ```
 
 Kanchi expects a Celery broker (RabbitMQ or Redis) and (if desired) PostgreSQL to be managed separately—point `CELERY_BROKER_URL` and `DATABASE_URL` to the infrastructure you already run.
