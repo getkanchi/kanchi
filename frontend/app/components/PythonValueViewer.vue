@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import PythonValueNode from './PythonValueNode.vue'
 import CopyButton from './CopyButton.vue'
+import PayloadTruncationNotice from '~/components/PayloadTruncationNotice.vue'
 
 interface Props {
   value: any  // Can be object (from API/WebSocket) or string (legacy)
@@ -69,7 +70,7 @@ const copyValue = computed(() => {
 </script>
 
 <template>
-  <div class="space-y-2">
+  <div class="space-y-2 w-full min-w-0">
     <!-- Header -->
     <div class="flex items-center justify-between">
       <div class="flex items-baseline gap-2">
@@ -87,6 +88,12 @@ const copyValue = computed(() => {
       />
     </div>
 
+    <PayloadTruncationNotice
+      :value="parsedValue"
+      :title="`${title} truncated before reaching Kanchi`"
+      dense
+    />
+
     <!-- Empty state -->
     <div
       v-if="isEmpty"
@@ -96,7 +103,7 @@ const copyValue = computed(() => {
     </div>
 
     <!-- Content -->
-    <div v-else class="bg-background-base border border-border rounded-md p-3">
+    <div v-else class="bg-background-base border border-border rounded-md p-3 overflow-x-auto">
       <!-- Simple value (single string/number) -->
       <div v-if="displayType === 'value'" class="font-mono text-xs text-text-primary">
         {{ parsedValue }}

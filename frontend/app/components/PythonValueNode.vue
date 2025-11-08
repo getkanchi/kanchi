@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { ChevronRight } from 'lucide-vue-next'
+import { AlertTriangle, ChevronRight } from 'lucide-vue-next'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { TooltipProvider, TooltipRoot, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { getPlaceholderMessage, isPayloadPlaceholder } from '~/utils/payload'
 
 interface Props {
   value: any
@@ -32,6 +34,10 @@ const valueType = computed(() => {
   if (typeof props.value === 'boolean') return 'bool'
   return 'unknown'
 })
+
+const isPlaceholder = computed(() => isPayloadPlaceholder(props.value))
+
+const placeholderMessage = computed(() => getPlaceholderMessage(props.value))
 
 const isComplex = computed(() => {
   return valueType.value === 'dict' || valueType.value === 'list'
@@ -85,9 +91,35 @@ const valueColor = computed(() => {
 </script>
 
 <template>
-  <div class="leading-relaxed">
+  <div class="leading-relaxed min-w-0">
+    <!-- Placeholder marker -->
+    <div
+      v-if="isPlaceholder"
+      class="flex items-center gap-2 py-1.5 border-b border-border-subtle text-xs"
+    >
+      <span v-if="keyName !== undefined" class="text-text-secondary font-mono flex-shrink-0">
+        <span v-if="typeof keyName === 'string'">{{ keyName }}</span>
+        <span v-else class="text-text-muted">[{{ keyName }}]</span>
+        <span class="text-text-muted mx-1">:</span>
+      </span>
+
+      <TooltipProvider :delay-duration="200">
+        <TooltipRoot>
+          <TooltipTrigger as-child>
+            <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-status-warning/10 text-status-warning cursor-default">
+              <AlertTriangle class="h-3.5 w-3.5" aria-hidden="true" />
+              <span class="sr-only">Payload truncated</span>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent class="max-w-xs text-[11px]">
+            {{ placeholderMessage }}
+          </TooltipContent>
+        </TooltipRoot>
+      </TooltipProvider>
+    </div>
+
     <!-- Simple values -->
-    <div v-if="!isComplex" class="flex items-baseline gap-2 py-1.5 border-b border-border-subtle">
+    <div v-else-if="!isComplex" class="flex items-baseline gap-2 py-1.5 border-b border-border-subtle">
       <!-- Key name -->
       <span v-if="keyName !== undefined" class="text-text-secondary text-xs font-mono flex-shrink-0">
         <span v-if="typeof keyName === 'string'">{{ keyName }}</span>
@@ -101,6 +133,7 @@ const valueColor = computed(() => {
       </span>
     </div>
 
+    <!-- Simple values -->
     <!-- Complex values (dict/list) -->
     <Collapsible v-else v-model:open="isOpen" class="group">
       <CollapsibleTrigger

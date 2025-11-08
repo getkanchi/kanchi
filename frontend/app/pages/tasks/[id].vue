@@ -226,18 +226,30 @@
               <!-- Arguments -->
               <div class="border border-border rounded-md p-5">
                 <h2 class="text-sm font-medium text-text-primary mb-4">Arguments</h2>
+                <PayloadTruncationNotice
+                  :value="task.args"
+                  title="Arguments truncated before reaching Kanchi"
+                />
                 <pre class="text-xs font-mono bg-background-base border border-border rounded p-3 overflow-x-auto text-text-primary">{{ formatJson(task.args) }}</pre>
               </div>
 
               <!-- Keyword Arguments -->
               <div class="border border-border rounded-md p-5">
                 <h2 class="text-sm font-medium text-text-primary mb-4">Keyword Arguments</h2>
+                <PayloadTruncationNotice
+                  :value="task.kwargs"
+                  title="Keyword arguments truncated before reaching Kanchi"
+                />
                 <pre class="text-xs font-mono bg-background-base border border-border rounded p-3 overflow-x-auto text-text-primary">{{ formatJson(task.kwargs) }}</pre>
               </div>
 
               <!-- Result -->
               <div v-if="task.result !== null && task.result !== undefined" class="border border-border rounded-md p-5">
                 <h2 class="text-sm font-medium text-text-primary mb-4">Result</h2>
+                <PayloadTruncationNotice
+                  :value="task.result"
+                  title="Result truncated before reaching Kanchi"
+                />
                 <pre class="text-xs font-mono bg-background-base border border-border rounded p-3 overflow-x-auto text-text-primary">{{ formatJson(task.result) }}</pre>
               </div>
 
@@ -319,6 +331,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs'
 import TimeDisplay from '~/components/TimeDisplay.vue'
 import UuidDisplay from '~/components/UuidDisplay.vue'
 import CopyButton from '~/components/CopyButton.vue'
+import PayloadTruncationNotice from '~/components/PayloadTruncationNotice.vue'
 import type { TaskEventResponse } from '~/services/apiClient'
 
 const route = useRoute()

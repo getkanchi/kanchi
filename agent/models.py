@@ -4,6 +4,8 @@ from enum import Enum
 import ast
 from pydantic import BaseModel, Field, field_validator
 
+from utils.payload_sanitizer import sanitize_payload
+
 
 class TaskEvent(BaseModel):
     """Represents a Celery task event"""
@@ -72,16 +74,24 @@ class TaskEvent(BaseModel):
         if v is None:
             return []
         if isinstance(v, list):
-            return v
+            sanitized, _ = sanitize_payload(v)
+            return sanitized if isinstance(sanitized, list) else ([] if sanitized is None else [sanitized])
         if isinstance(v, tuple):
-            return list(v)
+            sanitized, _ = sanitize_payload(list(v))
+            return sanitized if isinstance(sanitized, list) else ([] if sanitized is None else [sanitized])
         if isinstance(v, str):
             try:
                 parsed = ast.literal_eval(v) if v and v != '()' else []
-                return list(parsed) if isinstance(parsed, tuple) else (parsed if isinstance(parsed, list) else [])
+                if isinstance(parsed, tuple):
+                    parsed = list(parsed)
+                elif not isinstance(parsed, list):
+                    parsed = []
+                sanitized, _ = sanitize_payload(parsed)
+                return sanitized if isinstance(sanitized, list) else []
             except:
                 return []
-        return []
+        sanitized, _ = sanitize_payload(v)
+        return sanitized if isinstance(sanitized, list) else []
 
     @field_validator('kwargs', mode='before')
     @classmethod
@@ -89,13 +99,17 @@ class TaskEvent(BaseModel):
         if v is None:
             return {}
         if isinstance(v, dict):
-            return v
+            sanitized, _ = sanitize_payload(v)
+            return sanitized if isinstance(sanitized, dict) else {}
         if isinstance(v, str):
             try:
-                return ast.literal_eval(v) if v and v != '{}' else {}
+                parsed = ast.literal_eval(v) if v and v != '{}' else {}
+                sanitized, _ = sanitize_payload(parsed if isinstance(parsed, dict) else {})
+                return sanitized if isinstance(sanitized, dict) else {}
             except:
                 return {}
-        return {}
+        sanitized, _ = sanitize_payload(v)
+        return sanitized if isinstance(sanitized, dict) else {}
 
     @field_validator('timestamp', 'orphaned_at', mode='before')
     @classmethod
@@ -105,6 +119,12 @@ class TaskEvent(BaseModel):
         if isinstance(v, datetime):
             return v if v.tzinfo else v.replace(tzinfo=timezone.utc)
         return v
+
+    @field_validator('result', mode='before')
+    @classmethod
+    def sanitize_result(cls, v):
+        sanitized, _ = sanitize_payload(v)
+        return sanitized
 
 
 TaskEvent.model_rebuild()
