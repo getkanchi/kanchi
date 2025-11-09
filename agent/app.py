@@ -66,11 +66,15 @@ def create_app() -> FastAPI:
     config = Config.from_env()
     app_state.config = config
 
+    # Apply URL prefix if configured (for reverse proxy deployments)
+    root_path = f"/{config.url_prefix}" if config.url_prefix else ""
+
     app = FastAPI(
         title="Celery Event Monitor",
         description="Real-time monitoring of Celery task events with WebSocket broadcasting",
         version="0.1.0",
-        lifespan=lifespan
+        lifespan=lifespan,
+        root_path=root_path
     )
 
     allowed_origins = config.allowed_origins or ["*"]

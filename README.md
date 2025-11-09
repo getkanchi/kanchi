@@ -55,6 +55,10 @@ Run Kanchi using pre-built images from Docker Hub. No repository cloning require
          NUXT_PUBLIC_API_URL: ${NUXT_PUBLIC_API_URL:-http://localhost:8765}
          NUXT_PUBLIC_WS_URL: ${NUXT_PUBLIC_WS_URL:-ws://localhost:8765/ws}
 
+         # Optional: URL prefix for reverse proxy deployments
+         URL_PREFIX: ${URL_PREFIX:-}
+         NUXT_PUBLIC_URL_PREFIX: ${NUXT_PUBLIC_URL_PREFIX:-}
+
          # Optional: Authentication (disabled by default)
          AUTH_ENABLED: ${AUTH_ENABLED:-false}
 
@@ -200,6 +204,47 @@ Authentication is opt-in. When `AUTH_ENABLED=false` (the default) anyone who can
 4. The frontend exposes convenient buttons for OAuth providers once enabled.
 
 Every login issues short-lived access tokens plus refresh tokens. You can adjust lifetimes through `ACCESS_TOKEN_LIFETIME_MINUTES` and `REFRESH_TOKEN_LIFETIME_HOURS` if required.
+
+### Reverse Proxy / URL Prefix
+
+If you're deploying Kanchi behind a reverse proxy at a non-root path (e.g., `https://example.com/kanchi/` instead of `https://kanchi.example.com/`), configure the URL prefix:
+
+```bash
+export URL_PREFIX=kanchi
+export NUXT_PUBLIC_URL_PREFIX=kanchi
+```
+
+Both environment variables must be set to the same value. This ensures all API routes, WebSocket connections, and frontend requests use the correct path prefix.
+
+**Example Nginx configuration:**
+
+```nginx
+location /kanchi/ {
+    # Backend API
+    proxy_pass http://localhost:8765/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    # WebSocket support
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+}
+
+location /kanchi-frontend/ {
+    # Frontend (Nuxt)
+    proxy_pass http://localhost:3000/;
+    proxy_set_header Host $host;
+}
+```
+
+**Important notes:**
+- The URL prefix should **not** include leading or trailing slashes
+- Both `URL_PREFIX` (backend) and `NUXT_PUBLIC_URL_PREFIX` (frontend) must match
+- Update `NUXT_PUBLIC_API_URL` and `NUXT_PUBLIC_WS_URL` to point to the correct backend URLs
+- Ensure `OAUTH_REDIRECT_BASE_URL` includes the prefix if using OAuth
 
 ## Local Development
 

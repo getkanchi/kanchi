@@ -60,6 +60,19 @@ export const useWebSocketStore = defineStore('websocket', () => {
       const config = useRuntimeConfig()
       let wsUrl = config.public.wsUrl as string
 
+      // Apply URL prefix if configured (for reverse proxy deployments)
+      if (config.public.urlPrefix) {
+        try {
+          const parsed = new URL(wsUrl)
+          const prefix = `/${config.public.urlPrefix}`
+          // Prepend prefix to the pathname (e.g., /ws -> /kanchi/ws)
+          parsed.pathname = `${prefix}${parsed.pathname}`.replace(/\/+/g, '/')
+          wsUrl = parsed.toString()
+        } catch (err) {
+          console.error('[WebSocket] Failed to apply URL prefix:', err)
+        }
+      }
+
       if (authEnabled.value && accessToken.value) {
         try {
           const parsed = new URL(wsUrl)

@@ -36,6 +36,9 @@ class Config:
     ws_host: str = os.getenv('WS_HOST', 'localhost')
     ws_port: int = int(os.getenv('WS_PORT', 8765))
 
+    # URL prefix configuration (for deploying behind reverse proxy)
+    url_prefix: str = os.getenv('URL_PREFIX', '').strip('/')
+
     # Development mode (enables unified logging)
     development_mode: bool = os.getenv('DEVELOPMENT_MODE', 'false').lower() in ('true', '1', 'yes')
 

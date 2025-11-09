@@ -19,6 +19,10 @@ services:
       DEVELOPMENT_MODE: ${DEVELOPMENT_MODE:-false}
       NUXT_PUBLIC_API_URL: ${NUXT_PUBLIC_API_URL:-http://localhost:8765}
       NUXT_PUBLIC_WS_URL: ${NUXT_PUBLIC_WS_URL:-ws://localhost:8765/ws}
+      # URL prefix for reverse proxy deployments (e.g., /kanchi for http://example.com/kanchi/)
+      # Both backend and frontend need to be set to the same value
+      URL_PREFIX: ${URL_PREFIX:-}
+      NUXT_PUBLIC_URL_PREFIX: ${NUXT_PUBLIC_URL_PREFIX:-}
       # Authentication & security (optional)
       AUTH_ENABLED: ${AUTH_ENABLED:-false}
       AUTH_BASIC_ENABLED: ${AUTH_BASIC_ENABLED:-false}

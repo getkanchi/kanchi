@@ -593,7 +593,10 @@ let apiService: ApiService | null = null
 export function useApiService(): ApiService {
   if (!apiService) {
     const config = useRuntimeConfig()
-    apiService = new ApiService(config.public.apiUrl as string)
+    // Apply URL prefix if configured (for reverse proxy deployments)
+    const prefix = config.public.urlPrefix ? `/${config.public.urlPrefix}` : ''
+    const baseURL = `${config.public.apiUrl}${prefix}`
+    apiService = new ApiService(baseURL)
   }
   return apiService
 }

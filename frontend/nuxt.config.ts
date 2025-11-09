@@ -9,7 +9,8 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       wsUrl: process.env.NUXT_PUBLIC_WS_URL || 'ws://localhost:8765/ws',
-      apiUrl: process.env.NUXT_PUBLIC_API_URL || 'http://localhost:8765'
+      apiUrl: process.env.NUXT_PUBLIC_API_URL || 'http://localhost:8765',
+      urlPrefix: (process.env.NUXT_PUBLIC_URL_PREFIX || '').replace(/^\/+|\/+$/g, '')
     }
   },
   vite: {
