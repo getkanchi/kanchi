@@ -275,7 +275,7 @@ class TestWorkflowCircuitBreaker(DatabaseTestCase):
             workflow=workflow,
             trigger_type="task.failed",
             trigger_event=context,
-            workflow_snapshot=workflow.dict(),
+            workflow_snapshot=workflow.model_dump(mode='json'),
             circuit_breaker_key=root_id,
             reason="Circuit breaker test"
         )

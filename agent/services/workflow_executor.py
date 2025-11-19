@@ -37,7 +37,7 @@ class WorkflowExecutor:
             workflow_id=workflow.id,
             trigger_type=workflow.trigger.type,
             trigger_event=context,
-            workflow_snapshot=workflow.dict(),
+            workflow_snapshot=workflow.model_dump(mode='json'),
             circuit_breaker_key=circuit_breaker_key
         )
 
