@@ -50,6 +50,7 @@ Run Kanchi using pre-built images from Docker Hub. No repository cloning require
          # Optional: Logging and development
          LOG_LEVEL: ${LOG_LEVEL:-INFO}
          DEVELOPMENT_MODE: ${DEVELOPMENT_MODE:-false}
+         ENABLE_PICKLE_SERIALIZATION: ${ENABLE_PICKLE_SERIALIZATION:-false}
 
          # Optional: Frontend URLs
          NUXT_PUBLIC_API_URL: ${NUXT_PUBLIC_API_URL:-http://localhost:8765}
@@ -114,6 +115,7 @@ Run Kanchi using pre-built images from Docker Hub. No repository cloning require
    export DATABASE_URL=postgresql://user:pass@postgres-host:5432/kanchi
    export LOG_LEVEL=INFO
    export DEVELOPMENT_MODE=false
+   export ENABLE_PICKLE_SERIALIZATION=false
    export NUXT_PUBLIC_API_URL=http://your-kanchi-host:8765
    export NUXT_PUBLIC_WS_URL=ws://your-kanchi-host:8765/ws
 
@@ -142,6 +144,9 @@ Run Kanchi using pre-built images from Docker Hub. No repository cloning require
    # Token secrets (must be non-default in production)
    export SESSION_SECRET_KEY=$(openssl rand -hex 32)
    export TOKEN_SECRET_KEY=$(openssl rand -hex 32)
+
+# Pickle payloads (advanced; defaults to off)
+export ENABLE_PICKLE_SERIALIZATION=false
    ```
 
 3. **Start or update Kanchi in one command**
@@ -169,6 +174,10 @@ Run Kanchi using pre-built images from Docker Hub. No repository cloning require
 Kanchi expects a Celery broker (RabbitMQ or Redis) and (if desired) PostgreSQL to be managed separately—point `CELERY_BROKER_URL` and `DATABASE_URL` to the infrastructure you already run.
 
 Migrations run automatically on startup.
+
+### Pickle payloads (opt-in)
+
+Kanchi rejects pickle-serialized messages by default for safety. If your Celery producers emit `application/x-python-serialize`, set `ENABLE_PICKLE_SERIALIZATION=true` only when you fully trust all producers and the broker. See `pickle.md` for a short rundown.
 
 ### Authentication
 
@@ -262,5 +271,3 @@ npx swagger-typescript-api generate -p http://localhost:8765/openapi.json -o app
 ## License
 
 Licensed under [MIT](LICENSE)
-
-

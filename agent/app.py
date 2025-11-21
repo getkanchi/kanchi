@@ -278,7 +278,10 @@ def start_monitor(config: Config):
         return
     
     logger.info(f"Starting Celery monitor with broker: {config.broker_url}")
-    app_state.monitor_instance = CeleryEventMonitor(config.broker_url)
+    app_state.monitor_instance = CeleryEventMonitor(
+        broker_url=config.broker_url,
+        allow_pickle_serialization=config.enable_pickle_serialization,
+    )
     
     app_state.monitor_instance.set_task_callback(app_state.event_handler.handle_task_event)
     app_state.monitor_instance.set_worker_callback(app_state.event_handler.handle_worker_event)
