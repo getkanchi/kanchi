@@ -837,27 +837,25 @@ class TaskService:
         Returns:
             Tuple of (events list, total count)
         """
-        latest_subquery = self.session.query(
-            TaskEventDB.task_id,
-            func.max(TaskEventDB.timestamp).label('max_timestamp')
-        )
+        base_query = self.session.query(TaskEventDB)
+        base_query = EnvironmentFilter.apply(base_query, self.active_env)
+        base_query = self._apply_time_filters(base_query, start_time, end_time)
 
-        env_filtered_query = self.session.query(TaskEventDB.task_id)
-        env_filtered_query = EnvironmentFilter.apply(env_filtered_query, self.active_env)
-        env_conditions = env_filtered_query.whereclause
-
-        if env_conditions is not None:
-            latest_subquery = latest_subquery.filter(env_conditions)
-
-        latest_subquery = self._apply_time_filters(latest_subquery, start_time, end_time)
-        latest_subquery = latest_subquery.group_by(TaskEventDB.task_id).subquery()
-
-        main_query = self.session.query(TaskEventDB).join(
-            latest_subquery,
-            and_(
-                TaskEventDB.task_id == latest_subquery.c.task_id,
-                TaskEventDB.timestamp == latest_subquery.c.max_timestamp
+        latest_events_subquery = (
+            base_query.with_entities(
+                TaskEventDB.id.label("id"),
+                TaskEventDB.task_id.label("task_id"),
+                func.row_number().over(
+                    partition_by=TaskEventDB.task_id,
+                    order_by=[TaskEventDB.timestamp.desc(), TaskEventDB.id.desc()],
+                ).label("row_number"),
             )
+        ).subquery()
+
+        main_query = (
+            self.session.query(TaskEventDB)
+            .join(latest_events_subquery, TaskEventDB.id == latest_events_subquery.c.id)
+            .filter(latest_events_subquery.c.row_number == 1)
         )
 
         main_query = self._apply_content_filters(
@@ -1005,6 +1003,6 @@ class TaskService:
                 else:
                     query = query.order_by(asc(sort_column))
         else:
-            query = query.order_by(desc(TaskEventDB.timestamp))
+            query = query.order_by(desc(TaskEventDB.timestamp), desc(TaskEventDB.id))
 
         return query
