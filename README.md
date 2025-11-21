@@ -86,7 +86,7 @@ Run Kanchi using pre-built images from Docker Hub. No repository cloning require
          - kanchi-data:/data
        restart: unless-stopped
        healthcheck:
-         test: ["CMD", "curl", "-f", "http://localhost:8765/health"]
+         test: ["CMD", "curl", "-f", "http://localhost:8765/api/health"]
          interval: 30s
          timeout: 10s
          retries: 3
