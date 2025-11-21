@@ -4,6 +4,7 @@ import logging
 import uuid
 from datetime import date, datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional, Set
+from enum import Enum
 
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
@@ -88,6 +89,9 @@ class WorkflowService:
 
         if isinstance(value, uuid.UUID):
             return str(value)
+
+        if isinstance(value, Enum):
+            return value.value
 
         if isinstance(value, dict):
             return {key: self._json_safe(val) for key, val in value.items()}
