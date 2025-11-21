@@ -62,6 +62,9 @@ class Config:
         default_factory=lambda: _split_csv(os.getenv('ALLOWED_EMAIL_PATTERNS'))
     )
 
+    # Serialization (disabled by default; enabling allows pickle deserialization)
+    enable_pickle_serialization: bool = _as_bool(os.getenv('ENABLE_PICKLE_SERIALIZATION', 'false'))
+
     # Basic auth credentials (optional)
     basic_auth_username: Optional[str] = os.getenv('BASIC_AUTH_USERNAME')
     basic_auth_password: Optional[str] = os.getenv('BASIC_AUTH_PASSWORD')

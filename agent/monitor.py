@@ -15,9 +15,27 @@ logger = logging.getLogger(__name__)
 class CeleryEventMonitor:
     """Monitor Celery events and handle them simply."""
 
-    def __init__(self, broker_url: str = "amqp://guest@localhost//"):
+    def __init__(
+        self,
+        broker_url: str = "amqp://guest@localhost//",
+        allow_pickle_serialization: bool = False,
+    ):
         self.broker_url = broker_url
         self.app = Celery(broker=broker_url, task_send_sent_event=True)
+        self.app.conf.update(
+            accept_content=["json"],
+            task_serializer="json",
+            result_serializer="json",
+            event_serializer="json",
+        )
+
+        if allow_pickle_serialization:
+            self.app.conf.accept_content.append("application/x-python-serialize")
+            logger.warning(
+                "Pickle deserialization ENABLED for Celery monitor; "
+                "only use when all message producers are trusted."
+            )
+
         self.state = None
         self.task_callback: Optional[Callable] = None
         self.worker_callback: Optional[Callable] = None
