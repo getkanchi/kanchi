@@ -1,8 +1,10 @@
 <template>
-  <Button
-    @click="toggleTheme"
+  <component
+    :is="interactive ? Button : 'div'"
+    v-bind="interactive ? buttonAttrs : {}"
     class="relative inline-flex items-center justify-center w-6 h-6 rounded-lg transition-all duration-200 bg-background-base hover:bg-background-surface border border-border group"
-    :aria-label="`Switch to ${nextThemeLabel} theme`"
+    :aria-label="interactive ? `Switch to ${nextThemeLabel} theme` : undefined"
+    :role="interactive ? undefined : 'presentation'"
   >
     <!-- Dark mode icon -->
     <svg
@@ -37,13 +39,19 @@
         d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
       />
     </svg>
-
-  </Button>
+  </component>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useTheme } from '~/composables/useTheme'
+import { Button } from '~/components/ui/button'
+
+const props = withDefaults(defineProps<{
+  interactive?: boolean
+}>(), {
+  interactive: true
+})
 
 const { theme, resolvedTheme, toggleTheme } = useTheme()
 
@@ -59,4 +67,6 @@ const nextThemeLabel = computed(() => {
       return 'dark'
   }
 })
+
+const buttonAttrs = computed(() => props.interactive ? { type: 'button', onClick: toggleTheme } : {})
 </script>
