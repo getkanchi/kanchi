@@ -70,7 +70,7 @@
                   <PopoverTrigger as-child>
                     <Badge
                       :variant="displayConnected ? 'online' : 'offline'"
-                      class="cursor-pointer"
+                      class="cursor-pointer hover:bg-background-hover"
                     >
                       <StatusDot
                         :status="displayConnected ? 'online' : 'offline'"
@@ -97,83 +97,7 @@
             Kanchi
           </div>
         </div>
-        <div class="flex ml-auto items-center gap-4" v-if="showUserControls">
-          <EnvironmentSwitcher v-if="showEnvironmentSwitcher" />
-
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child>
-              <button
-                type="button"
-                class="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background-surface transition hover:border-primary-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-border"
-              >
-                <Avatar class="h-9 w-9">
-                  <AvatarImage v-if="avatarSrc" :src="avatarSrc" :alt="currentUserName" />
-                  <AvatarFallback>{{ avatarFallback }}</AvatarFallback>
-                </Avatar>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              class="w-64 rounded-xl border border-border bg-background-surface p-0 shadow-xl"
-            >
-              <div class="flex items-center gap-3 px-4 pt-4 pb-3">
-                <Avatar class="h-10 w-10">
-                  <AvatarImage v-if="avatarSrc" :src="avatarSrc" :alt="currentUserName" />
-                  <AvatarFallback class="text-sm">{{ avatarFallback }}</AvatarFallback>
-                </Avatar>
-                <div class="min-w-0">
-                  <p class="text-sm font-semibold text-text-primary truncate">
-                    {{ currentUserName }}
-                  </p>
-                  <p class="text-xs text-text-secondary truncate">
-                    {{ currentUserEmail }}
-                  </p>
-                </div>
-              </div>
-
-              <DropdownMenuSeparator />
-
-              <div class="space-y-2 p-3">
-                <div class="flex items-center justify-between rounded-lg border border-border bg-background-base px-3 py-2">
-                  <span class="text-sm font-medium text-text-primary">Toggle theme</span>
-                  <ThemeToggle />
-                </div>
-
-                <DropdownMenuItem as-child>
-                  <NuxtLink
-                    to="/settings/workspace"
-                    class="flex items-center justify-between rounded-lg border border-border bg-background-base px-3 py-2 text-sm font-medium text-text-primary transition hover:border-primary-border hover:text-primary"
-                  >
-                    Workspace settings
-                    <ArrowUpRight class="h-3.5 w-3.5 text-text-muted" />
-                  </NuxtLink>
-                </DropdownMenuItem>
-
-                <DropdownMenuItem
-                  v-if="authEnabled && isAuthenticated"
-                  class="flex items-center justify-between rounded-lg bg-background-base px-3 py-2 text-sm font-medium text-text-primary transition hover:bg-background-hover"
-                  @select="handleLogout"
-                >
-                  <span>Sign out</span>
-                  <LogOut class="h-4 w-4 text-text-muted" />
-                </DropdownMenuItem>
-
-                <DropdownMenuItem
-                  v-else-if="authEnabled"
-                  as-child
-                >
-                  <NuxtLink
-                    to="/login"
-                    class="flex items-center justify-between rounded-lg border border-border bg-background-base px-3 py-2 text-sm font-medium text-text-primary transition hover:border-primary-border hover:text-primary"
-                  >
-                    Sign in
-                    <LogIn class="h-4 w-4 text-text-muted" />
-                  </NuxtLink>
-                </DropdownMenuItem>
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        <UserControls v-if="showUserControls" />
       </div>
     </div>
   </div>
@@ -182,7 +106,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRoute } from '#imports'
-import { ArrowUpRight, LogIn, LogOut } from 'lucide-vue-next'
 import {
   NavigationMenu,
   NavigationMenuItem,
@@ -190,21 +113,12 @@ import {
   NavigationMenuList,
 } from '@/components/ui/navigation-menu'
 import { Badge } from "~/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar'
 import StatusDot from "~/components/StatusDot.vue"
-import EnvironmentSwitcher from "~/components/EnvironmentSwitcher.vue"
 import AgentConnectionDetails from "~/components/AgentConnectionDetails.vue"
 import { useAuthStore } from '~/stores/auth'
 import { storeToRefs } from 'pinia'
-import ThemeToggle from '~/components/ThemeToggle.vue'
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '~/components/ui/dropdown-menu'
+import UserControls from '~/components/UserControls.vue'
 
 // Use the WebSocket store instead of the composable
 const wsStore = useWebSocketStore()
@@ -212,7 +126,7 @@ const connectionDetailsRef = ref<InstanceType<typeof AgentConnectionDetails> | n
 const route = useRoute()
 
 const authStore = useAuthStore()
-const { authEnabled, isAuthenticated, user } = storeToRefs(authStore)
+const { authEnabled, isAuthenticated } = storeToRefs(authStore)
 
 // Force client-side only rendering to avoid hydration mismatch
 const isClientSide = ref(false)
@@ -222,26 +136,10 @@ onMounted(() => {
 
 const displayConnected = computed(() => isClientSide.value && wsStore.isConnected)
 
-const currentUserName = computed(() => user.value?.name || user.value?.email || 'Kanchi user')
-const currentUserEmail = computed(() => user.value?.email || (authEnabled.value ? 'Signed out' : 'Welcome'))
-const avatarSrc = computed(() => user.value?.avatar_url || null)
-const avatarFallback = computed(() => {
-  const source = user.value?.name || user.value?.email || 'Kanchi'
-  const trimmed = source.trim()
-  return trimmed ? trimmed.charAt(0).toUpperCase() : 'K'
-})
-
 const isLoginRoute = computed(() => route.path === '/login')
 const showNavigationMenu = computed(() => !isLoginRoute.value && (!authEnabled.value || isAuthenticated.value))
 const showAuthPrompt = computed(() => !isLoginRoute.value && authEnabled.value && !isAuthenticated.value)
 const showUserControls = computed(() => !isLoginRoute.value)
-
-const showEnvironmentSwitcher = computed(() => !authEnabled.value || isAuthenticated.value)
-
-async function handleLogout() {
-  await authStore.logout()
-  await navigateTo('/login')
-}
 </script>
 
 <style>
