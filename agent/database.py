@@ -128,6 +128,58 @@ class TaskEventDB(Base):
         }
 
 
+class TaskLatestDB(Base):
+    """
+    Snapshot of the latest event per task for high-performance aggregated queries.
+
+    This keeps only one row per task_id and mirrors the fields needed by the
+    recent-events endpoint without requiring window functions over the full
+    task_events table.
+    """
+    __tablename__ = 'task_latest'
+
+    task_id = Column(String(255), primary_key=True)
+    event_id = Column(Integer, nullable=False)
+
+    task_name = Column(String(255), index=True)
+    event_type = Column(String(50), nullable=False, index=True)
+    timestamp = Column(DateTime(timezone=True), nullable=False, index=True)
+    hostname = Column(String(255))
+    worker_name = Column(String(255))
+    queue = Column(String(255))
+    exchange = Column(String(255))
+    routing_key = Column(String(255))
+
+    root_id = Column(String(255), index=True)
+    parent_id = Column(String(255), index=True)
+
+    args = Column(JSON)
+    kwargs = Column(JSON)
+    retries = Column(Integer, default=0)
+    eta = Column(String(50))
+    expires = Column(String(50))
+
+    result = Column(JSON)
+    runtime = Column(Float)
+    exception = Column(Text)
+    traceback = Column(Text)
+
+    retry_of = Column(String(255), index=True)
+    retried_by = Column(Text)  # JSON serialized list of task IDs
+    is_retry = Column(Boolean, default=False)
+    has_retries = Column(Boolean, default=False)
+    retry_count = Column(Integer, default=0)
+
+    is_orphan = Column(Boolean, default=False, index=True)
+    orphaned_at = Column(DateTime(timezone=True))
+
+    __table_args__ = (
+        Index('idx_task_latest_timestamp', 'timestamp', 'task_id'),
+        Index('idx_task_latest_hostname_ts', 'hostname', 'timestamp'),
+        Index('idx_task_latest_routing_ts', 'routing_key', 'timestamp'),
+        Index('idx_task_latest_event_type_ts', 'event_type', 'timestamp'),
+    )
+
 class WorkerEventDB(Base):
     """SQLAlchemy model for worker events."""
     __tablename__ = 'worker_events'
