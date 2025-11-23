@@ -268,6 +268,12 @@ npm run build                   # Build
 npx swagger-typescript-api generate -p http://localhost:8765/openapi.json -o app/src/types -n api.ts --http-client axios
 ```
 
+## Getting Help
+
+Have questions, feedback, or want to connect with other Kanchi users? Join our community on Discord:
+
+[![Discord](https://img.shields.io/badge/Discord-Join%20us-5865F2?logo=discord&logoColor=white)](https://discord.gg/gSp9wsu3k)
+
 ## License
 
 Licensed under [MIT](LICENSE)
