@@ -3,12 +3,14 @@
 import json
 import logging
 from datetime import datetime, timezone, timedelta
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Union
 
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, asc, or_, and_, func, String, cast, Integer, literal
+from sqlalchemy import desc, asc, or_, and_, func, String, cast, Integer, literal, inspect
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from database import TaskEventDB, RetryRelationshipDB
+from database import TaskEventDB, RetryRelationshipDB, TaskLatestDB
 from models import TaskEvent
 from constants import TaskState, EventType, STATE_TO_EVENT_MAP, ACTIVE_EVENT_TYPES
 from services.utils import EnvironmentFilter, GenericFilter, parse_filter_string
@@ -47,6 +49,8 @@ class TaskService:
             )
 
             self.session.add(task_event_db)
+            self.session.flush()  # Ensure task_event_db.id is available for snapshot upsert
+            self._upsert_task_latest(task_event_db)
             self.session.commit()
             return task_event_db
 
@@ -557,7 +561,98 @@ class TaskService:
             retry_count=task_event.retry_count
         )
 
-    def _db_to_task_event(self, event_db: TaskEventDB) -> TaskEvent:
+    def _upsert_task_latest(self, event_db: TaskEventDB):
+        """
+        Maintain the task_latest snapshot table with the newest event per task_id.
+        """
+        data = {
+            "task_id": event_db.task_id,
+            "event_id": event_db.id,
+            "task_name": event_db.task_name,
+            "event_type": event_db.event_type,
+            "timestamp": event_db.timestamp,
+            "hostname": event_db.hostname,
+            "worker_name": event_db.worker_name,
+            "queue": event_db.queue,
+            "exchange": event_db.exchange,
+            "routing_key": event_db.routing_key,
+            "root_id": event_db.root_id,
+            "parent_id": event_db.parent_id,
+            "args": event_db.args,
+            "kwargs": event_db.kwargs,
+            "retries": event_db.retries,
+            "eta": event_db.eta,
+            "expires": event_db.expires,
+            "result": event_db.result,
+            "runtime": event_db.runtime,
+            "exception": event_db.exception,
+            "traceback": event_db.traceback,
+            "retry_of": event_db.retry_of,
+            "retried_by": event_db.retried_by,
+            "is_retry": event_db.is_retry,
+            "has_retries": event_db.has_retries,
+            "retry_count": event_db.retry_count,
+            "is_orphan": event_db.is_orphan,
+            "orphaned_at": event_db.orphaned_at,
+        }
+
+        dialect = self.session.bind.dialect.name if self.session.bind else "sqlite"
+
+        if dialect == "postgresql":
+            stmt = pg_insert(TaskLatestDB).values(**data)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=[TaskLatestDB.task_id],
+                set_=data,
+                where=(
+                    (stmt.excluded.timestamp > TaskLatestDB.timestamp) |
+                    (
+                        (stmt.excluded.timestamp == TaskLatestDB.timestamp) &
+                        (stmt.excluded.event_id > TaskLatestDB.event_id)
+                    )
+                ),
+            )
+            self.session.execute(stmt)
+            return
+
+        if dialect == "sqlite":
+            stmt = sqlite_insert(TaskLatestDB).values(**data)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=[TaskLatestDB.task_id],
+                set_=data,
+                where=(
+                    (stmt.excluded.timestamp > TaskLatestDB.timestamp) |
+                    (
+                        (stmt.excluded.timestamp == TaskLatestDB.timestamp) &
+                        (stmt.excluded.event_id > TaskLatestDB.event_id)
+                    )
+                ),
+            )
+            self.session.execute(stmt)
+            return
+
+        # Generic fallback for other dialects
+        existing = (
+            self.session.query(TaskLatestDB)
+            .filter(TaskLatestDB.task_id == event_db.task_id)
+            .one_or_none()
+        )
+
+        if not existing:
+            self.session.add(TaskLatestDB(**data))
+            return
+
+        if (
+            event_db.timestamp > existing.timestamp or
+            (
+                event_db.timestamp == existing.timestamp and
+                event_db.id is not None and
+                (existing.event_id is None or event_db.id > existing.event_id)
+            )
+        ):
+            for field, value in data.items():
+                setattr(existing, field, value)
+
+    def _db_to_task_event(self, event_db: Union[TaskEventDB, TaskLatestDB]) -> TaskEvent:
         """
         Convert database model to TaskEvent object.
 
@@ -837,40 +932,46 @@ class TaskService:
         Returns:
             Tuple of (events list, total count)
         """
-        base_query = self.session.query(TaskEventDB)
-        base_query = EnvironmentFilter.apply(base_query, self.active_env)
-        base_query = self._apply_time_filters(base_query, start_time, end_time)
-
-        latest_events_subquery = (
-            base_query.with_entities(
-                TaskEventDB.id.label("id"),
-                TaskEventDB.task_id.label("task_id"),
-                func.row_number().over(
-                    partition_by=TaskEventDB.task_id,
-                    order_by=[TaskEventDB.timestamp.desc(), TaskEventDB.id.desc()],
-                ).label("row_number"),
-            )
-        ).subquery()
-
-        main_query = (
-            self.session.query(TaskEventDB)
-            .join(latest_events_subquery, TaskEventDB.id == latest_events_subquery.c.id)
-            .filter(latest_events_subquery.c.row_number == 1)
+        return self._get_aggregated_events_from_latest(
+            limit, page, sort_by, sort_order, filters, start_time, end_time,
+            filter_state, filter_worker, filter_task, filter_queue, search
         )
 
-        main_query = self._apply_content_filters(
-            main_query, filters, filter_state, filter_worker, filter_task, filter_queue, search
+    def _get_aggregated_events_from_latest(
+        self,
+        limit: int,
+        page: int,
+        sort_by: Optional[str],
+        sort_order: str,
+        filters: Optional[str],
+        start_time: Optional[str],
+        end_time: Optional[str],
+        filter_state: Optional[str],
+        filter_worker: Optional[str],
+        filter_task: Optional[str],
+        filter_queue: Optional[str],
+        search: Optional[str]
+    ) -> Tuple[List[TaskEvent], int]:
+        """
+        Fetch aggregated events from the task_latest snapshot table.
+        """
+        query = self.session.query(TaskLatestDB)
+        query = EnvironmentFilter.apply(query, self.active_env, model=TaskLatestDB)
+        query = self._apply_all_filters(
+            query, filters, start_time, end_time,
+            filter_state, filter_worker, filter_task, filter_queue, search,
+            model=TaskLatestDB
         )
-        main_query = self._apply_sorting(main_query, sort_by, sort_order)
+        query = self._apply_sorting(query, sort_by, sort_order, model=TaskLatestDB)
 
-        total_events = main_query.count()
+        total_events = query.count()
         start_idx = page * limit
-        events_db = main_query.offset(start_idx).limit(limit).all()
+        events_db = query.offset(start_idx).limit(limit).all()
 
         events = [self._db_to_task_event(event_db) for event_db in events_db]
         self._bulk_enrich_with_retry_info(events)
-
         return events, total_events
+
 
     def _apply_all_filters(
         self,
@@ -882,22 +983,24 @@ class TaskService:
         filter_worker: Optional[str],
         filter_task: Optional[str],
         filter_queue: Optional[str],
-        search: Optional[str]
+        search: Optional[str],
+        model=TaskEventDB
     ):
         """Apply all filters to a query."""
-        query = self._apply_time_filters(query, start_time, end_time)
+        query = self._apply_time_filters(query, start_time, end_time, model=model)
         query = self._apply_content_filters(
-            query, filters, filter_state, filter_worker, filter_task, filter_queue, search
+            query, filters, filter_state, filter_worker, filter_task, filter_queue, search, model=model
         )
         return query
 
-    def _apply_time_filters(self, query, start_time: Optional[str], end_time: Optional[str]):
+    def _apply_time_filters(self, query, start_time: Optional[str], end_time: Optional[str], model=TaskEventDB):
         """Apply time range filters to a query."""
+        timestamp_column = getattr(model, 'timestamp')
         if start_time:
             try:
                 from dateutil import parser
                 start_dt = parser.isoparse(start_time)
-                query = query.filter(TaskEventDB.timestamp >= start_dt)
+                query = query.filter(timestamp_column >= start_dt)
             except (ValueError, ImportError) as e:
                 logger.error(f"Failed to parse start_time: {start_time}, error: {e}")
 
@@ -905,7 +1008,7 @@ class TaskService:
             try:
                 from dateutil import parser
                 end_dt = parser.isoparse(end_time)
-                query = query.filter(TaskEventDB.timestamp <= end_dt)
+                query = query.filter(timestamp_column <= end_dt)
             except (ValueError, ImportError) as e:
                 logger.error(f"Failed to parse end_time: {end_time}, error: {e}")
 
@@ -919,67 +1022,68 @@ class TaskService:
         filter_worker: Optional[str],
         filter_task: Optional[str],
         filter_queue: Optional[str],
-        search: Optional[str]
+        search: Optional[str],
+        model=TaskEventDB
     ):
         """Apply content filters (state, worker, task, queue, search) to a query."""
         parsed_filters = parse_filter_string(filters) if filters else []
 
         for filter_obj in parsed_filters:
-            query = self._apply_single_filter(query, filter_obj)
+            query = self._apply_single_filter(query, filter_obj, model=model)
 
         if filter_state:
-            query = self._apply_state_filter(query, 'is', [filter_state])
+            query = self._apply_state_filter(query, 'is', [filter_state], model=model)
 
         if filter_worker:
             query = GenericFilter.apply(
-                query, TaskEventDB.hostname, 'contains', [filter_worker]
+                query, getattr(model, 'hostname'), 'contains', [filter_worker]
             )
 
         if filter_task:
             query = GenericFilter.apply(
-                query, TaskEventDB.task_name, 'contains', [filter_task]
+                query, getattr(model, 'task_name'), 'contains', [filter_task]
             )
 
         if filter_queue:
             query = GenericFilter.apply(
-                query, TaskEventDB.routing_key, 'contains', [filter_queue]
+                query, getattr(model, 'routing_key'), 'contains', [filter_queue]
             )
 
         if search:
             search_pattern = f"%{search}%"
             query = query.filter(
                 or_(
-                    TaskEventDB.task_name.ilike(search_pattern),
-                    TaskEventDB.task_id.ilike(search_pattern),
-                    TaskEventDB.hostname.ilike(search_pattern),
-                    TaskEventDB.event_type.ilike(search_pattern),
-                    func.cast(TaskEventDB.args, String).ilike(search_pattern),
-                    func.cast(TaskEventDB.kwargs, String).ilike(search_pattern)
+                    getattr(model, 'task_name').ilike(search_pattern),
+                    getattr(model, 'task_id').ilike(search_pattern),
+                    getattr(model, 'hostname').ilike(search_pattern),
+                    getattr(model, 'event_type').ilike(search_pattern),
+                    func.cast(getattr(model, 'args'), String).ilike(search_pattern),
+                    func.cast(getattr(model, 'kwargs'), String).ilike(search_pattern)
                 )
             )
 
         return query
 
-    def _apply_single_filter(self, query, filter_obj: Dict[str, Any]):
+    def _apply_single_filter(self, query, filter_obj: Dict[str, Any], model=TaskEventDB):
         """Apply a single parsed filter to the query."""
         field = filter_obj['field']
         operator = filter_obj['operator']
         values = filter_obj['values']
 
         if field == 'state':
-            return self._apply_state_filter(query, operator, values)
+            return self._apply_state_filter(query, operator, values, model=model)
         elif field == 'worker':
-            return GenericFilter.apply(query, TaskEventDB.hostname, operator, values)
+            return GenericFilter.apply(query, getattr(model, 'hostname'), operator, values)
         elif field == 'task':
-            return GenericFilter.apply(query, TaskEventDB.task_name, operator, values)
+            return GenericFilter.apply(query, getattr(model, 'task_name'), operator, values)
         elif field == 'queue':
-            return GenericFilter.apply(query, TaskEventDB.routing_key, operator, values)
+            return GenericFilter.apply(query, getattr(model, 'routing_key'), operator, values)
         elif field == 'id':
-            return GenericFilter.apply(query, TaskEventDB.task_id, operator, values)
+            return GenericFilter.apply(query, getattr(model, 'task_id'), operator, values)
 
         return query
 
-    def _apply_state_filter(self, query, operator: str, values: List[str]):
+    def _apply_state_filter(self, query, operator: str, values: List[str], model=TaskEventDB):
         """Apply state filter with operator support."""
         def state_to_event_type(state: str) -> Optional[str]:
             try:
@@ -990,19 +1094,29 @@ class TaskService:
                 return None
 
         return GenericFilter.apply(
-            query, TaskEventDB.event_type, operator, values, state_to_event_type
+            query, getattr(model, 'event_type'), operator, values, state_to_event_type
         )
 
-    def _apply_sorting(self, query, sort_by: Optional[str], sort_order: str):
+    def _apply_sorting(self, query, sort_by: Optional[str], sort_order: str, model=TaskEventDB):
         """Apply sorting to a query."""
         if sort_by:
-            sort_column = getattr(TaskEventDB, sort_by, None)
-            if sort_column:
+            sort_column = getattr(model, sort_by, None)
+            if sort_column is not None:
                 if sort_order == "desc":
                     query = query.order_by(desc(sort_column))
                 else:
                     query = query.order_by(asc(sort_column))
+                return query
+
+        timestamp_column = getattr(model, 'timestamp')
+        id_column = getattr(model, 'id', None)
+        if id_column is not None:
+            query = query.order_by(desc(timestamp_column), desc(id_column))
         else:
-            query = query.order_by(desc(TaskEventDB.timestamp), desc(TaskEventDB.id))
+            task_id_column = getattr(model, 'task_id', None)
+            if task_id_column is not None:
+                query = query.order_by(desc(timestamp_column), desc(task_id_column))
+            else:
+                query = query.order_by(desc(timestamp_column))
 
         return query
