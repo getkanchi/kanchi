@@ -133,6 +133,7 @@ export const useWebSocketStore = defineStore('websocket', () => {
 
   function handleMessage(message: any) {
     const messageType = message.type
+    console.log('handleMessage', messageType, JSON.stringify(message, null, 2))
     if (messageType) {
       switch (messageType) {
         case 'connection':
@@ -162,6 +163,7 @@ export const useWebSocketStore = defineStore('websocket', () => {
 
     const eventType = message.event_type
     if (eventType) {
+      console.log('handleMessage', eventType, JSON.stringify(message, null, 2))
       if (clientMode.value === 'live') {
         if (eventType.startsWith('task-')) {
           tasksStore.handleLiveEvent(message)
