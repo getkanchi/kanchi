@@ -4,7 +4,7 @@
     <Navbar />
     
     <!-- Main Content -->
-    <main class="max-w-7xl mx-auto relative z-10 p-6">
+    <main class="w-full max-w-screen-2xl 2xl:max-w-[calc(60vw-3rem)] mx-auto relative z-10 px-4 sm:px-6 lg:px-8 py-6">
       <slot />
     </main>
   </div>
