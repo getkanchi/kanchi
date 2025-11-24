@@ -239,17 +239,8 @@ export const useTasksStore = defineStore('tasks', () => {
     const existingTaskIndex = events.value.findIndex(e => e.task_id === event.task_id)
 
     if (existingTaskIndex !== -1) {
-      // Merge to avoid losing fields (args/kwargs, etc.) when Celery omits them in later events
-      const existingEvent = events.value[existingTaskIndex]
-      const mergedEvent = {
-        ...existingEvent,
-        ...event,
-        args: event.args ?? existingEvent.args,
-        kwargs: event.kwargs ?? existingEvent.kwargs
-      }
-
       const newEvents = [...events.value]
-      newEvents[existingTaskIndex] = mergedEvent
+      newEvents[existingTaskIndex] = event
       events.value = newEvents
     } else if (paginationParams.value.page === 0) {
       const newEvents = [event, ...events.value.slice(0, paginationParams.value.limit - 1)]

@@ -44,6 +44,11 @@ class TaskService:
             args, kwargs = self._parse_task_arguments(task_event)
             self._log_payload_truncation(task_event, args, kwargs, task_event.result)
 
+            # Ensure the in-memory event (used for WebSocket broadcast) carries the
+            # inherited args/kwargs so downstream consumers don't lose them.
+            task_event.args = args
+            task_event.kwargs = kwargs
+
             task_event_db = self._create_task_event_db(
                 task_event, routing_key, queue, args, kwargs
             )
