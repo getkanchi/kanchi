@@ -14,7 +14,7 @@ class EnvironmentFilter:
     """Applies environment-based filtering to database queries."""
 
     @staticmethod
-    def apply(query: Query, active_env) -> Query:
+    def apply(query: Query, active_env, model=TaskEventDB) -> Query:
         """
         Apply environment filtering using wildcard patterns.
 
@@ -34,7 +34,7 @@ class EnvironmentFilter:
             queue_conditions = []
             for pattern in active_env.queue_patterns:
                 sql_pattern = pattern.replace('*', '%').replace('?', '_')
-                queue_conditions.append(TaskEventDB.queue.like(sql_pattern))
+                queue_conditions.append(getattr(model, 'queue').like(sql_pattern))
             if queue_conditions:
                 conditions.append(or_(*queue_conditions))
 
@@ -42,7 +42,7 @@ class EnvironmentFilter:
             worker_conditions = []
             for pattern in active_env.worker_patterns:
                 sql_pattern = pattern.replace('*', '%').replace('?', '_')
-                worker_conditions.append(TaskEventDB.hostname.like(sql_pattern))
+                worker_conditions.append(getattr(model, 'hostname').like(sql_pattern))
             if worker_conditions:
                 conditions.append(or_(*worker_conditions))
 
