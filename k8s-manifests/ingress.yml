@@ -1,0 +1,35 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kanchi
+  namespace: {{YOUR_K8S_NAMESPACE}}
+  annotations:
+    kubernetes.io/ingress.class: {{YOUR_INGRESS_CONTROLLER_CLASS}}
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  rules:
+  - host: {{YOUR_KANCHI_HOST}}
+    http:
+      paths:
+      - path: /
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: kanchi
+            port:
+              number: 3000
+      - path: /api
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: kanchi
+            port:
+              number: 8765
+      - path: /ws
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: kanchi
+            port:
+              number: 8765
