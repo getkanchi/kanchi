@@ -35,17 +35,16 @@ spec:
         # Optional: If you want to configure a different DB backend than SQLite.
         # - name: DATABASE_URL
         #   value: {{YOUR_DATABASE_URL}}
-        # TODO: This didn't work due to missing MySQL client lib in the Docker container (I assume). Opened an Issue here: https://github.com/getkanchi/kanchi/issues/47
-        #   Syntax for MySQL:
-        #   value: mysql://{{MYSQL_USER}}:{{MYSQL_PASS}}@{{MYSQL_HOST}}:{{MYSQL_PORT}}/{{MYSQL_DB}}
+        #   Syntax example for MySQL/MariaDB:
+        #   value: mysql+pymysql://{{MYSQL_USER}}:{{MYSQL_PASS}}@{{MYSQL_HOST}}:{{MYSQL_PORT}}/{{MYSQL_DB}}
         - name: AUTH_ENABLED
           value: "true"
         - name: AUTH_BASIC_ENABLED
           value: "true"
-        # Optional: If you want ot use basic authentication.
+        # Optional: If you want to use basic authentication.
         - name: BASIC_AUTH_USERNAME
           value: {{YOUR_KANCHI_USER}}
-        # Optional: If you want ot use basic authentication.
+        # Optional: If you want to use basic authentication.
         - name: BASIC_AUTH_PASSWORD
           valueFrom:
             secretKeyRef:
