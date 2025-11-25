@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+  name: kanchi
+  namespace: {{YOUR_K8S_NAMESPACE}}
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: kanchi
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: kanchi
+    spec:
+      containers:
+      - env:
+        - name: CELERY_BROKER_URL
+          value: {{YOUR_CELERY_BROKER_URL}}
+        # Optional: Only required when an ingress is being used
+        - name: NUXT_PUBLIC_API_URL
+          value: http://{{YOUR_KANCHI_HOST}}
+        # Optional: Only required when an ingress is being used
+        - name: NUXT_PUBLIC_WS_URL
+          value: ws://{{YOUR_KANCHI_HOST}}/ws
+        # Optional: If you want to configure a different DB backend than SQLite.
+        # - name: DATABASE_URL
+        #   value: {{YOUR_DATABASE_URL}}
+        #   Syntax example for MySQL/MariaDB:
+        #   value: mysql+pymysql://{{MYSQL_USER}}:{{MYSQL_PASS}}@{{MYSQL_HOST}}:{{MYSQL_PORT}}/{{MYSQL_DB}}
+        - name: AUTH_ENABLED
+          value: "true"
+        - name: AUTH_BASIC_ENABLED
+          value: "true"
+        # Optional: If you want to use basic authentication.
+        - name: BASIC_AUTH_USERNAME
+          value: {{YOUR_KANCHI_USER}}
+        # Optional: If you want to use basic authentication.
+        - name: BASIC_AUTH_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: BASIC_AUTH_PASSWORD
+              name: kanchi-secret
+        image: getkanchi/kanchi:latest
+        imagePullPolicy: Always
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /api/health
+            port: 8765
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: kanchi
+        ports:
+        - containerPort: 8765
+          protocol: TCP
+        - containerPort: 3000
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /api/health
+            port: 8765
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /data
+          name: kanchi-data
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: kanchi-data
+        persistentVolumeClaim:
+          claimName: kanchi-data
