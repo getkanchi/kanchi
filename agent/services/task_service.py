@@ -6,9 +6,10 @@ from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional, Tuple, Union
 
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, asc, or_, and_, func, String, cast, Integer, literal, inspect
+from sqlalchemy import desc, asc, or_, and_, func, String, cast, Integer, literal, inspect, case
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.mysql import insert as mysql_insert
 
 from database import TaskEventDB, RetryRelationshipDB, TaskLatestDB
 from models import TaskEvent
@@ -570,12 +571,17 @@ class TaskService:
         """
         Maintain the task_latest snapshot table with the newest event per task_id.
         """
+        def _ensure_utc(dt: Optional[datetime]) -> Optional[datetime]:
+            if dt is None:
+                return None
+            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
         data = {
             "task_id": event_db.task_id,
             "event_id": event_db.id,
             "task_name": event_db.task_name,
             "event_type": event_db.event_type,
-            "timestamp": event_db.timestamp,
+            "timestamp": _ensure_utc(event_db.timestamp),
             "hostname": event_db.hostname,
             "worker_name": event_db.worker_name,
             "queue": event_db.queue,
@@ -619,6 +625,26 @@ class TaskService:
             self.session.execute(stmt)
             return
 
+        if dialect == "mysql":
+            stmt = mysql_insert(TaskLatestDB).values(**data)
+            is_newer_event = (
+                (stmt.inserted.timestamp > TaskLatestDB.timestamp) |
+                (
+                    (stmt.inserted.timestamp == TaskLatestDB.timestamp) &
+                    (stmt.inserted.event_id > TaskLatestDB.event_id)
+                )
+            )
+            update_values = {
+                field: case(
+                    (is_newer_event, getattr(stmt.inserted, field)),
+                    else_=getattr(TaskLatestDB, field)
+                )
+                for field in data.keys()
+            }
+            stmt = stmt.on_duplicate_key_update(**update_values)
+            self.session.execute(stmt)
+            return
+
         if dialect == "sqlite":
             stmt = sqlite_insert(TaskLatestDB).values(**data)
             stmt = stmt.on_conflict_do_update(
@@ -646,10 +672,13 @@ class TaskService:
             self.session.add(TaskLatestDB(**data))
             return
 
+        event_ts = _ensure_utc(event_db.timestamp)
+        existing_ts = _ensure_utc(existing.timestamp)
+
         if (
-            event_db.timestamp > existing.timestamp or
+            event_ts > existing_ts or
             (
-                event_db.timestamp == existing.timestamp and
+                event_ts == existing_ts and
                 event_db.id is not None and
                 (existing.event_id is None or event_db.id > existing.event_id)
             )
