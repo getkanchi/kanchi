@@ -12,6 +12,7 @@ from services import (
     TaskRegistryService,
     DailyStatsService
 )
+from metrics import metrics_collector
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,15 @@ class EventHandler:
 
     def handle_task_event(self, task_event: TaskEvent):
         try:
+            try:
+                metrics_collector.record_task_event(task_event)
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.error(
+                    "Failed to record metrics for task event %s: %s",
+                    task_event.task_id,
+                    exc,
+                )
+
             with self.db_manager.get_session() as session:
                 registry_service = TaskRegistryService(session)
                 registry_service.ensure_task_registered(task_event.task_name)
@@ -45,6 +55,15 @@ class EventHandler:
 
     def handle_worker_event(self, worker_event: WorkerEvent):
         try:
+            try:
+                metrics_collector.record_worker_event(worker_event)
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.error(
+                    "Failed to record metrics for worker event %s: %s",
+                    worker_event.hostname,
+                    exc,
+                )
+
             with self.db_manager.get_session() as session:
                 if worker_event.event_type == EventType.WORKER_OFFLINE.value:
                     logger.info(f"Worker {worker_event.hostname} went offline, marking tasks as orphaned")

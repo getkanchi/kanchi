@@ -95,6 +95,7 @@ def create_app() -> FastAPI:
     from api.workflow_routes import create_router as create_workflow_router
     from api.action_config_routes import create_router as create_action_config_router
     from api.auth_routes import create_router as create_auth_router
+    from api.metrics_routes import create_router as create_metrics_router
 
     app.include_router(create_task_router(app_state))
     app.include_router(create_worker_router(app_state))
@@ -106,6 +107,7 @@ def create_app() -> FastAPI:
     app.include_router(create_workflow_router(app_state))
     app.include_router(create_action_config_router(app_state))
     app.include_router(create_auth_router(app_state))
+    app.include_router(create_metrics_router(app_state))
 
     require_user_dep = get_auth_dependency(app_state, require=True)
 
