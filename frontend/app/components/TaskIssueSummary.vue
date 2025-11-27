@@ -21,7 +21,7 @@
           </div>
           <div class="hidden sm:flex items-center gap-2 text-xs text-text-secondary">
             <span class="flex items-center gap-1">
-              <span class="font-mono">{{ totalCount }}</span>
+              <span class="font-mono">{{ unresolvedCount }}</span>
               <span>{{ primaryLabel }}</span>
             </span>
             <span
@@ -55,7 +55,7 @@
         class="sm:hidden flex items-center gap-4 text-xs text-text-secondary mt-2 pt-2 border-t border-border/50"
       >
         <span class="flex items-center gap-1">
-          <span class="font-mono">{{ totalCount }}</span>
+          <span class="font-mono">{{ unresolvedCount }}</span>
           <span>{{ primaryLabel }}</span>
         </span>
         <span
@@ -124,6 +124,13 @@
                         :expandable="true"
                       />
                       <slot name="meta-badges" :task="task" />
+                      <Badge
+                        v-if="resolutionState(task).resolved"
+                        variant="outline"
+                        class="text-[11px] px-2 py-0.5 border-status-success text-status-success bg-status-success-bg/50"
+                      >
+                        Resolved
+                      </Badge>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -190,6 +197,25 @@
                             <Cpu class="h-3.5 w-3.5 text-gray-400" />
                             <span class="text-gray-500">Worker:</span>
                             <span class="font-medium text-sm">{{ task.hostname }}</span>
+                          </div>
+                          <div
+                            v-if="resolutionState(task).resolved"
+                            class="flex items-center gap-1.5 text-xs text-status-success"
+                          >
+                            <CheckCircle2 class="h-3.5 w-3.5" />
+                            <span class="font-medium">Manually resolved</span>
+                            <span v-if="resolutionState(task).resolved_by" class="text-text-secondary">
+                              by {{ resolutionState(task).resolved_by }}
+                            </span>
+                            <span v-if="resolutionState(task).resolved_at" class="text-text-muted flex items-center gap-1">
+                              •
+                              <TimeDisplay
+                                :timestamp="resolutionState(task).resolved_at || ''"
+                                layout="inline"
+                                :auto-refresh="true"
+                                :refresh-interval="60000"
+                              />
+                            </span>
                           </div>
                         </div>
                         <slot name="actions" :task="task">
@@ -373,7 +399,7 @@ import {
 import SearchInput from '~/components/SearchInput.vue'
 import PythonValueViewer from '~/components/PythonValueViewer.vue'
 import { IconButton, Select } from '~/components/common'
-import { ChevronDown, ChevronRight, Loader2, Hash, Database, Cpu, AlertTriangle, ChevronsLeft, ChevronLeft, ChevronsRight } from 'lucide-vue-next'
+import { ChevronDown, ChevronRight, Loader2, Hash, Database, Cpu, AlertTriangle, ChevronsLeft, ChevronLeft, ChevronsRight, CheckCircle2 } from 'lucide-vue-next'
 import type { TaskEventResponse } from '~/services/apiClient'
 import { useTaskStatus } from '~/composables/useTaskStatus'
 import type { ParsedFilter } from '~/composables/useFilterParser'
@@ -428,8 +454,19 @@ const currentPage = ref(0)
 
 const summaryColumnCount = 6
 
+const unresolvedCount = computed(() => props.tasks.filter(task => !resolutionState(task).resolved).length)
 const totalCount = computed(() => props.tasks.length)
 const shouldHideCard = computed(() => props.hideWhenEmpty && totalCount.value === 0)
+
+type ResolvableTask = TaskEventResponse & { resolved?: boolean; resolved_by?: string | null; resolved_at?: string | null }
+const resolutionState = (task: TaskEventResponse) => {
+  const candidate = task as ResolvableTask
+  return {
+    resolved: Boolean(candidate.resolved),
+    resolved_by: candidate.resolved_by ?? null,
+    resolved_at: candidate.resolved_at ?? null,
+  }
+}
 
 const sortedTasks = computed(() => {
   const field = props.timeField ?? 'timestamp'

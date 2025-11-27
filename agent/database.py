@@ -172,12 +172,28 @@ class TaskLatestDB(Base):
 
     is_orphan = Column(Boolean, default=False, index=True)
     orphaned_at = Column(DateTime(timezone=True))
+    resolved = Column(Boolean, default=False, nullable=False)
+    resolved_at = Column(DateTime(timezone=True))
+    resolved_by = Column(String(255))
 
     __table_args__ = (
         Index('idx_task_latest_timestamp', 'timestamp', 'task_id'),
         Index('idx_task_latest_hostname_ts', 'hostname', 'timestamp'),
         Index('idx_task_latest_routing_ts', 'routing_key', 'timestamp'),
         Index('idx_task_latest_event_type_ts', 'event_type', 'timestamp'),
+    )
+
+class TaskResolutionDB(Base):
+    """Tracks manual resolution state per task."""
+    __tablename__ = 'task_resolutions'
+
+    task_id = Column(String(255), primary_key=True)
+    resolved = Column(Boolean, default=True, nullable=False)
+    resolved_at = Column(DateTime(timezone=True))
+    resolved_by = Column(String(255))
+
+    __table_args__ = (
+        Index('idx_task_resolved_flag', 'resolved'),
     )
 
 class WorkerEventDB(Base):

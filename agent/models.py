@@ -36,6 +36,9 @@ class TaskEvent(BaseModel):
     retry_count: int = 0
     is_orphan: bool = False
     orphaned_at: Optional[datetime] = None
+    resolved: bool = False
+    resolved_by: Optional[str] = None
+    resolved_at: Optional[datetime] = None
 
     model_config = {
         'from_attributes': True,
@@ -111,7 +114,7 @@ class TaskEvent(BaseModel):
         sanitized, _ = sanitize_payload(v)
         return sanitized if isinstance(sanitized, dict) else {}
 
-    @field_validator('timestamp', 'orphaned_at', mode='before')
+    @field_validator('timestamp', 'orphaned_at', 'resolved_at', mode='before')
     @classmethod
     def validate_datetime(cls, v):
         if v is None:

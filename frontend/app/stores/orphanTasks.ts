@@ -68,6 +68,46 @@ export const useOrphanTasksStore = defineStore('orphanTasks', () => {
     }
   }
 
+  function applyResolutionState(taskId: string, resolved: boolean, resolved_by?: string | null, resolved_at?: string | null) {
+    const normalizedResolvedAt = resolved_at ? new Date(resolved_at).toISOString() : null
+    orphanedTasks.value = orphanedTasks.value.map(task => {
+      if (task.task_id !== taskId) return task
+      return {
+        ...task,
+        resolved,
+        resolved_by: resolved_by ?? null,
+        resolved_at: normalizedResolvedAt,
+      } as TaskEventResponse & { resolved?: boolean; resolved_by?: string | null; resolved_at?: string | null }
+    })
+  }
+
+  async function resolveTask(taskId: string, resolvedBy?: string | null) {
+    try {
+      error.value = null
+      const response = await apiService.resolveTask(taskId, resolvedBy ?? undefined)
+      applyResolutionState(
+        taskId,
+        true,
+        response.resolved_by ?? resolvedBy ?? null,
+        response.resolved_at ?? new Date().toISOString()
+      )
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to resolve orphaned task'
+      throw err
+    }
+  }
+
+  async function clearTaskResolution(taskId: string) {
+    try {
+      error.value = null
+      await apiService.clearTaskResolution(taskId)
+      applyResolutionState(taskId, false, null, null)
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to clear task resolution'
+      throw err
+    }
+  }
+
   function removeOrphanedTask(taskId: string) {
     orphanedTasks.value = orphanedTasks.value.filter(task => task.task_id !== taskId)
   }
@@ -103,5 +143,8 @@ export const useOrphanTasksStore = defineStore('orphanTasks', () => {
     addOrphanedTask,
     removeOrphanedTask,
     updateFromLiveEvent,
+    applyResolutionState,
+    resolveTask,
+    clearTaskResolution,
   }
 })

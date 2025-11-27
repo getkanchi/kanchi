@@ -65,6 +65,19 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
     failedTasks.value = failedTasks.value.filter(task => task.task_id !== taskId)
   }
 
+  function applyResolutionState(taskId: string, resolved: boolean, resolved_by?: string | null, resolved_at?: string | null) {
+    const normalizedResolvedAt = resolved_at ? new Date(resolved_at).toISOString() : null
+    failedTasks.value = failedTasks.value.map(task => {
+      if (task.task_id !== taskId) return task
+      return {
+        ...task,
+        resolved,
+        resolved_by: resolved_by ?? null,
+        resolved_at: normalizedResolvedAt,
+      } as TaskEventResponse & { resolved?: boolean; resolved_by?: string | null; resolved_at?: string | null }
+    })
+  }
+
   function shouldExclude(task: TaskEventResponse): boolean {
     if (task.has_retries) {
       return true
@@ -95,6 +108,33 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
       throw err
     } finally {
       isLoading.value = false
+    }
+  }
+
+  async function resolveTask(taskId: string, resolvedBy?: string | null) {
+    try {
+      error.value = null
+      const response = await apiService.resolveTask(taskId, resolvedBy ?? undefined)
+      applyResolutionState(
+        taskId,
+        true,
+        response.resolved_by ?? resolvedBy ?? null,
+        response.resolved_at ?? new Date().toISOString()
+      )
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to resolve task'
+      throw err
+    }
+  }
+
+  async function clearTaskResolution(taskId: string) {
+    try {
+      error.value = null
+      await apiService.clearTaskResolution(taskId)
+      applyResolutionState(taskId, false, null, null)
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to clear task resolution'
+      throw err
     }
   }
 
@@ -148,5 +188,8 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
     updateFromLiveEvent,
     pruneExpired,
     removeFailedTask,
+    applyResolutionState,
+    resolveTask,
+    clearTaskResolution,
   }
 })

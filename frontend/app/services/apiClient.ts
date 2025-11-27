@@ -204,6 +204,23 @@ class ApiService {
     return response.data
   }
 
+  async resolveTask(taskId: string, resolvedBy?: string | null): Promise<any> {
+    const response = await this.api.request({
+      path: `/api/tasks/${taskId}/resolve`,
+      method: 'POST',
+      body: resolvedBy ? { resolved_by: resolvedBy } : undefined
+    })
+    return response.data
+  }
+
+  async clearTaskResolution(taskId: string): Promise<any> {
+    const response = await this.api.request({
+      path: `/api/tasks/${taskId}/resolve`,
+      method: 'DELETE'
+    })
+    return response.data
+  }
+
   async getOrphanedTasks(): Promise<TaskEventResponse[]> {
     const response = await this.api.api.getOrphanedTasksApiTasksOrphanedGet()
     return response.data

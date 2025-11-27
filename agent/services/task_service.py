@@ -11,13 +11,19 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 
-from database import TaskEventDB, RetryRelationshipDB, TaskLatestDB
+from database import TaskEventDB, RetryRelationshipDB, TaskLatestDB, TaskResolutionDB
 from models import TaskEvent
 from constants import TaskState, EventType, STATE_TO_EVENT_MAP, ACTIVE_EVENT_TYPES
 from services.utils import EnvironmentFilter, GenericFilter, parse_filter_string
 from utils.payload_sanitizer import find_placeholder_paths
 
 logger = logging.getLogger(__name__)
+
+
+def _ensure_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    if dt is None:
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
 class TaskService:
@@ -93,6 +99,7 @@ class TaskService:
                 events[i].has_retries = events[0].has_retries
                 events[i].retry_count = events[0].retry_count
 
+        self._attach_resolution_info(events)
         return events
 
     def get_recent_events(
@@ -195,6 +202,7 @@ class TaskService:
 
         events = [self._db_to_task_event(event_db) for event_db in active_events_db]
         self._bulk_enrich_with_retry_info(events)
+        self._attach_resolution_info(events)
 
         return events
 
@@ -263,6 +271,7 @@ class TaskService:
 
         events = [self._db_to_task_event(event_db) for event_db in events_db]
         self._bulk_enrich_with_retry_info(events)
+        self._attach_resolution_info(events)
 
         return events
 
@@ -571,11 +580,6 @@ class TaskService:
         """
         Maintain the task_latest snapshot table with the newest event per task_id.
         """
-        def _ensure_utc(dt: Optional[datetime]) -> Optional[datetime]:
-            if dt is None:
-                return None
-            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-
         data = {
             "task_id": event_db.task_id,
             "event_id": event_db.id,
@@ -604,7 +608,10 @@ class TaskService:
             "has_retries": event_db.has_retries,
             "retry_count": event_db.retry_count,
             "is_orphan": event_db.is_orphan,
-            "orphaned_at": event_db.orphaned_at,
+            "orphaned_at": _ensure_utc(event_db.orphaned_at),
+            "resolved": getattr(event_db, "resolved", False),
+            "resolved_at": _ensure_utc(getattr(event_db, "resolved_at", None)),
+            "resolved_by": getattr(event_db, "resolved_by", None),
         }
 
         dialect = self.session.bind.dialect.name if self.session.bind else "sqlite"
@@ -686,6 +693,78 @@ class TaskService:
             for field, value in data.items():
                 setattr(existing, field, value)
 
+    def set_task_resolution(self, task_id: str, resolved_by: Optional[str] = None) -> TaskResolutionDB:
+        """
+        Mark a task as manually resolved.
+        """
+        now = datetime.now(timezone.utc)
+        try:
+            resolution = (
+                self.session.query(TaskResolutionDB)
+                .filter(TaskResolutionDB.task_id == task_id)
+                .one_or_none()
+            )
+
+            if resolution:
+                resolution.resolved = True
+                resolution.resolved_at = now
+                resolution.resolved_by = resolved_by or resolution.resolved_by
+            else:
+                resolution = TaskResolutionDB(
+                    task_id=task_id,
+                    resolved=True,
+                    resolved_at=now,
+                    resolved_by=resolved_by,
+                )
+                self.session.add(resolution)
+
+            self._update_task_latest_resolution(task_id, True, resolved_by, now)
+            self.session.commit()
+            return resolution
+        except Exception as exc:
+            self.session.rollback()
+            logger.error("Failed to set resolution for task %s: %s", task_id, exc)
+            raise
+
+    def clear_task_resolution(self, task_id: str) -> None:
+        """
+        Remove manual resolution mark from a task.
+        """
+        try:
+            (
+                self.session.query(TaskResolutionDB)
+                .filter(TaskResolutionDB.task_id == task_id)
+                .delete()
+            )
+            self._update_task_latest_resolution(task_id, False, None, None)
+            self.session.commit()
+        except Exception as exc:
+            self.session.rollback()
+            logger.error("Failed to clear resolution for task %s: %s", task_id, exc)
+            raise
+
+    def _update_task_latest_resolution(
+        self,
+        task_id: str,
+        resolved: bool,
+        resolved_by: Optional[str],
+        resolved_at: Optional[datetime],
+    ) -> None:
+        """
+        Keep resolution fields in the task_latest snapshot in sync.
+        """
+        latest = (
+            self.session.query(TaskLatestDB)
+            .filter(TaskLatestDB.task_id == task_id)
+            .one_or_none()
+        )
+        if not latest:
+            return
+
+        latest.resolved = resolved
+        latest.resolved_by = resolved_by
+        latest.resolved_at = _ensure_utc(resolved_at)
+
     def _db_to_task_event(self, event_db: Union[TaskEventDB, TaskLatestDB]) -> TaskEvent:
         """
         Convert database model to TaskEvent object.
@@ -724,6 +803,9 @@ class TaskService:
 
         task_event.is_orphan = event_db.is_orphan or False
         task_event.orphaned_at = event_db.orphaned_at
+        task_event.resolved = getattr(event_db, "resolved", False) or False
+        task_event.resolved_at = getattr(event_db, "resolved_at", None)
+        task_event.resolved_by = getattr(event_db, "resolved_by", None)
 
         return task_event
 
@@ -823,6 +905,30 @@ class TaskService:
             related_tasks_map[event_db.task_id] = task_event
 
         return related_tasks_map
+
+    def _attach_resolution_info(self, events: List[TaskEvent]) -> None:
+        """
+        Attach manual resolution metadata to task events in bulk.
+        """
+        if not events:
+            return
+
+        task_ids = [event.task_id for event in events if event.task_id]
+        if not task_ids:
+            return
+
+        resolutions = (
+            self.session.query(TaskResolutionDB)
+            .filter(TaskResolutionDB.task_id.in_(task_ids))
+            .all()
+        )
+        resolution_map = {resolution.task_id: resolution for resolution in resolutions}
+
+        for event in events:
+            resolution = resolution_map.get(event.task_id)
+            event.resolved = bool(resolution.resolved) if resolution else False
+            event.resolved_by = resolution.resolved_by if resolution else None
+            event.resolved_at = _ensure_utc(resolution.resolved_at) if resolution else None
 
     def _populate_retry_info(
         self,
@@ -939,6 +1045,7 @@ class TaskService:
 
         events = [self._db_to_task_event(event_db) for event_db in events_db]
         self._bulk_enrich_with_retry_info(events)
+        self._attach_resolution_info(events)
 
         return events, total_events
 
@@ -1004,6 +1111,7 @@ class TaskService:
 
         events = [self._db_to_task_event(event_db) for event_db in events_db]
         self._bulk_enrich_with_retry_info(events)
+        self._attach_resolution_info(events)
         return events, total_events
 
 

@@ -40,6 +40,7 @@
         >
           <template #actions="{ task }">
 
+            <div>
             <NuxtLink :to="`/tasks/${task.task_id}`">
               <Button
                 variant="ghost"
@@ -56,6 +57,25 @@
               :disabled="retryLoadingIds.includes(task.task_id)"
               @click.stop="handleFailedRetryAction(task)"
             />
+            <Button
+              variant="ghost"
+              size="xs"
+              class="gap-1"
+              :disabled="resolutionLoadingIds.includes(task.task_id)"
+              @click.stop="handleResolveAction(task, 'failed')"
+            >
+              <Loader2
+                v-if="resolutionLoadingIds.includes(task.task_id)"
+                class="h-3.5 w-3.5 animate-spin"
+              />
+              <Check
+                v-else
+                class="h-3.5 w-3.5"
+                :class="isTaskResolved(task) ? 'text-status-success' : ''"
+              />
+              <span>{{ isTaskResolved(task) ? 'Unresolve' : 'Resolve' }}</span>
+            </Button>
+            </div>
           </template>
         </TaskIssueSummary>
 
@@ -93,6 +113,24 @@
               />
               <RefreshCw v-else class="h-3.5 w-3.5" />
               Retry
+            </Button>
+            <Button
+              variant="ghost"
+              size="xs"
+              class="gap-1"
+              :disabled="resolutionLoadingIds.includes(task.task_id)"
+              @click.stop="handleResolveAction(task, 'orphan')"
+            >
+              <Loader2
+                v-if="resolutionLoadingIds.includes(task.task_id)"
+                class="h-3.5 w-3.5 animate-spin"
+              />
+              <Check
+                v-else
+                class="h-3.5 w-3.5"
+                :class="isTaskResolved(task) ? 'text-status-success' : ''"
+              />
+              <span>{{ isTaskResolved(task) ? 'Unresolve' : 'Resolve' }}</span>
             </Button>
           </template>
           <template #details="{ task }">
@@ -169,7 +207,7 @@ import type { TimeRange } from '~/components/TimeRangeFilter.vue'
 import { useUrlQuerySync } from '~/composables/useUrlQuerySync'
 import type { UrlQueryState } from '~/composables/useUrlQuerySync'
 import type { TaskEventResponse } from '~/services/apiClient'
-import {ChevronRight, RefreshCw} from 'lucide-vue-next'
+import {ChevronRight, RefreshCw, Check, Loader2} from 'lucide-vue-next'
 import {IconButton} from "~/components/common";
 
 const tasksStore = useTasksStore()
@@ -239,6 +277,22 @@ const retryLoadingIds = computed(() => {
   }
   return [retryDialogState.value.task.task_id]
 })
+
+const resolutionLoadingIds = ref<string[]>([])
+
+const isTaskResolved = (task: TaskEventResponse) => {
+  return Boolean((task as TaskEventResponse & { resolved?: boolean }).resolved)
+}
+
+function setResolutionLoading(taskId: string, isLoading: boolean) {
+  if (isLoading) {
+    if (!resolutionLoadingIds.value.includes(taskId)) {
+      resolutionLoadingIds.value.push(taskId)
+    }
+  } else {
+    resolutionLoadingIds.value = resolutionLoadingIds.value.filter(id => id !== taskId)
+  }
+}
 
 const currentSorting = computed(() => {
   const { sort_by, sort_order } = tasksStore.paginationParams
@@ -348,6 +402,31 @@ async function confirmRetry() {
 
 function cancelRetry() {
   retryDialogState.value = null
+}
+
+async function handleResolveAction(task: TaskEventResponse, source: 'failed' | 'orphan') {
+  if (!task.task_id) return
+  setResolutionLoading(task.task_id, true)
+  try {
+    const alreadyResolved = isTaskResolved(task)
+    if (source === 'orphan') {
+      if (alreadyResolved) {
+        await orphanTasksStore.clearTaskResolution(task.task_id)
+      } else {
+        await orphanTasksStore.resolveTask(task.task_id)
+      }
+    } else {
+      if (alreadyResolved) {
+        await failedTasksStore.clearTaskResolution(task.task_id)
+      } else {
+        await failedTasksStore.resolveTask(task.task_id)
+      }
+    }
+  } catch (error) {
+    console.error('Failed to toggle resolution state:', error)
+  } finally {
+    setResolutionLoading(task.task_id, false)
+  }
 }
 
 // Mouse glow effect

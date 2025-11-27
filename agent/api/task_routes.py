@@ -6,15 +6,21 @@ from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 
 from services import TaskService, EnvironmentService, SessionService
 from database import TaskEventDB
 from models import TaskEvent
+from database import ensure_utc_isoformat
 from config import Config
 from security.auth import AuthenticatedUser
 from security.dependencies import get_auth_dependency
 
 logger = logging.getLogger(__name__)
+
+
+class ResolveTaskRequest(BaseModel):
+    resolved_by: Optional[str] = None
 
 
 def create_router(app_state) -> APIRouter:
@@ -173,6 +179,7 @@ def create_router(app_state) -> APIRouter:
         task_service = TaskService(session)
         orphaned_events = [task_service._db_to_task_event(event_db) for event_db in orphaned_events_db]
         task_service._bulk_enrich_with_retry_info(orphaned_events)
+        task_service._attach_resolution_info(orphaned_events)
 
         unretried_orphaned = []
         for event in orphaned_events:
@@ -208,6 +215,52 @@ def create_router(app_state) -> APIRouter:
             exclude_retried=not include_retried
         )
         return failed_tasks
+
+
+    @router.post("/tasks/{task_id}/resolve")
+    async def resolve_task(
+        task_id: str,
+        payload: Optional[ResolveTaskRequest] = None,
+        session: Session = Depends(get_db),
+        current_user: Optional[AuthenticatedUser] = Depends(optional_user_dep)
+    ):
+        """Manually mark a task as resolved without altering its state."""
+        task_service = TaskService(session)
+        task_events = task_service.get_task_events(task_id)
+        if not task_events:
+            raise HTTPException(status_code=404, detail="Task not found")
+
+        resolved_by = payload.resolved_by if payload else None
+        if config.auth_enabled and isinstance(current_user, AuthenticatedUser):
+            resolved_by = resolved_by or current_user.email or current_user.name
+
+        resolution = task_service.set_task_resolution(task_id, resolved_by)
+        return {
+            "task_id": task_id,
+            "resolved": True,
+            "resolved_by": resolution.resolved_by,
+            "resolved_at": ensure_utc_isoformat(resolution.resolved_at) if resolution.resolved_at else None,
+        }
+
+
+    @router.delete("/tasks/{task_id}/resolve")
+    async def clear_task_resolution(
+        task_id: str,
+        session: Session = Depends(get_db),
+    ):
+        """Remove manual resolution mark from a task."""
+        task_service = TaskService(session)
+        task_events = task_service.get_task_events(task_id)
+        if not task_events:
+            raise HTTPException(status_code=404, detail="Task not found")
+
+        task_service.clear_task_resolution(task_id)
+        return {
+            "task_id": task_id,
+            "resolved": False,
+            "resolved_by": None,
+            "resolved_at": None,
+        }
 
 
     @router.post("/tasks/{task_id}/retry")
