@@ -6,7 +6,7 @@ authors = ["czyber <czypka.github@gmail.com>"]
 package-mode = false
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.9"
 celery = "^5.3.0"
 kombu = "^5.3.0"
 amqp = "^5.1.0"
@@ -22,6 +22,7 @@ pymysql = "^1.1.1"
 asyncpg = {version = "^0.30.0", optional = true}
 mysqlclient = {version = "^2.2.0", optional = true}
 aiohttp = ">=3.8,<3.13"
+prometheus-client = "^0.22.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"
