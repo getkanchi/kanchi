@@ -266,7 +266,10 @@
               <!-- Raw Task Data -->
               <div class="border border-border-subtle rounded-md p-5">
                 <h2 class="text-sm font-medium text-text-primary mb-4">Raw Task Data</h2>
-                <pre class="text-xs font-mono bg-background-base border border-border-subtle rounded p-3 overflow-x-auto text-text-muted">{{ formatJson(task) }}</pre>
+                <p class="text-xs text-text-muted mb-2">
+                  This is the internal representation of the task, not the original Celery task payload.
+                </p>
+                <pre class="text-xs font-mono bg-background-base border border-border rounded p-3 overflow-x-auto text-text-muted">{{ formatJson(task) }}</pre>
               </div>
             </div>
           </TabsContent>
