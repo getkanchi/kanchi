@@ -189,7 +189,11 @@ const mapTaskToRetryChainFormat = (task: any) => {
       <TableHeader>
         <TableRow class="border-border" v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
           <TableHead class="w-12"></TableHead>
-          <TableHead v-for="header in headerGroup.headers" :key="header.id">
+          <TableHead
+            v-for="header in headerGroup.headers"
+            :key="header.id"
+            :class="header.column.columnDef.meta?.columnClass"
+          >
             <div
               v-if="!header.isPlaceholder"
               :class="{
@@ -219,18 +223,30 @@ const mapTaskToRetryChainFormat = (task: any) => {
               @click="toggleRowExpansion(row.original.task_id)"
             >
               <TableCell class="w-12">
-                <ChevronRight v-if="!expandedRows.has(row.original.task_id)" class="h-4 w-4 text-gray-400" />
-                <ChevronDown v-else class="h-4 w-4 text-gray-400" />
+                <ChevronRight class="h-4 w-4 text-gray-400 transition-transform duration-200 ease-in-out"
+                  :class="expandedRows.has(row.original.task_id) ? 'rotate-90' : 'rotate-0'"/>
               </TableCell>
-              <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+              <TableCell
+                v-for="cell in row.getVisibleCells()"
+                :key="cell.id"
+                :class="cell.column.columnDef.meta?.columnClass"
+              >
                 <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
               </TableCell>
             </TableRow>
             
             
-            <TableRow v-if="expandedRows.has(row.original.task_id)" class="bg-background-raised border-border">
+            <TableRow class="bg-background-raised border-border">
               <TableCell :colspan="columns.length + 1" class="p-0">
-                <div class="px-8 py-6 w-full max-w-full min-w-0 overflow-hidden">
+                <Transition
+                  enter-active-class="transition-[opacity,transform,max-height] duration-250 ease-out"
+                  enter-from-class="opacity-0 -translate-y-1 max-h-[0px]"
+                  enter-to-class="opacity-100 translate-y-0 max-h-[500px]"
+                  leave-active-class="transition-[opacity,transform,max-height] duration-150 ease-in"
+                  leave-from-class="opacity-100 translate-y-0 max-h-[500px]"
+                  leave-to-class="opacity-0 -translate-y-1 max-h-[0px]"
+                >
+                <div v-if="expandedRows.has(row.original.task_id)" class="px-8 py-6 w-full max-w-full min-w-0 overflow-hidden">
 
                   <!-- Task Details and Retry Button in one line -->
                   <div class="flex items-center justify-between gap-6 text-sm mb-6 w-full flex-wrap">
@@ -356,6 +372,7 @@ const mapTaskToRetryChainFormat = (task: any) => {
                     </div>
                   </div>
                 </div>
+                </Transition>
               </TableCell>
             </TableRow>
           </template>
