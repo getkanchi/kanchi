@@ -33,7 +33,7 @@
     <!-- Main Form (same as new.vue) -->
     <div class="space-y-6">
       <!-- Basic Info -->
-      <div class="border border-border rounded-md p-5">
+      <div class="border border-border-subtle rounded-md p-5">
         <div class="mb-4">
           <h2 class="text-sm font-medium text-text-primary">Basic Information</h2>
           <p class="text-xs text-text-muted mt-0.5">Edit the workflow name and high-level description.</p>
@@ -84,7 +84,7 @@
             <div v-if="testError" class="text-sm text-status-error bg-status-error-bg border border-status-error-border rounded px-3 py-2">
               {{ testError }}
             </div>
-            <div v-if="testResult" class="rounded border border-border bg-background-base p-3 space-y-2">
+            <div v-if="testResult" class="rounded border border-border-subtle bg-background-base p-3 space-y-2">
               <div class="flex items-center gap-2 text-sm">
                 <span class="text-text-secondary">Conditions met:</span>
                 <Badge :variant="testResult.conditions_met ? 'default' : 'destructive'">
@@ -106,7 +106,7 @@
       </Dialog>
 
       <!-- Workflow Builder -->
-      <div class="border border-border rounded-md p-5">
+      <div class="border border-border-subtle rounded-md p-5">
         <div class="flex flex-row items-center justify-between mb-4">
           <div>
             <h2 class="text-sm font-medium text-text-primary">Workflow Builder</h2>
@@ -168,7 +168,7 @@
       </div>
 
       <!-- Circuit Breaker -->
-      <div class="border border-border rounded-md p-5">
+      <div class="border border-border-subtle rounded-md p-5">
         <div class="mb-4">
           <h2 class="text-sm font-medium text-text-primary">Circuit Breaker</h2>
           <p class="text-xs text-text-muted mt-0.5">Prevent excessive executions for the same context.</p>
@@ -181,7 +181,7 @@
       </div>
 
       <!-- Advanced Settings -->
-      <div class="border border-border rounded-md p-5">
+      <div class="border border-border-subtle rounded-md p-5">
         <div class="mb-4">
           <h2 class="text-sm font-medium text-text-primary">Advanced Controls</h2>
           <p class="text-xs text-text-muted mt-0.5">Fine-tune execution priority, limits, and status.</p>
@@ -224,7 +224,7 @@
               placeholder="Unlimited"
             />
           </div>
-          <div class="flex items-center justify-between rounded-lg border border-border px-4 py-3">
+          <div class="flex items-center justify-between rounded-lg border border-border-subtle px-4 py-3">
             <div>
               <label class="text-sm font-medium text-text-primary">Enabled</label>
               <p class="text-xs text-text-muted">Toggle workflow availability.</p>
@@ -246,7 +246,7 @@
 
   <!-- Loading State -->
   <div v-else-if="isLoading" class="max-w-5xl mx-auto">
-    <div class="h-96 border border-border rounded-md animate-pulse" />
+    <div class="h-96 border border-border-subtle rounded-md animate-pulse" />
   </div>
 
   <!-- Error/Not Found State -->

@@ -1,6 +1,6 @@
 <template>
   <div
-    class="inline-flex items-center h-6 rounded-md bg-background-surface/80 border border-border text-xs font-mono whitespace-nowrap overflow-hidden"
+    class="inline-flex items-center h-6 rounded-md bg-background-surface/80 border border-border-subtle text-xs font-mono whitespace-nowrap overflow-hidden"
   >
     <!-- Field segment -->
     <div class="px-2.5 py-1 text-text-muted border-r border-[hsl(0,0%,15%)]">

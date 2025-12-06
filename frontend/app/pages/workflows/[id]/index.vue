@@ -69,7 +69,7 @@
       <TabsContent value="overview">
         <div class="space-y-6">
           <!-- Workflow Configuration -->
-          <div class="border border-border rounded-md p-5">
+          <div class="border border-border-subtle rounded-md p-5">
             <h2 class="text-sm font-medium text-text-primary mb-4">Workflow Configuration</h2>
 
             <!-- Trigger -->
@@ -89,7 +89,7 @@
                 <div
                   v-for="(condition, idx) in workflowStore.currentWorkflow.conditions.conditions"
                   :key="idx"
-                  class="text-xs font-mono border border-border px-2 py-1.5 rounded"
+                  class="text-xs font-mono border border-border-subtle px-2 py-1.5 rounded"
                 >
                   {{ condition.field }} {{ condition.operator }} {{ condition.value }}
                 </div>
@@ -113,7 +113,7 @@
           </div>
 
           <!-- Last Execution -->
-          <div v-if="workflowStore.currentWorkflow.last_executed_at" class="border border-border rounded-md p-5">
+          <div v-if="workflowStore.currentWorkflow.last_executed_at" class="border border-border-subtle rounded-md p-5">
             <h2 class="text-sm font-medium text-text-primary mb-2">Last Execution</h2>
             <p class="text-xs text-text-muted">
               {{ formatDateTime(workflowStore.currentWorkflow.last_executed_at) }}
@@ -129,7 +129,7 @@
 
       <!-- Settings Tab -->
       <TabsContent value="settings">
-        <div class="border border-border rounded-md p-5">
+        <div class="border border-border-subtle rounded-md p-5">
           <h2 class="text-sm font-medium text-text-primary mb-4">Advanced Settings</h2>
           <div class="space-y-3 text-xs">
             <div class="flex justify-between py-2 border-b border-border">
@@ -190,25 +190,25 @@
       <!-- Stats Rail (Right Sidebar) -->
       <aside class="w-full lg:w-64 lg:sticky lg:top-6 lg:self-start">
         <div class="space-y-3">
-          <div class="border border-border rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
+          <div class="border border-border-subtle rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
             <p class="text-[10px] uppercase tracking-wider text-text-muted mb-1.5 font-medium">Total Executions</p>
             <p class="text-2xl font-semibold text-text-primary tabular-nums">
               {{ workflowStore.currentWorkflow.execution_count }}
             </p>
           </div>
-          <div class="border border-border rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
+          <div class="border border-border-subtle rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
             <p class="text-[10px] uppercase tracking-wider text-text-muted mb-1.5 font-medium">Successful</p>
             <p class="text-2xl font-semibold text-status-success tabular-nums">
               {{ workflowStore.currentWorkflow.success_count }}
             </p>
           </div>
-          <div class="border border-border rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
+          <div class="border border-border-subtle rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
             <p class="text-[10px] uppercase tracking-wider text-text-muted mb-1.5 font-medium">Failed</p>
             <p class="text-2xl font-semibold text-status-error tabular-nums">
               {{ workflowStore.currentWorkflow.failure_count }}
             </p>
           </div>
-          <div class="border border-border rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
+          <div class="border border-border-subtle rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
             <p class="text-[10px] uppercase tracking-wider text-text-muted mb-1.5 font-medium">Success Rate</p>
             <p class="text-2xl font-semibold text-text-primary tabular-nums">
               {{ successRate }}%
@@ -222,7 +222,7 @@
 
   <!-- Loading State -->
   <div v-else-if="workflowStore.isLoading" class="max-w-7xl mx-auto">
-    <div class="h-48 border border-border rounded-md animate-pulse" />
+    <div class="h-48 border border-border-subtle rounded-md animate-pulse" />
   </div>
 
   <!-- Error State -->

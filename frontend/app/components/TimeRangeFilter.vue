@@ -272,24 +272,19 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex items-center gap-1">
+  <div class="flex items-center ">
     <Popover v-model:open="open">
       <PopoverTrigger as-child>
         <Button
           variant="outline"
           @click="handleButtonClick"
-          :class="[
-            'justify-start text-left font-mono',
-            modelValue.start && modelValue.end ? 'font-semibold' : 'font-normal',
-            !modelValue.start && !modelValue.end && 'text-text-muted',
-            disabled && 'opacity-60'
-          ]"
+          class="justify-start text-left text-text-primary"
         >
           <CalendarDays class="h-4 w-4" />
-          {{ displayLabel }}
+          {{ displayLabel || 'Select time range' }}
         </Button>
       </PopoverTrigger>
-    <PopoverContent class="w-auto p-4 bg-background-raised border-border border" align="start">
+    <PopoverContent class="w-auto p-4 bg-background-raised border-border-subtle border" align="start">
       <div class="space-y-4" @keydown.enter="applyRange">
         <!-- Calendar -->
         <RangeCalendarRoot
@@ -301,7 +296,7 @@ onMounted(() => {
           weekday-format="short"
           :week-starts-on="0"
           :max-value="maxDate"
-          :class="cn('rounded-lg border border-border bg-background-raised p-3')"
+          :class="cn('rounded-lg border border-border-subtle bg-background-raised p-3')"
           @update:model-value="handleDateRangeChange"
         >
           <RangeCalendarHeader class="flex items-center justify-between mb-4">

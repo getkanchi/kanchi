@@ -43,11 +43,11 @@
 
       <!-- Args/Kwargs - inline compact -->
       <div v-if="failure.args || failure.kwargs" class="grid grid-cols-2 gap-2">
-        <div v-if="failure.args" class="p-1.5 border border-border rounded bg-background-surface">
+        <div v-if="failure.args" class="p-1.5 border border-border-subtle rounded bg-background-surface">
           <div class="text-[9px] text-text-muted uppercase tracking-wide mb-0.5">Args</div>
           <div class="text-[10px] font-mono text-text-primary truncate">{{ formatValue(failure.args) }}</div>
         </div>
-        <div v-if="failure.kwargs" class="p-1.5 border border-border rounded bg-background-surface">
+        <div v-if="failure.kwargs" class="p-1.5 border border-border-subtle rounded bg-background-surface">
           <div class="text-[9px] text-text-muted uppercase tracking-wide mb-0.5">Kwargs</div>
           <div class="text-[10px] font-mono text-text-primary truncate">{{ formatValue(failure.kwargs) }}</div>
         </div>

@@ -103,7 +103,7 @@ const copyValue = computed(() => {
     </div>
 
     <!-- Content -->
-    <div v-else class="bg-background-base border border-border rounded-md p-3 overflow-x-auto">
+    <div v-else class="bg-background-base border border-border-subtle rounded-md p-3 overflow-x-auto">
       <!-- Simple value (single string/number) -->
       <div v-if="displayType === 'value'" class="font-mono text-xs text-text-primary">
         {{ parsedValue }}

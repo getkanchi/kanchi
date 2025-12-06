@@ -2,11 +2,11 @@
   <Sheet :open="isOpen" @update:open="handleClose">
     <SheetContent
       side="right"
-      class="w-[800px] max-w-[95vw] p-0 border-l border-border bg-background-base"
+      class="w-[800px] max-w-[95vw] p-0 border-l border-border-subtle bg-background-base"
     >
       <div v-if="task" class="h-full flex flex-col">
         <!-- Header -->
-        <div class="flex items-start justify-between p-5 border-b border-border bg-background-surface">
+        <div class="flex items-start justify-between p-5 border-b border-border-subtle bg-background-surface">
           <div class="flex-1 min-w-0 pr-4">
             <!-- Edit mode: human readable name -->
             <div v-if="isEditing" class="mb-2">
@@ -14,7 +14,7 @@
               <input
                 v-model="editForm.human_readable_name"
                 type="text"
-                class="w-full px-2 py-1 text-sm font-mono bg-background-base border border-border rounded text-text-primary focus:outline-none focus:border-primary"
+                class="w-full px-2 py-1 text-sm font-mono bg-background-base border border-border-subtle rounded text-text-primary focus:outline-none focus:border-primary"
                 placeholder="Task display name"
               />
             </div>
@@ -28,7 +28,7 @@
               <textarea
                 v-model="editForm.description"
                 rows="2"
-                class="w-full px-2 py-1 text-xs bg-background-base border border-border rounded text-text-secondary leading-relaxed focus:outline-none focus:border-primary resize-none"
+                class="w-full px-2 py-1 text-xs bg-background-base border border-border-subtle rounded text-text-secondary leading-relaxed focus:outline-none focus:border-primary resize-none"
                 placeholder="Task description"
               />
             </div>
@@ -56,7 +56,7 @@
                 <input
                   v-model="newTag"
                   type="text"
-                  class="flex-1 px-2 py-1 text-xs font-mono bg-background-base border border-border rounded text-text-primary focus:outline-none focus:border-primary"
+                  class="flex-1 px-2 py-1 text-xs font-mono bg-background-base border border-border-subtle rounded text-text-primary focus:outline-none focus:border-primary"
                   placeholder="Add tag..."
                   @keyup.enter="addTag"
                 />
@@ -123,7 +123,7 @@
           <!-- Stats Grid -->
           <div class="grid grid-cols-2 gap-3">
             <!-- 24H Stats -->
-            <div class="bg-background-surface border border-border rounded-lg p-3">
+            <div class="bg-background-surface border border-border-subtle rounded-lg p-3">
               <div class="text-[10px] font-mono font-bold text-text-muted uppercase tracking-wider mb-3">
                 24H Activity
               </div>
@@ -157,7 +157,7 @@
             </div>
 
             <!-- 7D Trend -->
-            <div class="bg-background-surface border border-border rounded-lg p-3">
+            <div class="bg-background-surface border border-border-subtle rounded-lg p-3">
               <div class="text-[10px] font-mono font-bold text-text-muted uppercase tracking-wider mb-3">
                 7-Day Trend
               </div>
@@ -229,7 +229,7 @@
           </div>
 
           <!-- Frequency Timeline -->
-          <div class="bg-background-surface border border-border rounded-lg p-3">
+          <div class="bg-background-surface border border-border-subtle rounded-lg p-3">
             <div class="text-[10px] font-mono font-bold text-text-muted uppercase tracking-wider mb-3">
               24H Frequency
             </div>
@@ -241,7 +241,7 @@
           </div>
 
           <!-- Metadata -->
-          <div class="bg-background-surface border border-border rounded-lg p-3">
+          <div class="bg-background-surface border border-border-subtle rounded-lg p-3">
             <div class="text-[10px] font-mono font-bold text-text-muted uppercase tracking-wider mb-2">
               Metadata
             </div>

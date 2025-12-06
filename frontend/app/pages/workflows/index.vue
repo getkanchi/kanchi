@@ -42,7 +42,7 @@
 
         <!-- Loading State -->
         <div v-if="workflowStore.isLoading" class="space-y-2">
-          <div v-for="i in 3" :key="i" class="h-16 border border-border rounded-md animate-pulse" />
+          <div v-for="i in 3" :key="i" class="h-16 border border-border-subtle rounded-md animate-pulse" />
         </div>
 
         <!-- Empty State -->
@@ -62,7 +62,7 @@
         </div>
 
         <!-- Workflows List -->
-        <div v-else class="border border-border rounded-md divide-y divide-border">
+        <div v-else class="border border-border-subtle rounded-md divide-y divide-border">
       <div
         v-for="workflow in filteredWorkflows"
         :key="workflow.id"
@@ -162,19 +162,19 @@
       <!-- Stats Rail (Right Sidebar) -->
       <aside class="w-full lg:w-64 lg:sticky lg:top-6 lg:self-start">
         <div v-if="!workflowStore.isLoading" class="space-y-3">
-          <div class="border border-border rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
+          <div class="border border-border-subtle rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
             <p class="text-[10px] uppercase tracking-wider text-text-muted mb-1.5 font-medium">Active</p>
             <p class="text-2xl font-semibold text-text-primary tabular-nums">{{ workflowStore.activeWorkflowsCount }}</p>
           </div>
-          <div class="border border-border rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
+          <div class="border border-border-subtle rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
             <p class="text-[10px] uppercase tracking-wider text-text-muted mb-1.5 font-medium">Total Workflows</p>
             <p class="text-2xl font-semibold text-text-primary tabular-nums">{{ workflowStore.workflows.length }}</p>
           </div>
-          <div class="border border-border rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
+          <div class="border border-border-subtle rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
             <p class="text-[10px] uppercase tracking-wider text-text-muted mb-1.5 font-medium">Executions Today</p>
             <p class="text-2xl font-semibold text-text-primary tabular-nums">{{ totalExecutionsToday }}</p>
           </div>
-          <div class="border border-border rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
+          <div class="border border-border-subtle rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
             <p class="text-[10px] uppercase tracking-wider text-text-muted mb-1.5 font-medium">Success Rate</p>
             <p class="text-2xl font-semibold text-status-success tabular-nums">{{ averageSuccessRate }}%</p>
           </div>

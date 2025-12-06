@@ -16,8 +16,8 @@ export const pillVariants = cva(
     variants: {
       variant: {
         default: "bg-background-surface text-text-secondary border border-border",
-        shortcut: "bg-background-surface text-text-secondary border border-border hover:bg-background-raised hover:border-border/80 transition-all duration-200 hover:scale-[1.02]",
-        accent: "bg-background-surface text-text-primary border border-border shadow-sm",
+        shortcut: "bg-background-surface text-text-secondary border border-border-subtle hover:bg-background-raised hover:border-border/80 transition-all duration-200 hover:scale-[1.02]",
+        accent: "bg-background-surface text-text-primary border border-border-subtle shadow-sm",
         subtle: "bg-background-surface/60 text-text-muted border border-border",
       },
       size: {

@@ -12,9 +12,9 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
-        mono: ['JetBrains Mono', 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', 'monospace'],
-        display: ['Archivo', 'Inter Tight', 'var(--font-sans)']
+        sans: ['Geist Sans', 'Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+        mono: ['Geist Mono', 'JetBrains Mono', 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', 'monospace'],
+        display: ['Geist Sans', 'Archivo', 'Inter Tight', 'var(--font-sans)']
       },
       colors: {
         // Backgrounds using CSS variables
@@ -193,4 +193,3 @@ export default {
   },
   plugins: [],
 }
-

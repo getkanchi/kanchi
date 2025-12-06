@@ -21,7 +21,7 @@ const forwarded = useForwardPropsEmits(props, emits)
 <template>
   <CalendarRoot
     v-slot="{ grid, weekDays }"
-    :class="cn('rounded-lg border border-border bg-background-surface p-3', $attrs.class ?? '')"
+    :class="cn('rounded-lg border border-border-subtle bg-background-surface p-3', $attrs.class ?? '')"
     v-bind="forwarded"
   >
     <div class="flex flex-col gap-y-4 sm:flex-row sm:gap-x-4 sm:gap-y-0">

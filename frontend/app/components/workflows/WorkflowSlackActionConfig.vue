@@ -78,7 +78,7 @@
           </div>
 
           <!-- Preview -->
-          <div v-if="localAction.params.template" class="border border-border rounded-lg p-3 bg-background-base">
+          <div v-if="localAction.params.template" class="border border-border-subtle rounded-lg p-3 bg-background-base">
             <div class="text-xs font-medium text-text-secondary mb-2">Preview</div>
             <div class="text-sm text-text-primary font-mono whitespace-pre-wrap">
               {{ previewMessage }}
@@ -86,11 +86,11 @@
           </div>
 
           <!-- Advanced Options -->
-          <details class="border border-border rounded-lg">
+          <details class="border border-border-subtle rounded-lg">
             <summary class="p-3 cursor-pointer text-xs font-medium text-text-primary hover:bg-background-hover-subtle">
               Advanced Options
             </summary>
-            <div class="p-3 border-t border-border space-y-3">
+            <div class="p-3 border-t border-border-subtle space-y-3">
               <div class="flex items-center justify-between">
                 <div>
                   <label class="text-xs font-medium text-text-primary">Continue on Failure</label>

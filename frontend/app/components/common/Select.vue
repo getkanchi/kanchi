@@ -19,8 +19,8 @@ export const selectVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-background-surface border-border text-text-primary focus:border-border-highlight focus:ring-border-highlight",
-        outline: "bg-transparent border-border text-text-primary hover:bg-background-hover focus:border-primary focus:ring-primary/40",
+        default: "bg-background-surface border-border-subtle text-text-primary focus:border-border-highlight focus:ring-border-highlight",
+        outline: "bg-transparent border-border-subtle text-text-primary hover:bg-background-hover focus:border-primary focus:ring-primary/40",
       },
       size: {
         sm: "px-2 py-1 text-xs",

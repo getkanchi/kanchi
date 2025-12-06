@@ -1,6 +1,6 @@
 <template>
   <Dialog v-model:open="isOpen">
-    <DialogContent class="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col bg-background-surface border-border p-0">
+    <DialogContent class="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col bg-background-surface border-border-subtle p-0">
       <DialogHeader class="px-6 pt-6 pb-4 border-b border-border">
         <div class="flex items-center justify-between">
           <div>
@@ -35,7 +35,7 @@
           <div
             v-for="env in environmentStore.environments"
             :key="env.id"
-            class="group relative bg-background-surface border border-border rounded-lg p-4 transition-all duration-200 cursor-pointer"
+            class="group relative bg-background-surface border border-border-subtle rounded-lg p-4 transition-all duration-200 cursor-pointer"
             :class="{
               'bg-background-raised border-primary/30 shadow-glow-sm': env.is_active,
               'hover:bg-background-raised hover:border-border-highlight': !env.is_active
@@ -75,7 +75,7 @@
                     class="opacity-0 group-hover:opacity-100"
                   />
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" class="bg-background-surface border-border w-40">
+                <DropdownMenuContent align="end" class="bg-background-surface border-border-subtle w-40">
                   <DropdownMenuItem @click="editEnvironment(env)" class="text-text-primary hover:bg-background-hover cursor-pointer text-sm font-mono">
                     Edit
                   </DropdownMenuItem>
@@ -108,7 +108,7 @@
                     v-for="pattern in env.queue_patterns"
                     :key="pattern"
                     variant="secondary"
-                    class="text-[10px] font-mono bg-background-base border border-border hover:border-border-highlight transition-colors"
+                    class="text-[10px] font-mono bg-background-base border border-border-subtle hover:border-border-highlight transition-colors"
                   >
                     {{ pattern }}
                   </Badge>
@@ -122,7 +122,7 @@
                     v-for="pattern in env.worker_patterns"
                     :key="pattern"
                     variant="secondary"
-                    class="text-[10px] font-mono bg-background-base border border-border hover:border-border-highlight transition-colors"
+                    class="text-[10px] font-mono bg-background-base border border-border-subtle hover:border-border-highlight transition-colors"
                   >
                     {{ pattern }}
                   </Badge>
@@ -141,7 +141,7 @@
 
   <!-- Create/Edit Form Dialog -->
   <Dialog v-model:open="isFormOpen">
-    <DialogContent class="max-w-2xl bg-background-surface border-border p-0">
+    <DialogContent class="max-w-2xl bg-background-surface border-border-subtle p-0">
       <DialogHeader class="px-6 pt-6 pb-4 border-b border-border">
         <DialogTitle class="text-lg font-semibold text-text-primary">{{ isEditing ? 'Edit' : 'New' }} Environment</DialogTitle>
         <DialogDescription class="text-xs text-text-secondary mt-0.5">
@@ -157,7 +157,7 @@
             :value="formName"
             @input="formName = ($event.target as HTMLInputElement).value"
             placeholder="Production"
-            class="h-9 bg-background-base border-border text-text-primary text-sm"
+            class="h-9 bg-background-base border-border-subtle text-text-primary text-sm"
           />
         </div>
 
@@ -167,7 +167,7 @@
             id="description"
             v-model="formDescription"
             placeholder="Optional description"
-            class="bg-background-base border-border text-text-primary text-sm resize-none"
+            class="bg-background-base border-border-subtle text-text-primary text-sm resize-none"
             rows="2"
           />
         </div>
@@ -202,7 +202,7 @@
         </div>
       </div>
 
-      <div class="px-6 py-4 border-t border-border flex justify-end gap-2">
+      <div class="px-6 py-4 border-t border-border-subtle flex justify-end gap-2">
         <Button @click="isFormOpen = false" variant="outline" size="sm" class="h-8 text-xs">Cancel</Button>
         <Button @click="saveEnvironment" :disabled="!isFormValid || environmentStore.loading" size="sm" class="h-8 text-xs">
           {{ environmentStore.loading ? 'Saving...' : 'Save' }}
@@ -213,7 +213,7 @@
 
   <!-- Delete Confirmation Dialog -->
   <AlertDialog v-model:open="isDeleteDialogOpen">
-    <AlertDialogContent class="bg-background-surface border-border max-w-md">
+    <AlertDialogContent class="bg-background-surface border-border-subtle max-w-md">
       <AlertDialogHeader>
         <AlertDialogTitle class="text-base font-semibold text-text-primary">Delete Environment</AlertDialogTitle>
         <AlertDialogDescription class="text-xs text-text-secondary">
@@ -221,7 +221,7 @@
         </AlertDialogDescription>
       </AlertDialogHeader>
       <AlertDialogFooter class="gap-2">
-        <AlertDialogCancel class="h-8 text-xs bg-background-base text-text-primary border-border hover:bg-background-hover">
+        <AlertDialogCancel class="h-8 text-xs bg-background-base text-text-primary border-border-subtle hover:bg-background-hover">
           Cancel
         </AlertDialogCancel>
         <AlertDialogAction

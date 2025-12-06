@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { ChevronRight, ChevronDown, Clock, Hash, Database, Cpu, AlertTriangle, ChevronLeft, ChevronsLeft, ChevronsRight, ArrowUpDown, ArrowUp, ArrowDown, Search, RefreshCw, CornerDownRight } from 'lucide-vue-next'
+import { Card, CardContent } from '@/components/ui/card'
 
 import {Badge} from "~/components/ui/badge";
 import StatusDot from "~/components/StatusDot.vue";
@@ -28,8 +29,10 @@ import RetryTaskConfirmDialog from "~/components/RetryTaskConfirmDialog.vue";
 import IconButton from "~/components/common/IconButton.vue";
 import { Select } from '~/components/common'
 import PythonValueViewer from "~/components/PythonValueViewer.vue";
+import TimeDisplay from "~/components/TimeDisplay.vue";
 import type { ParsedFilter } from '~/composables/useFilterParser'
 import type { TimeRange } from '~/components/TimeRangeFilter.vue'
+import TaskDetailsSection from '~/components/common/TaskDetailsSection.vue'
 
 const props = defineProps<{
   columns: ColumnDef<TData, TValue>[]
@@ -139,12 +142,33 @@ const mapTaskToRetryChainFormat = (task: any) => {
   }
 }
 
+const { eventTypeToStatus, getStatusVariant, formatStatus } = useTaskStatus()
+
+const getStatusMeta = (task: any) => {
+  const status = task?.is_orphan ? 'ORPHANED' : eventTypeToStatus(task?.event_type || 'unknown')
+  return {
+    label: formatStatus(status),
+    variant: getStatusVariant(status)
+  }
+}
+
+const getRuntimeLabel = (runtime?: number | null) => {
+  if (runtime === undefined || runtime === null) return '-'
+  return `${runtime.toFixed(2)}s`
+}
+
+const getRetryCount = (task: any) => {
+  const retriedBy = Array.isArray(task?.retried_by) ? task.retried_by.length : 0
+  const retryOf = task?.retry_of ? 1 : 0
+  return retriedBy + retryOf
+}
+
 </script>
 
 <template>
-  <div class="border border-border rounded-md bg-background-surface glow-border">
+  <div class="border border-border-subtle rounded-md bg-background-surface glow-border">
     <!-- Header with search and live mode controls -->
-    <div class="flex items-center border-border justify-between p-4 border-b">
+    <div class="flex items-center border-border-subtle justify-between p-4 border-b">
       <div class="flex items-center gap-3 flex-1">
         <!-- Search input with filters -->
         <SearchInput
@@ -187,9 +211,13 @@ const mapTaskToRetryChainFormat = (task: any) => {
 
     <Table>
       <TableHeader>
-        <TableRow class="border-border" v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+        <TableRow class="border-border-subtle" v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
           <TableHead class="w-12"></TableHead>
-          <TableHead v-for="header in headerGroup.headers" :key="header.id">
+          <TableHead
+            v-for="header in headerGroup.headers"
+            :key="header.id"
+            :class="header.column.columnDef.meta?.columnClass"
+          >
             <div
               v-if="!header.isPlaceholder"
               :class="{
@@ -215,153 +243,96 @@ const mapTaskToRetryChainFormat = (task: any) => {
         <template v-if="table.getRowModel().rows?.length">
           <template v-for="row in table.getRowModel().rows" :key="row.id">
             <TableRow
-              class="border-border cursor-default hover:bg-background-hover-subtle transition-colors duration-150"
+              class="border-border-subtle cursor-pointer hover:bg-background-hover-subtle transition-colors duration-150"
               @click="toggleRowExpansion(row.original.task_id)"
             >
               <TableCell class="w-12">
-                <ChevronRight v-if="!expandedRows.has(row.original.task_id)" class="h-4 w-4 text-gray-400" />
-                <ChevronDown v-else class="h-4 w-4 text-gray-400" />
+                <ChevronRight class="h-4 w-4 text-gray-400 transition-transform duration-200 ease-in-out"
+                  :class="expandedRows.has(row.original.task_id) ? 'rotate-90' : 'rotate-0'"/>
               </TableCell>
-              <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+              <TableCell
+                v-for="cell in row.getVisibleCells()"
+                :key="cell.id"
+                :class="cell.column.columnDef.meta?.columnClass"
+              >
                 <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
               </TableCell>
             </TableRow>
             
             
-            <TableRow v-if="expandedRows.has(row.original.task_id)" class="bg-background-raised border-border">
+            <TableRow class="bg-background-raised border-border-subtle cursor-default">
               <TableCell :colspan="columns.length + 1" class="p-0">
-                <div class="px-8 py-6 w-full max-w-full min-w-0 overflow-hidden">
-
-                  <!-- Task Details and Retry Button in one line -->
-                  <div class="flex items-center justify-between gap-6 text-sm mb-6 w-full flex-wrap">
-                    <div class="flex items-center gap-6 flex-wrap min-w-0">
-                      <div class="flex items-center gap-1.5">
-                        <Hash class="h-3.5 w-3.5 text-gray-400" />
-                        <span class="text-gray-500">ID:</span>
-                        <code class="text-xs bg-background-surface px-1 py-0.5 rounded">{{ row.original.task_id }}</code>
-                        <CopyButton
-                          :text="row.original.task_id"
-                          :copy-key="`task-id-${row.original.task_id}`"
-                          title="Copy task ID"
-                          :show-text="true"
-                        />
-                      </div>
-
-                      <div class="flex items-center gap-1.5">
-                        <Database class="h-3.5 w-3.5 text-gray-400" />
-                        <span class="text-gray-500">Queue:</span>
-                        <span class="font-medium text-sm">{{ row.original.routing_key || 'default' }}</span>
-                      </div>
-
-                      <div v-if="row.original.hostname" class="flex items-center gap-1.5">
-                        <Cpu class="h-3.5 w-3.5 text-gray-400" />
-                        <span class="text-gray-500">Worker:</span>
-                        <span class="font-medium text-sm">{{ row.original.hostname }}</span>
-                      </div>
-
-                      <div v-if="row.original.eta" class="flex items-center gap-1.5">
-                        <Clock class="h-3.5 w-3.5 text-gray-400" />
-                        <span class="text-gray-500">ETA:</span>
-                        <span class="font-medium text-sm">{{ row.original.eta }}</span>
-                      </div>
-                    </div>
-
-                    <div class="flex items-center gap-2">
+                <Transition
+                  enter-active-class="transition-[opacity,transform,max-height] duration-250 ease-out"
+                  enter-from-class="opacity-0 -translate-y-1 max-h-[0px]"
+                  enter-to-class="opacity-100 translate-y-0 max-h-[500px]"
+                  leave-active-class="transition-[opacity,transform,max-height] duration-150 ease-in"
+                  leave-from-class="opacity-100 translate-y-0 max-h-[500px]"
+                  leave-to-class="opacity-0 -translate-y-1 max-h-[0px]"
+                >
+                <div v-if="expandedRows.has(row.original.task_id)" >
+                  <TaskDetailsSection
+                    :task-name="row.original.human_readable_name || row.original.task_name || 'Task'"
+                    :status-label="getStatusMeta(row.original).label"
+                    :status-variant="getStatusMeta(row.original).variant"
+                    :started-timestamp="row.original.timestamp"
+                    :runtime-label="getRuntimeLabel(row.original.runtime)"
+                    :retry-label="getRetryCount(row.original)"
+                    :task-id="row.original.task_id"
+                    :routing-key="row.original.routing_key"
+                    :hostname="row.original.hostname"
+                    :args="row.original.args"
+                    :kwargs="row.original.kwargs"
+                    :result="row.original.result"
+                    :traceback="row.original.traceback"
+                  >
+                    <template #actions>
                       <NuxtLink :to="`/tasks/${row.original.task_id}`">
                         <Button
-                          variant="ghost"
-                          size="sm"
-                          class="gap-1.5"
+                          variant="outline"
+                          size="xs"
                         >
-                          <ChevronRight class="h-3.5 w-3.5" />
+                          <ChevronRight class="h-4 w-4" />
                           Open
                         </Button>
                       </NuxtLink>
-                      <IconButton
-                        :icon="RefreshCw"
+                      <Button
+                        variant="outline"
+                        size="xs"
                         @click="() => { currentRetryTaskId = row.original.task_id; retryDialogRef?.open() }"
                         :disabled="isRetrying"
-                        :loading="isRetrying && currentRetryTaskId === row.original.task_id"
-                        size="sm"
-                        variant="ghost"
-                      />
-                    </div>
-                  </div>
-                  
-                  <!-- Retry Chain Section -->
-                  <div v-if="row.original.is_retry || row.original.has_retries"
-                       class="mb-6 p-4 border border-border rounded-md bg-background-surface">
-                    <RetryChain
-                      :current-task="mapTaskToRetryChainFormat(row.original)"
-                      :parent-task="row.original.retry_of ? mapTaskToRetryChainFormat(row.original.retry_of) : undefined"
-                      :retries="row.original.retried_by ? row.original.retried_by
-                        .map((retryTask, index) => {
-                          const mapped = mapTaskToRetryChainFormat(retryTask)
-                          return mapped ? { ...mapped, retry_number: index + 2 } : null
-                        })
-                        .filter(task => task !== null) : []"
-                      :show-details="false"
-                    />
-                  </div>
-                  
-                  <div class="space-y-4 w-full max-w-full min-w-0">
+                        :loading="isRetrying && currentRetryTaskId === row.original.task_id"    
+                      >
+                        <RefreshCw class="h-4 w-4" />
+                        Rerun
+                      </Button>
+                    </template>
 
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full max-w-full min-w-0">
-                      <PythonValueViewer
-                        v-if="row.original.args"
-                        :value="row.original.args"
-                        title="Arguments"
-                        :copy-key="`args-${row.original.task_id}`"
-                        empty-message="No arguments"
-                      />
-
-                      <PythonValueViewer
-                        v-if="row.original.kwargs"
-                        :value="row.original.kwargs"
-                        title="Keyword Arguments"
-                        :copy-key="`kwargs-${row.original.task_id}`"
-                        empty-message="No keyword arguments"
+                    <!-- Retry Chain Section -->
+                    <div v-if="row.original.is_retry || row.original.has_retries"
+                         class="p-4 border border-border-subtle rounded-md bg-background-surface">
+                      <RetryChain
+                        :current-task="mapTaskToRetryChainFormat(row.original)"
+                        :parent-task="row.original.retry_of ? mapTaskToRetryChainFormat(row.original.retry_of) : undefined"
+                        :retries="row.original.retried_by ? row.original.retried_by
+                          .map((retryTask, index) => {
+                            const mapped = mapTaskToRetryChainFormat(retryTask)
+                            return mapped ? { ...mapped, retry_number: index + 2 } : null
+                          })
+                          .filter(task => task !== null) : []"
+                        :show-details="false"
                       />
                     </div>
                     
-                    
-                    <div v-if="row.original.result" class="p-4 border border-border rounded-md bg-background-surface">
-                      <div class="flex items-center justify-between mb-3">
-                        <h4 class="text-sm font-medium text-status-success">Result:</h4>
-                        <CopyButton
-                          :text="typeof row.original.result === 'string' ? row.original.result : JSON.stringify(row.original.result, null, 2)"
-                          :copy-key="`result-${row.original.task_id}`"
-                          title="Copy result"
-                          :show-text="true"
-                        />
-                      </div>
-                      <pre class="bg-status-success-bg border border-status-success-border p-3 rounded text-xs overflow-x-auto text-status-success font-mono">{{ typeof row.original.result === 'string' ? row.original.result : JSON.stringify(row.original.result, null, 2) }}</pre>
-                    </div>
-                    
-                    
-                    <div v-if="row.original.traceback" class="p-4 border border-border rounded-md bg-background-surface">
-                      <div class="flex items-center justify-between mb-3">
-                        <div class="flex items-center gap-1.5">
-                          <AlertTriangle class="h-3.5 w-3.5 text-red-400" />
-                          <h4 class="text-sm font-medium text-red-400">Error Traceback:</h4>
-                        </div>
-                        <CopyButton 
-                          :text="row.original.traceback"
-                          :copy-key="`traceback-${row.original.task_id}`"
-                          title="Copy traceback"
-                          :show-text="true"
-                        />
-                      </div>
-                      <pre class="bg-red-950/20 border border-red-900/20 p-3 rounded text-xs overflow-x-auto text-red-400 font-mono">{{ row.original.traceback }}</pre>
-                    </div>
-                  </div>
+                  </TaskDetailsSection>
                 </div>
+                </Transition>
               </TableCell>
             </TableRow>
           </template>
         </template>
         <template v-else>
-          <TableRow class="border-border">
+          <TableRow class="border-border-subtle">
             <TableCell :colspan="columns.length + 1" class="h-24 text-center">
               No results.
             </TableCell>
@@ -371,7 +342,7 @@ const mapTaskToRetryChainFormat = (task: any) => {
     </Table>
     
     
-    <div class="flex items-center justify-between p-4 border-t border-border">
+    <div class="flex items-center justify-between p-4 border-t border-border-subtle">
       <div class="flex items-center space-x-2">
         <span v-if="isLoading" class="text-sm text-gray-500">
           Loading...
@@ -445,8 +416,8 @@ const mapTaskToRetryChainFormat = (task: any) => {
   <RetryTaskConfirmDialog
     ref="retryDialogRef"
     :task="currentRetryTaskId ? data.find(task => task.task_id === currentRetryTaskId) || null : null"
-    :is-loading="isRetrying && !!currentRetryTaskId"
-    @confirm="handleRetryConfirm"
-    @cancel="handleRetryCancel"
+  :is-loading="isRetrying && !!currentRetryTaskId"
+  @confirm="handleRetryConfirm"
+  @cancel="handleRetryCancel"
   />
 </template>

@@ -2,11 +2,11 @@
   <div>
     <!-- Loading State -->
     <div v-if="workflowStore.isLoading" class="space-y-3">
-      <div v-for="i in 3" :key="i" class="h-32 bg-background-surface border border-border rounded-lg animate-pulse" />
+      <div v-for="i in 3" :key="i" class="h-32 bg-background-surface border border-border-subtle rounded-lg animate-pulse" />
     </div>
 
     <!-- Empty State -->
-    <div v-else-if="workflowStore.executions.length === 0" class="text-center py-16 bg-background-surface border border-border rounded-lg">
+    <div v-else-if="workflowStore.executions.length === 0" class="text-center py-16 bg-background-surface border border-border-subtle rounded-lg">
       <History class="h-12 w-12 text-text-muted mx-auto mb-4 opacity-50" />
       <h3 class="text-sm font-medium text-text-primary mb-2">No executions yet</h3>
       <p class="text-xs text-text-muted">This workflow hasn't been triggered</p>
@@ -17,7 +17,7 @@
       <div
         v-for="execution in workflowStore.executions"
         :key="execution.id"
-        class="bg-background-surface border border-border rounded-lg overflow-hidden"
+        class="bg-background-surface border border-border-subtle rounded-lg overflow-hidden"
       >
         <!-- Execution Header -->
         <div
@@ -73,14 +73,14 @@
         <!-- Execution Details (Expanded) -->
         <div
           v-if="expandedExecutions.has(execution.id)"
-          class="border-t border-border p-4 bg-background-base space-y-4"
+          class="border-t border-border-subtle p-4 bg-background-base space-y-4"
         >
           <!-- Trigger Event -->
           <div>
             <div class="text-xs font-semibold text-text-muted uppercase tracking-wide mb-2">
               Trigger Event
             </div>
-            <div class="bg-background-surface border border-border rounded p-3 font-mono text-xs overflow-x-auto">
+            <div class="bg-background-surface border border-border-subtle rounded p-3 font-mono text-xs overflow-x-auto">
               <pre>{{ JSON.stringify(execution.trigger_event, null, 2) }}</pre>
             </div>
           </div>
@@ -94,7 +94,7 @@
               <div
                 v-for="(action, idx) in execution.actions_executed"
                 :key="idx"
-                class="border border-border rounded-lg p-3"
+                class="border border-border-subtle rounded-lg p-3"
               >
                 <div class="flex items-start justify-between gap-3 mb-2">
                   <div class="flex items-center gap-2">

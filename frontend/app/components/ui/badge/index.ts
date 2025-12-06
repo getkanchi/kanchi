@@ -14,7 +14,7 @@ export const badgeVariants = cva(
           "border-transparent bg-background-surface text-text-primary hover:bg-background-hover",
         destructive:
           "border-transparent bg-status-error text-white shadow hover:bg-status-error/80",
-        outline: "text-text-primary border border-border bg-background-base hover:bg-background-surface",
+        outline: "text-text-primary border border-border-subtle bg-background-base hover:bg-background-surface",
         success: "border-status-success-border bg-status-success-bg text-status-success hover:bg-status-success-hover",
         failed: "border-status-error-border bg-status-error-bg text-status-error hover:bg-status-error-hover",
         pending: "border-status-warning-border bg-status-warning-bg text-status-warning hover:bg-status-warning-hover",

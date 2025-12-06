@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-4">
     <!-- Enable Circuit Breaker Toggle -->
-    <div class="flex items-center justify-between rounded-lg border border-border px-4 py-3 bg-background-raised">
+    <div class="flex items-center justify-between rounded-lg border border-border-subtle px-4 py-3 bg-background-raised">
       <div class="flex-1">
         <label class="text-sm font-medium text-text-primary">
           Enable Circuit Breaker
