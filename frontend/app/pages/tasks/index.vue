@@ -43,7 +43,7 @@
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="end"
-            class="w-[250px] max-h-[400px] overflow-y-auto bg-background-surface border-border text-text-primary"
+            class="w-[250px] max-h-[400px] overflow-y-auto bg-background-surface border-border-subtle text-text-primary"
           >
             <DropdownMenuLabel class="text-[10px] font-mono uppercase tracking-wider text-text-muted">
               Filter by Tag
@@ -79,7 +79,7 @@
       <!-- Task Cards Grid -->
       <div v-if="taskRegistryStore.isLoading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         <!-- Loading skeletons -->
-        <div v-for="i in 8" :key="i" class="h-48 bg-background-surface border border-border rounded-lg animate-pulse"></div>
+        <div v-for="i in 8" :key="i" class="h-48 bg-background-surface border border-border-subtle rounded-lg animate-pulse"></div>
       </div>
 
       <div v-else-if="filteredTasks.length === 0" class="text-center py-12">

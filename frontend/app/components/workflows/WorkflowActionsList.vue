@@ -1,6 +1,6 @@
 <template>
   <div>
-    <div v-if="actions.length === 0" class="border-2 border-dashed border-border rounded-lg p-6 text-center">
+    <div v-if="actions.length === 0" class="border-2 border-dashed border-border-subtle rounded-lg p-6 text-center">
       <Zap class="h-8 w-8 text-text-muted mx-auto mb-2" />
       <p class="text-sm text-text-secondary mb-3">No actions configured</p>
       <Button size="sm" variant="outline" @click="showActionSelector = true">
@@ -14,7 +14,7 @@
       <div
         v-for="(action, index) in actions"
         :key="index"
-        class="border border-border rounded-lg p-4 bg-background-raised"
+        class="border border-border-subtle rounded-lg p-4 bg-background-raised"
       >
         <div class="flex items-start justify-between gap-3 mb-3">
           <div class="flex items-start gap-3 flex-1 min-w-0">
@@ -81,7 +81,7 @@
           <button
             v-for="actionType in actionTypes"
             :key="actionType.type"
-            class="p-4 rounded-lg border border-border hover:border-primary hover:bg-background-hover transition-colors text-left"
+            class="p-4 rounded-lg border border-border-subtle hover:border-primary hover:bg-background-hover transition-colors text-left"
             @click="selectActionType(actionType.type)"
           >
             <component :is="getActionIcon(actionType.type)" class="h-6 w-6 text-primary mb-2" />

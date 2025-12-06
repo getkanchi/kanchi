@@ -1,4 +1,6 @@
-/* Import CSS variables */
+/* Import fonts and CSS variables */
+@import '@fontsource/geist-sans/index.css';
+@import '@fontsource/geist-mono/index.css';
 @import '~/assets/css/variables.css';
 
 @tailwind base;

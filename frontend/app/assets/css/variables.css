@@ -3,9 +3,9 @@
 :root {
   /* === Neutral Colors === */
   /* Backgrounds - Dark to light progression */
-  --bg-base: hsl(0, 0%, 3%);
-  --bg-surface: hsl(0, 0%, 6%);
-  --bg-raised: hsl(0, 0%, 9%);
+  --bg-base: hsl(0, 0%, 2%);
+  --bg-surface: hsl(0, 0%, 3%);
+  --bg-raised: hsl(0, 0%, 4.5%);
   
   /* Text - Light to dark progression */
   --text-primary: hsl(0, 0%, 90%);
@@ -14,9 +14,10 @@
   --text-disabled: hsl(0, 0%, 35%);
   
   /* Borders & Highlights */
-  --border: hsl(0, 0%, 9%);
+  --border: hsl(0, 0%, 17%);
   --border-subtle: hsl(0, 0%, 7%);
-  --highlight: hsl(0, 0%, 29%);
+  --highlight: hsl(0, 0%, 77%);
+
   
   /* === Interactive States === */
   /* Hover states - lighter in dark mode for elevation */

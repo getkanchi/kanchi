@@ -28,7 +28,7 @@
         </div>
 
         <!-- Continue on Failure -->
-        <div class="flex items-center justify-between border border-border rounded-lg p-3">
+        <div class="flex items-center justify-between border border-border-subtle rounded-lg p-3">
           <div>
             <label class="text-xs font-medium text-text-primary">Continue on Failure</label>
             <p class="text-xs text-text-muted">Continue to next action if retry fails</p>

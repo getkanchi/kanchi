@@ -1,7 +1,7 @@
 <template>
   <div class="relative max-w-2xl w-full">
     <!-- Main input container with flex layout -->
-    <div class="relative flex items-center gap-1 px-2 border border-border focus-within:ring-gray-700 rounded-md bg-background-surface/50 focus-within:ring-1">
+    <div class="relative flex items-center gap-1 px-2 border border-border focus-within:ring-gray-700 rounded-md bg-background-surface">
       <!-- Search icon -->
       <Search class="h-4 w-4 text-muted-foreground flex-shrink-0 mx-2" />
 
@@ -18,7 +18,7 @@
         <!-- In-progress filter pill -->
         <div
           v-if="currentFilter.field"
-          class="inline-flex items-center h-6 rounded-md bg-background-surface/80 border border-border text-xs font-mono whitespace-nowrap overflow-hidden"
+          class="inline-flex items-center h-6 rounded-md bg-background-surface/80 border border-border-subtle text-xs font-mono whitespace-nowrap overflow-hidden"
         >
           <!-- Field segment (completed) -->
           <div class="px-2.5 py-1 text-text-primary border-r border-[hsl(0,0%,15%)]">
@@ -96,11 +96,11 @@
     <!-- Autocomplete dropdown -->
     <div
       v-if="showSuggestions && (filteredFieldSuggestions.length > 0 || filteredOperatorSuggestions.length > 0 || filterStage === 'value')"
-      class="absolute top-full mt-1 w-full bg-background-surface border border-border rounded-md shadow-lg z-50 max-h-60 overflow-y-auto"
+      class="absolute top-full mt-1 w-full bg-background-surface border border-border-subtle rounded-md shadow-lg z-50 max-h-60 overflow-y-auto"
     >
       <!-- Field suggestions -->
       <div v-if="filterStage === 'field' && filteredFieldSuggestions.length > 0">
-        <div class="px-3 py-2 text-xs text-gray-500 border-b border-border sticky top-0 bg-background-surface">
+        <div class="px-3 py-2 text-xs text-gray-500 border-b border-border-subtle sticky top-0 bg-background-surface">
           Filter by
         </div>
         <Button
@@ -120,7 +120,7 @@
 
       <!-- Operator suggestions -->
       <div v-else-if="filterStage === 'operator' && filteredOperatorSuggestions.length > 0">
-        <div class="px-3 py-2 text-xs text-gray-500 border-b border-border sticky top-0 bg-background-surface">
+        <div class="px-3 py-2 text-xs text-gray-500 border-b border-border-subtle sticky top-0 bg-background-surface">
           Choose operator for <span class="text-gray-300">{{ currentFilter.field }}</span>
         </div>
         <Button
@@ -140,7 +140,7 @@
       <div v-else-if="filterStage === 'value'">
         <!-- Show suggestions if we have them -->
         <div v-if="filteredValueSuggestions.length > 0">
-          <div class="px-3 py-2 text-xs text-gray-500 border-b border-border sticky top-0 bg-background-surface">
+          <div class="px-3 py-2 text-xs text-gray-500 border-b border-border-subtle sticky top-0 bg-background-surface">
             Select value{{currentFilter.operator === 'in' || currentFilter.operator === 'not_in' ? 's' : ''}} for <span class="text-gray-300">{{ currentFilter.field }}</span>
           </div>
           <Button

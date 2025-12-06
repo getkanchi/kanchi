@@ -1,6 +1,6 @@
 <template>
   <div 
-    class="border border-border rounded-lg overflow-hidden glow-border transition-all duration-300"
+    class="border border-border-subtle rounded-lg overflow-hidden glow-border transition-all duration-300"
     :class="summaryClasses">
     
     <!-- Collapsed Summary View -->
@@ -75,7 +75,7 @@
     <!-- Expanded Worker Grid -->
     <div 
       v-if="isExpanded" 
-      class="border-t border-border bg-background-surface/30"
+      class="border-t border-border-subtle bg-background-surface/30"
     >
       <div class="p-4 space-y-4">
         <!-- Active Workers Section -->

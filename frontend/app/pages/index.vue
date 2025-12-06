@@ -137,7 +137,7 @@
             <div class="mt-3 flex flex-wrap items-center gap-2 text-xs text-text-secondary">
               <Badge
                 variant="outline"
-                class="gap-2 border-border text-text-secondary"
+                class="gap-2 border-border-subtle text-text-secondary"
               >
                 <span class="uppercase tracking-wide text-[9px] text-text-muted">Detected</span>
                 <TimeDisplay
@@ -169,7 +169,7 @@
           :search-query="tasksStore.filters.search || ''"
           :filters="currentFilters"
           :time-range="timeRange"
-          class="relative backdrop-blur-sm bg-background-surface border-border glow-border"
+          class="relative backdrop-blur-sm bg-background-surface border-border-subtle glow-border"
           @toggle-live-mode="handleToggleLiveMode"
           @set-page-index="tasksStore.setPage"
           @set-page-size="tasksStore.setPageSize"

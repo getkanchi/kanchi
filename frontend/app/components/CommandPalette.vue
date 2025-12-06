@@ -246,7 +246,7 @@ onUnmounted(() => {
             ref="commandRef"
             :class="[
               'command-palette-container',
-              'relative bg-background-surface border border-border shadow-2xl',
+              'relative bg-background-surface border border-border-subtle shadow-2xl',
               'rounded-xl overflow-hidden backdrop-blur-sm',
               justOpened ? 'glow-border-animate' : 'glow-border'
             ]"

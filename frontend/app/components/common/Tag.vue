@@ -43,10 +43,10 @@ export const tagVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-background-raised text-text-secondary border border-border hover:bg-background-hover hover:border-border-highlight",
+        default: "bg-background-raised text-text-secondary border border-border-subtle hover:bg-background-hover hover:border-border-highlight",
         primary: "bg-primary-bg text-primary border border-primary-border hover:bg-primary/10",
         subtle: "bg-background-surface text-text-muted border border-border-subtle hover:text-text-secondary",
-        outlined: "bg-transparent text-text-secondary border border-border hover:bg-background-surface",
+        outlined: "bg-transparent text-text-secondary border border-border-subtle hover:bg-background-surface",
         solid: "bg-background-hover text-text-primary border border-transparent hover:bg-background-active",
       },
       size: {

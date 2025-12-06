@@ -1,6 +1,6 @@
 <template>
   <div 
-    class="border border-border rounded-lg overflow-hidden transition-all duration-300"
+    class="border border-border-subtle rounded-lg overflow-hidden transition-all duration-300"
     :class="cardClasses">
     
     <!-- Compact View -->

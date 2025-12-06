@@ -1,5 +1,5 @@
 <template>
-  <div class="sticky top-0 z-50 bg-background-surface border-b border-border backdrop-blur-sm bg-opacity-95">
+  <div class="sticky top-0 z-50 bg-background-surface border-b border-border-subtle backdrop-blur-sm bg-opacity-95">
     <div class="px-6">
       <div class="flex h-14 items-center">
         <div class="flex items-center gap-6">
@@ -80,7 +80,7 @@
                       {{ displayConnected ? "Connected" : "Disconnected" }}
                     </Badge>
                   </PopoverTrigger>
-                  <PopoverContent class="w-[420px] bg-background-surface border-border text-text-primary p-4">
+                  <PopoverContent class="w-[420px] bg-background-surface border-border-subtle text-text-primary p-4">
                     <div class="mb-3">
                       <h3 class="font-semibold text-sm text-text-primary">Agent Connection Details</h3>
                     </div>

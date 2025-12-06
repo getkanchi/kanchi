@@ -50,7 +50,7 @@
           <TooltipContent
             v-if="bucket.total_executions > 0"
             side="top"
-            class="bg-background-surface border border-border text-text-primary"
+            class="bg-background-surface border border-border-subtle text-text-primary"
           >
             <div class="space-y-2">
               <div class="font-mono text-xs font-medium">
@@ -70,7 +70,7 @@
                   <span class="text-text-secondary">{{ bucket.retried }} retried</span>
                 </div>
               </div>
-              <div class="pt-1 border-t border-border font-mono text-xs font-bold">
+              <div class="pt-1 border-t border-border-subtle font-mono text-xs font-bold">
                 {{ bucket.total_executions }} total
               </div>
             </div>

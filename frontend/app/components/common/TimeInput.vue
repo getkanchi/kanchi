@@ -13,7 +13,7 @@ import { cva } from "class-variance-authority"
 import type { VariantProps } from "class-variance-authority"
 
 export const timeInputVariants = cva(
-  "border border-border rounded bg-background-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary font-mono transition-colors",
+  "border border-border-subtle rounded bg-background-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary font-mono transition-colors",
   {
     variants: {
       size: {

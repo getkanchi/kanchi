@@ -6,7 +6,7 @@
       <DropdownMenuTrigger as-child>
         <button
           type="button"
-          class="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background-surface transition hover:border-primary-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-border"
+          class="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-border-subtle bg-background-surface transition hover:border-primary-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-border"
         >
           <Avatar class="h-9 w-9">
             <AvatarImage v-if="avatarSrc" :src="avatarSrc" :alt="currentUserName" />
@@ -16,7 +16,7 @@
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        class="w-64 rounded-xl border border-border bg-background-surface p-0 shadow-xl"
+        class="w-64 rounded-xl border border-border-subtle bg-background-surface p-0 shadow-xl"
       >
         <div class="flex items-center gap-3 px-4 pt-4 pb-3">
           <Avatar class="h-10 w-10">
@@ -38,7 +38,7 @@
         <div class="space-y-2 p-3">
           <button
             type="button"
-            class="flex items-center justify-between w-full rounded-lg border border-border bg-background-base px-3 py-2 text-left transition hover:border-primary-border hover:text-primary hover:bg-background-hover cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-border"
+            class="flex items-center justify-between w-full rounded-lg border border-border-subtle bg-background-base px-3 py-2 text-left transition hover:border-primary-border hover:text-primary hover:bg-background-hover cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-border"
             @click="toggleTheme"
           >
             <span class="text-sm font-medium">Toggle theme</span>
@@ -48,7 +48,7 @@
           <DropdownMenuItem as-child>
             <NuxtLink
               to="/settings/workspace"
-              class="flex items-center justify-between rounded-lg border border-border bg-background-base px-3 py-2 text-sm font-medium text-text-primary transition hover:border-primary-border hover:text-primary"
+              class="flex items-center justify-between rounded-lg border border-border-subtle bg-background-base px-3 py-2 text-sm font-medium text-text-primary transition hover:border-primary-border hover:text-primary"
             >
               Workspace settings
               <ArrowUpRight class="h-3.5 w-3.5 text-text-muted" />
@@ -60,7 +60,7 @@
               href="https://github.com/getkanchi/kanchi/issues"
               target="_blank"
               rel="noreferrer"
-              class="flex items-center justify-between rounded-lg border border-border bg-background-base px-3 py-2 text-sm font-medium text-text-primary transition hover:border-primary-border hover:text-primary"
+              class="flex items-center justify-between rounded-lg border border-border-subtle bg-background-base px-3 py-2 text-sm font-medium text-text-primary transition hover:border-primary-border hover:text-primary"
             >
               Report an issue
               <ArrowUpRight class="h-3.5 w-3.5 text-text-muted" />
@@ -82,7 +82,7 @@
           >
             <NuxtLink
               to="/login"
-              class="flex items-center justify-between rounded-lg border border-border bg-background-base px-3 py-2 text-sm font-medium text-text-primary transition hover:border-primary-border hover:text-primary"
+              class="flex items-center justify-between rounded-lg border border-border-subtle bg-background-base px-3 py-2 text-sm font-medium text-text-primary transition hover:border-primary-border hover:text-primary"
             >
               Sign in
               <LogIn class="h-4 w-4 text-text-muted" />

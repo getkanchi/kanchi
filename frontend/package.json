@@ -13,6 +13,8 @@
     "generate:api:local": "./generate-api-types.sh http://localhost:8765"
   },
   "dependencies": {
+    "@fontsource/geist-mono": "^5.2.7",
+    "@fontsource/geist-sans": "^5.2.5",
     "@lukeed/uuid": "^2.0.1",
     "@nuxtjs/tailwindcss": "^6.14.0",
     "@pinia/nuxt": "^0.11.2",

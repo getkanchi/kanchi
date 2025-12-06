@@ -60,7 +60,7 @@
           <TabsContent value="overview">
             <div class="space-y-6">
               <!-- Task Information -->
-              <div class="border border-border rounded-md p-5">
+              <div class="border border-border-subtle rounded-md p-5">
                 <h2 class="text-sm font-medium text-text-primary mb-4">Task Information</h2>
 
                 <div class="space-y-3 text-xs">
@@ -116,12 +116,12 @@
 
                 <div v-if="task.exception" class="mb-4">
                   <div class="text-[10px] uppercase tracking-wider font-medium text-text-muted mb-2">Exception</div>
-                  <pre class="text-xs font-mono bg-background-base border border-border rounded p-3 overflow-x-auto text-status-error">{{ task.exception }}</pre>
+                  <pre class="text-xs font-mono bg-background-base border border-border-subtle rounded p-3 overflow-x-auto text-status-error">{{ task.exception }}</pre>
                 </div>
 
                 <div v-if="task.traceback">
                   <div class="text-[10px] uppercase tracking-wider font-medium text-text-muted mb-2">Traceback</div>
-                  <pre class="text-xs font-mono bg-background-base border border-border rounded p-3 overflow-x-auto text-text-muted whitespace-pre-wrap">{{ task.traceback }}</pre>
+                  <pre class="text-xs font-mono bg-background-base border border-border-subtle rounded p-3 overflow-x-auto text-text-muted whitespace-pre-wrap">{{ task.traceback }}</pre>
                 </div>
               </div>
 
@@ -164,7 +164,7 @@
               </div>
 
               <!-- Related Tasks -->
-              <div v-if="task.root_id || task.parent_id" class="border border-border rounded-md p-5">
+              <div v-if="task.root_id || task.parent_id" class="border border-border-subtle rounded-md p-5">
                 <h2 class="text-sm font-medium text-text-primary mb-4">Related Tasks</h2>
 
                 <div class="space-y-3 text-xs">
@@ -187,7 +187,7 @@
 
           <!-- Timeline Tab -->
           <TabsContent value="timeline">
-            <div class="border border-border rounded-md p-5">
+            <div class="border border-border-subtle rounded-md p-5">
               <h2 class="text-sm font-medium text-text-primary mb-4">Event Timeline</h2>
 
               <div v-if="allEvents.length > 0" class="space-y-4">
@@ -224,39 +224,39 @@
           <TabsContent value="data">
             <div class="space-y-6">
               <!-- Arguments -->
-              <div class="border border-border rounded-md p-5">
+              <div class="border border-border-subtle rounded-md p-5">
                 <h2 class="text-sm font-medium text-text-primary mb-4">Arguments</h2>
                 <PayloadTruncationNotice
                   :value="task.args"
                   title="Arguments truncated before reaching Kanchi"
                 />
-                <pre class="text-xs font-mono bg-background-base border border-border rounded p-3 overflow-x-auto text-text-primary">{{ formatJson(task.args) }}</pre>
+                <pre class="text-xs font-mono bg-background-base border border-border-subtle rounded p-3 overflow-x-auto text-text-primary">{{ formatJson(task.args) }}</pre>
               </div>
 
               <!-- Keyword Arguments -->
-              <div class="border border-border rounded-md p-5">
+              <div class="border border-border-subtle rounded-md p-5">
                 <h2 class="text-sm font-medium text-text-primary mb-4">Keyword Arguments</h2>
                 <PayloadTruncationNotice
                   :value="task.kwargs"
                   title="Keyword arguments truncated before reaching Kanchi"
                 />
-                <pre class="text-xs font-mono bg-background-base border border-border rounded p-3 overflow-x-auto text-text-primary">{{ formatJson(task.kwargs) }}</pre>
+                <pre class="text-xs font-mono bg-background-base border border-border-subtle rounded p-3 overflow-x-auto text-text-primary">{{ formatJson(task.kwargs) }}</pre>
               </div>
 
               <!-- Result -->
-              <div v-if="task.result !== null && task.result !== undefined" class="border border-border rounded-md p-5">
+              <div v-if="task.result !== null && task.result !== undefined" class="border border-border-subtle rounded-md p-5">
                 <h2 class="text-sm font-medium text-text-primary mb-4">Result</h2>
                 <PayloadTruncationNotice
                   :value="task.result"
                   title="Result truncated before reaching Kanchi"
                 />
-                <pre class="text-xs font-mono bg-background-base border border-border rounded p-3 overflow-x-auto text-text-primary">{{ formatJson(task.result) }}</pre>
+                <pre class="text-xs font-mono bg-background-base border border-border-subtle rounded p-3 overflow-x-auto text-text-primary">{{ formatJson(task.result) }}</pre>
               </div>
 
               <!-- Raw Task Data -->
-              <div class="border border-border rounded-md p-5">
+              <div class="border border-border-subtle rounded-md p-5">
                 <h2 class="text-sm font-medium text-text-primary mb-4">Raw Task Data</h2>
-                <pre class="text-xs font-mono bg-background-base border border-border rounded p-3 overflow-x-auto text-text-muted">{{ formatJson(task) }}</pre>
+                <pre class="text-xs font-mono bg-background-base border border-border-subtle rounded p-3 overflow-x-auto text-text-muted">{{ formatJson(task) }}</pre>
               </div>
             </div>
           </TabsContent>
@@ -266,26 +266,26 @@
       <!-- Stats Rail (Right Sidebar) -->
       <aside class="w-full lg:w-64 lg:sticky lg:top-6 lg:self-start">
         <div class="space-y-3">
-          <div class="border border-border rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
+          <div class="border border-border-subtle rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
             <p class="text-[10px] uppercase tracking-wider text-text-muted mb-1.5 font-medium">Status</p>
             <Badge :variant="statusVariant">{{ statusDisplay }}</Badge>
           </div>
 
-          <div v-if="task.runtime" class="border border-border rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
+          <div v-if="task.runtime" class="border border-border-subtle rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
             <p class="text-[10px] uppercase tracking-wider text-text-muted mb-1.5 font-medium">Runtime</p>
             <p class="text-2xl font-semibold text-text-primary tabular-nums">
               {{ task.runtime.toFixed(2) }}<span class="text-sm text-text-muted">s</span>
             </p>
           </div>
 
-          <div class="border border-border rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
+          <div class="border border-border-subtle rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
             <p class="text-[10px] uppercase tracking-wider text-text-muted mb-1.5 font-medium">Retries</p>
             <p class="text-2xl font-semibold tabular-nums" :class="task.retries > 0 ? 'text-status-retry' : 'text-text-primary'">
               {{ task.retries }}
             </p>
           </div>
 
-          <div class="border border-border rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
+          <div class="border border-border-subtle rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
             <p class="text-[10px] uppercase tracking-wider text-text-muted mb-1.5 font-medium">Events</p>
             <p class="text-2xl font-semibold text-text-primary tabular-nums">
               {{ allEvents.length }}
@@ -306,7 +306,7 @@
 
   <!-- Loading State -->
   <div v-else-if="isLoading" class="max-w-7xl mx-auto">
-    <div class="h-48 border border-border rounded-md animate-pulse" />
+    <div class="h-48 border border-border-subtle rounded-md animate-pulse" />
   </div>
 
   <!-- Error State -->
