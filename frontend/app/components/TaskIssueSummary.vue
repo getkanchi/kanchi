@@ -3,15 +3,23 @@
     v-if="!shouldHideCard"
     class="border border-border-subtle rounded-md bg-background-surface glow-border"
   >
-    <div class="flex items-center border-border-subtle justify-between p-4 border-b gap-4">
-      <div class="flex items-center gap-4 flex-1 min-w-0">
-        <div class="flex items-center gap-2 min-w-0">
+    <div class="flex items-center border-border-subtle justify-between p-2 border-b gap-4">
+      <div class="flex items-center gap-3">
+        <button
+          type="button"
+          class="flex items-center gap-2 text-text-secondary hover:text-text-primary transition-colors"
+          @click="toggleCollapsed"
+        >
+          <ChevronRight
+            class="h-4 w-4 transition-transform duration-200"
+            :class="{ 'rotate-90': !isCollapsed }"
+          />
           <StatusDot
             :status="effectiveStatus"
             :pulse="statusDotPulse"
             class="scale-110"
           />
-          <div class="flex flex-col min-w-0">
+          <div class="flex items-center gap-2 text-left">
             <span class="font-medium text-sm text-text-primary truncate">{{ title }}</span>
             <div class="flex items-center gap-2 text-xs text-text-secondary">
               <span class="flex items-center gap-1">
@@ -27,16 +35,27 @@
               </span>
             </div>
           </div>
-        </div>
+        </button>
+      </div>
+      <div class="flex items-center gap-3">
+        <span v-if="isLoading" class="flex items-center gap-1 text-xs text-text-muted">
+          <Loader2 class="h-3.5 w-3.5 animate-spin" />
+          Updating…
+        </span>
+        <Button variant="outline" size="xs" @click="toggleCollapsed">
+          {{ isCollapsed ? 'Show' : 'Hide' }}
+        </Button>
+      </div>
+    </div>
 
-        <div class="flex-1 min-w-[240px]">
-          <SearchInput
-            :model-value="searchQuery"
-            :filters="activeFilters"
-            @update:model-value="handleSearchUpdate"
-            @update:filters="handleFiltersUpdate"
-          />
-        </div>
+    <div v-if="!isCollapsed" class="flex items-center border-border-subtle justify-between p-4 border-b gap-4">
+      <div class="flex-1 min-w-[240px]">
+        <SearchInput
+          :model-value="searchQuery"
+          :filters="activeFilters"
+          @update:model-value="handleSearchUpdate"
+          @update:filters="handleFiltersUpdate"
+        />
       </div>
       <div class="text-sm text-gray-500 text-right">
         <template v-if="totalFiltered > 0">
@@ -50,115 +69,121 @@
       </div>
     </div>
 
-    <Table>
-      <TableHeader>
-        <TableRow class="border-border-subtle">
-          <TableHead class="w-12" />
-          <TableHead>Task Name</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead>Time</TableHead>
-          <TableHead>Runtime</TableHead>
-          <TableHead>Retries</TableHead>
-          <TableHead>Worker</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        <template v-if="displayedTasks.length">
-          <template v-for="task in displayedTasks" :key="task.task_id">
-            <TableRow
-              class="border-border-subtle cursor-pointer hover:bg-background-hover-subtle transition-colors duration-150"
-              @click="toggleTaskExpansion(task.task_id)"
-            >
-              <TableCell class="w-12">
-                <ChevronRight
-                  v-if="!expandedTaskIds.has(task.task_id)"
-                  class="h-4 w-4 text-gray-400"
-                />
-                <ChevronDown v-else class="h-4 w-4 text-gray-400" />
-              </TableCell>
-              <TableCell>
-                <div class="flex items-center gap-3">
-                  <TaskName
-                    :name="task.task_name"
-                    size="sm"
-                    :max-length="30"
-                    :expandable="true"
+    <div v-if="!isCollapsed">
+      <Table>
+        <TableHeader>
+          <TableRow class="border-border-subtle">
+            <TableHead class="w-12" />
+            <TableHead>Task Name</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Time</TableHead>
+            <TableHead>Runtime</TableHead>
+            <TableHead>Worker</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <template v-if="displayedTasks.length">
+            <template v-for="task in displayedTasks" :key="task.task_id">
+              <TableRow
+                class="border-border-subtle cursor-pointer hover:bg-background-hover-subtle transition-colors duration-150"
+                @click="toggleTaskExpansion(task.task_id)"
+              >
+                <TableCell class="w-12">
+                  <ChevronRight
+                    v-if="!expandedTaskIds.has(task.task_id)"
+                    class="h-4 w-4 text-gray-400"
                   />
-                  <slot name="meta-badges" :task="task" />
-                  <Badge
-                    v-if="resolutionState(task).resolved"
-                    variant="outline"
-                    class="text-[11px] px-2 py-0.5 border-status-success text-status-success bg-status-success-bg/50"
-                  >
-                    Resolved
+                  <ChevronDown v-else class="h-4 w-4 text-gray-400" />
+                </TableCell>
+                <TableCell>
+                  <div class="flex items-center gap-3">
+                    <TaskName
+                      :name="task.task_name"
+                      size="sm"
+                      :max-length="30"
+                      :expandable="true"
+                    />
+                    <slot name="meta-badges" :task="task" />
+                    <Badge
+                      v-if="resolutionState(task).resolved"
+                      variant="outline"
+                      class="text-[11px] px-2 py-0.5 border-status-success text-status-success bg-status-success-bg/50"
+                    >
+                      Resolved
+                    </Badge>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge :variant="statusVariant(task)" class="text-xs">
+                    {{ statusLabel(task) }}
                   </Badge>
-                </div>
-              </TableCell>
-              <TableCell>
-                <Badge :variant="statusVariant(task)" class="text-xs">
-                  {{ statusLabel(task) }}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                <TimeDisplay
-                  v-if="taskTimestamp(task)"
-                  :timestamp="taskTimestamp(task)"
-                  layout="inline"
-                  :auto-refresh="true"
-                  :refresh-interval="1000"
-                />
-                <span v-else class="text-gray-400">-</span>
-              </TableCell>
-              <TableCell>
-                <span
-                  v-if="hasRuntime(task)"
-                  class="text-sm font-mono"
-                >
-                  {{ runtimeDisplay(task) }}
-                </span>
-                <span v-else class="text-gray-400">-</span>
-              </TableCell>
-              <TableCell>
-                <span :class="['text-sm', retryClass(task)]">
-                  {{ task.retries ?? 0 }}
-                </span>
-              </TableCell>
-              <TableCell>
-                <span v-if="task.hostname" class="text-xs font-mono">
-                  {{ task.hostname }}
-                </span>
-                <span v-else class="text-xs text-gray-400">-</span>
-              </TableCell>
-            </TableRow>
-            <TableRow
-              v-if="expandedTaskIds.has(task.task_id)"
-              class="bg-background-raised border-border-subtle cursor-default"
-            >
-              <TableCell :colspan="summaryColumnCount + 1" class="p-0">
-                <div class="px-8 py-6 w-full max-w-full min-w-0 overflow-hidden">
-                  <div class="flex items-center justify-between gap-6 text-sm mb-6 flex-wrap">
-                    <div class="flex items-center gap-6 flex-wrap">
-                      <div class="flex items-center gap-1.5">
-                        <Hash class="h-3.5 w-3.5 text-gray-400" />
-                        <span class="text-gray-500">ID:</span>
-                        <code class="text-xs bg-background-surface px-1 py-0.5 rounded">{{ task.task_id }}</code>
-                        <CopyButton
-                          :text="task.task_id"
-                          :copy-key="`task-id-${task.task_id}`"
-                          title="Copy task ID"
-                          :show-text="true"
-                        />
-                      </div>
-                      <div class="flex items-center gap-1.5">
-                        <Database class="h-3.5 w-3.5 text-gray-400" />
-                        <span class="text-gray-500">Queue:</span>
-                        <span class="font-medium text-sm">{{ task.routing_key || 'default' }}</span>
-                      </div>
-                      <div v-if="task.hostname" class="flex items-center gap-1.5">
-                        <Cpu class="h-3.5 w-3.5 text-gray-400" />
-                        <span class="text-gray-500">Worker:</span>
-                        <span class="font-medium text-sm">{{ task.hostname }}</span>
-                      </div>
+                </TableCell>
+                <TableCell>
+                  <TimeDisplay
+                    v-if="taskTimestamp(task)"
+                    :timestamp="taskTimestamp(task)"
+                    layout="inline"
+                    :auto-refresh="true"
+                    :refresh-interval="1000"
+                  />
+                  <span v-else class="text-gray-400">-</span>
+                </TableCell>
+                <TableCell>
+                  <span
+                    v-if="hasRuntime(task)"
+                    class="text-sm font-mono"
+                  >
+                    {{ runtimeDisplay(task) }}
+                  </span>
+                  <span v-else class="text-gray-400">-</span>
+                </TableCell>
+                <TableCell>
+                  <span v-if="task.hostname" class="text-xs font-mono">
+                    {{ task.hostname }}
+                  </span>
+                  <span v-else class="text-xs text-gray-400">-</span>
+                </TableCell>
+              </TableRow>
+              <TableRow
+                v-if="expandedTaskIds.has(task.task_id)"
+                class="bg-background-raised border-border-subtle cursor-default"
+              >
+                <TableCell :colspan="summaryColumnCount + 1" class="p-0">
+                  <TaskDetailsSection
+                    :task-name="task.task_name || 'Task'"
+                    :status-label="statusLabel(task)"
+                    :status-variant="statusVariant(task)"
+                    :started-timestamp="taskTimestamp(task)"
+                    :runtime-label="hasRuntime(task) ? runtimeDisplay(task) : null"
+                    :task-id="task.task_id"
+                    :routing-key="task.routing_key"
+                    :hostname="task.hostname"
+                    :args="task.args"
+                    :kwargs="task.kwargs"
+                    :result="task.result"
+                    :traceback="task.exception"
+                    :show-exception="showException"
+                  >
+                    <template #actions>
+                      <slot name="actions" :task="task">
+                        <Button
+                          v-if="itemActionLabel"
+                          variant="outline"
+                          size="xs"
+                          class="gap-1"
+                          :disabled="isActionDisabled(task)"
+                          @click.stop="handleItemAction(task)"
+                        >
+                          <Loader2
+                            v-if="isActionLoading(task)"
+                            class="h-3.5 w-3.5 animate-spin"
+                          />
+                          <span>{{ itemActionLabel }}</span>
+                        </Button>
+                      </slot>
+                    </template>
+
+                    <template #meta-extra>
                       <div
                         v-if="resolutionState(task).resolved"
                         class="flex items-center gap-1.5 text-xs text-status-success"
@@ -178,166 +203,98 @@
                           />
                         </span>
                       </div>
-                    </div>
-                    <slot name="actions" :task="task">
-                      <Button
-                        v-if="itemActionLabel"
-                        variant="outline"
-                        size="xs"
-                        class="gap-1"
-                        :disabled="isActionDisabled(task)"
-                        @click.stop="handleItemAction(task)"
-                      >
-                        <Loader2
-                          v-if="isActionLoading(task)"
-                          class="h-3.5 w-3.5 animate-spin"
-                        />
-                        <span>{{ itemActionLabel }}</span>
-                      </Button>
-                    </slot>
-                  </div>
-                  <slot name="details" :task="task">
-                    <div class="space-y-4">
-                      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <PythonValueViewer
-                          v-if="task.args"
-                          :value="task.args"
-                          title="Arguments"
-                          :copy-key="`args-${task.task_id}`"
-                          empty-message="No arguments"
-                        />
-                        <PythonValueViewer
-                          v-if="task.kwargs"
-                          :value="task.kwargs"
-                          title="Keyword Arguments"
-                          :copy-key="`kwargs-${task.task_id}`"
-                          empty-message="No keyword arguments"
-                        />
-                      </div>
-                      <div
-                        v-if="task.result"
-                        class="p-4 border border-border-subtle rounded-md bg-background-surface"
-                      >
-                        <div class="flex items-center justify-between mb-3">
-                          <h4 class="text-sm font-medium text-status-success">Result:</h4>
-                          <CopyButton
-                            :text="formatResult(task.result)"
-                            :copy-key="`result-${task.task_id}`"
-                            title="Copy result"
-                            :show-text="true"
-                          />
-                        </div>
-                        <pre class="bg-status-success-bg border border-status-success-border p-3 rounded text-xs overflow-x-auto text-status-success font-mono">{{ formatResult(task.result) }}</pre>
-                      </div>
-                      <div
-                        v-if="showException && task.exception"
-                        class="p-4 border border-border-subtle rounded-md bg-background-surface"
-                      >
-                        <div class="flex items-center justify-between mb-3">
-                          <div class="flex items-center gap-1.5">
-                            <AlertTriangle class="h-3.5 w-3.5 text-red-400" />
-                            <h4 class="text-sm font-medium text-red-400">Error Traceback:</h4>
-                          </div>
-                          <CopyButton
-                            :text="task.exception"
-                            :copy-key="`exception-${task.task_id}`"
-                            title="Copy exception"
-                            :show-text="true"
-                          />
-                        </div>
-                        <pre class="bg-red-950/20 border border-red-900/20 p-3 rounded text-xs overflow-x-auto text-red-400 font-mono">{{ task.exception }}</pre>
-                      </div>
-                    </div>
-                  </slot>
+                    </template>
+
+                  </TaskDetailsSection>
+                </TableCell>
+              </TableRow>
+            </template>
+          </template>
+          <template v-else>
+            <TableRow class="border-border-subtle">
+              <TableCell :colspan="summaryColumnCount + 1" class="p-8">
+                <div class="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border-subtle px-6 py-8 text-center">
+                  <svg class="h-10 w-10 text-text-muted/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 3a9 9 0 100 18 9 9 0 000-18z" />
+                  </svg>
+                  <p class="text-sm font-medium text-text-secondary">{{ emptyStateTitle }}</p>
+                  <p
+                    v-if="emptyStateDescription"
+                    class="max-w-md text-xs text-text-muted"
+                  >
+                    {{ emptyStateDescription }}
+                  </p>
                 </div>
               </TableCell>
             </TableRow>
           </template>
-        </template>
-        <template v-else>
-          <TableRow class="border-border-subtle">
-            <TableCell :colspan="summaryColumnCount + 1" class="p-8">
-              <div class="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border-subtle px-6 py-8 text-center">
-                <svg class="h-10 w-10 text-text-muted/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 3a9 9 0 100 18 9 9 0 000-18z" />
-                </svg>
-                <p class="text-sm font-medium text-text-secondary">{{ emptyStateTitle }}</p>
-                <p
-                  v-if="emptyStateDescription"
-                  class="max-w-md text-xs text-text-muted"
-                >
-                  {{ emptyStateDescription }}
-                </p>
-              </div>
-            </TableCell>
-          </TableRow>
-        </template>
-      </TableBody>
-    </Table>
+        </TableBody>
+      </Table>
 
-    <div class="flex items-center justify-between p-4 border-t border-border-subtle">
-      <div class="flex items-center space-x-2">
-        <span v-if="isLoading" class="text-sm text-gray-500">
-          Loading...
-        </span>
-        <span v-else class="text-sm text-gray-500">
-          <span v-if="totalFiltered > 0">
-            Showing {{ pageStart }} to {{ pageEnd }} of {{ totalFiltered }} entries
-          </span>
-          <span v-else>No tasks to display.</span>
-        </span>
-      </div>
-      <div class="flex items-center space-x-2">
+      <div class="flex items-center justify-between p-4 border-t border-border-subtle">
         <div class="flex items-center space-x-2">
-          <span class="text-sm text-gray-500">Show</span>
-          <Select
-            :model-value="String(pageSize)"
-            @update:model-value="handlePageSizeChange"
-            size="sm"
-          >
-            <option
-              v-for="option in pageSizeOptions"
-              :key="option"
-              :value="String(option)"
-            >
-              {{ option }}
-            </option>
-          </Select>
-          <span class="text-sm text-gray-500">per page</span>
-        </div>
-        
-        <div class="flex items-center space-x-1">
-          <IconButton
-            :icon="ChevronsLeft"
-            variant="ghost"
-            size="md"
-            @click="goToFirstPage"
-            :disabled="!hasPrevPage"
-          />
-          <IconButton
-            :icon="ChevronLeft"
-            variant="ghost"
-            size="md"
-            @click="goToPreviousPage"
-            :disabled="!hasPrevPage"
-          />
-          <span class="px-2 text-sm text-gray-500">
-            Page {{ totalPages > 0 ? currentPage + 1 : 0 }} of {{ totalPages }}
+          <span v-if="isLoading" class="text-sm text-gray-500">
+            Loading...
           </span>
-          <IconButton
-            :icon="ChevronRight"
-            variant="ghost"
-            size="md"
-            @click="goToNextPage"
-            :disabled="!hasNextPage"
-          />
-          <IconButton
-            :icon="ChevronsRight"
-            variant="ghost"
-            size="md"
-            @click="goToLastPage"
-            :disabled="!hasNextPage"
-          />
+          <span v-else class="text-sm text-gray-500">
+            <span v-if="totalFiltered > 0">
+              Showing {{ pageStart }} to {{ pageEnd }} of {{ totalFiltered }} entries
+            </span>
+            <span v-else>No tasks to display.</span>
+          </span>
+        </div>
+        <div class="flex items-center space-x-2">
+          <div class="flex items-center space-x-2">
+            <span class="text-sm text-gray-500">Show</span>
+            <Select
+              :model-value="String(pageSize)"
+              @update:model-value="handlePageSizeChange"
+              size="sm"
+            >
+              <option
+                v-for="option in pageSizeOptions"
+                :key="option"
+                :value="String(option)"
+              >
+                {{ option }}
+              </option>
+            </Select>
+            <span class="text-sm text-gray-500">per page</span>
+          </div>
+          
+          <div class="flex items-center space-x-1">
+            <IconButton
+              :icon="ChevronsLeft"
+              variant="ghost"
+              size="md"
+              @click="goToFirstPage"
+              :disabled="!hasPrevPage"
+            />
+            <IconButton
+              :icon="ChevronLeft"
+              variant="ghost"
+              size="md"
+              @click="goToPreviousPage"
+              :disabled="!hasPrevPage"
+            />
+            <span class="px-2 text-sm text-gray-500">
+              Page {{ totalPages > 0 ? currentPage + 1 : 0 }} of {{ totalPages }}
+            </span>
+            <IconButton
+              :icon="ChevronRight"
+              variant="ghost"
+              size="md"
+              @click="goToNextPage"
+              :disabled="!hasNextPage"
+            />
+            <IconButton
+              :icon="ChevronsRight"
+              variant="ghost"
+              size="md"
+              @click="goToLastPage"
+              :disabled="!hasNextPage"
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -363,7 +320,8 @@ import {
 import SearchInput from '~/components/SearchInput.vue'
 import PythonValueViewer from '~/components/PythonValueViewer.vue'
 import { IconButton, Select } from '~/components/common'
-import { ChevronDown, ChevronRight, Loader2, Hash, Database, Cpu, AlertTriangle, ChevronsLeft, ChevronLeft, ChevronsRight, CheckCircle2 } from 'lucide-vue-next'
+import TaskDetailsSection from '~/components/common/TaskDetailsSection.vue'
+import { ChevronDown, ChevronRight, Loader2, AlertTriangle, ChevronsLeft, ChevronLeft, ChevronsRight, CheckCircle2 } from 'lucide-vue-next'
 import type { TaskEventResponse } from '~/services/apiClient'
 import { useTaskStatus } from '~/composables/useTaskStatus'
 import type { ParsedFilter } from '~/composables/useFilterParser'
@@ -415,8 +373,9 @@ const searchQuery = ref('')
 const activeFilters = ref<ParsedFilter[]>([])
 const pageSize = ref(props.limit)
 const currentPage = ref(0)
+const isCollapsed = ref(true)
 
-const summaryColumnCount = 6
+const summaryColumnCount = 5
 
 const unresolvedCount = computed(() => props.tasks.filter(task => !resolutionState(task).resolved).length)
 const totalCount = computed(() => props.tasks.length)
@@ -446,27 +405,24 @@ const getTaskStatusValue = (task: TaskEventResponse) => {
   return task.is_orphan ? 'ORPHANED' : eventTypeToStatus(task.event_type || 'unknown')
 }
 
-const formatResult = (result: unknown): string => {
-  if (typeof result === 'string') {
-    return result
-  }
-  try {
-    return JSON.stringify(result, null, 2)
-  } catch {
-    return String(result)
-  }
-}
-
 const matchesSearch = (task: TaskEventResponse) => {
   const query = searchQuery.value.trim().toLowerCase()
   if (!query) return true
+
+  const resultText = (() => {
+    try {
+      return task.result ? JSON.stringify(task.result) : ''
+    } catch {
+      return String(task.result ?? '')
+    }
+  })()
 
   const candidates = [
     task.task_name,
     task.task_id,
     task.hostname,
     task.routing_key,
-    task.result ? formatResult(task.result) : '',
+    resultText,
     task.exception ?? ''
   ]
 
@@ -648,6 +604,10 @@ const goToLastPage = () => {
   currentPage.value = totalPages.value - 1
 }
 
+const toggleCollapsed = () => {
+  isCollapsed.value = !isCollapsed.value
+}
+
 const isActionLoading = (task: TaskEventResponse) => {
   return props.itemActionLoadingIds?.includes(task.task_id) ?? false
 }
@@ -690,10 +650,5 @@ const runtimeDisplay = (task: TaskEventResponse) => {
     return '-'
   }
   return `${runtime.toFixed(2)}s`
-}
-
-const retryClass = (task: TaskEventResponse) => {
-  const retries = task.retries ?? 0
-  return retries > 0 ? 'text-orange-500 font-medium' : 'text-gray-400'
 }
 </script>

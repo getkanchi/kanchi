@@ -39,6 +39,16 @@
             title="Copy shareable link"
             :show-text="true"
           />
+          <Button
+            variant="outline"
+            size="sm"
+            :loading="isRetrying"
+            :disabled="isRetrying || !task"
+            @click="openRetryDialog"
+          >
+            <RefreshCw class="h-4 w-4" />
+            Rerun
+          </Button>
         </div>
       </div>
     </div>
@@ -130,11 +140,11 @@
                 <h2 class="text-sm font-medium text-status-retry mb-4">Retry Information</h2>
 
                 <div class="space-y-3 text-xs">
-                  <div v-if="task.is_retry" class="flex justify-between py-2 border-b border-border/50">
+                  <div v-if="task.is_retry" class="flex justify-between py-2 border-b border-border">
                     <span class="text-text-muted">Is Retry</span>
                     <Badge variant="retry" class="text-xs">Yes</Badge>
                   </div>
-                  <div class="flex justify-between py-2 border-b border-border/50">
+                  <div class="flex justify-between py-2 border-b border-border">
                     <span class="text-text-muted">Retry Count</span>
                     <span class="text-text-primary font-medium tabular-nums">{{ task.retry_count }}</span>
                   </div>
@@ -320,11 +330,19 @@
       </Button>
     </NuxtLink>
   </div>
+
+  <!-- Retry Confirmation Dialog -->
+  <RetryTaskConfirmDialog
+    ref="retryDialogRef"
+    :task="task"
+    :is-loading="isRetrying"
+    @confirm="handleRetryConfirm"
+  />
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { ChevronLeft, AlertCircle } from 'lucide-vue-next'
+import { ChevronLeft, AlertCircle, RefreshCw } from 'lucide-vue-next'
 import { Button } from '~/components/ui/button'
 import { Badge } from '~/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs'
@@ -332,10 +350,13 @@ import TimeDisplay from '~/components/TimeDisplay.vue'
 import UuidDisplay from '~/components/UuidDisplay.vue'
 import CopyButton from '~/components/CopyButton.vue'
 import PayloadTruncationNotice from '~/components/PayloadTruncationNotice.vue'
+import RetryTaskConfirmDialog from '~/components/RetryTaskConfirmDialog.vue'
 import type { TaskEventResponse } from '~/services/apiClient'
 
 const route = useRoute()
 const tasksStore = useTasksStore()
+const isRetrying = computed(() => tasksStore.isLoading)
+const retryDialogRef = ref<InstanceType<typeof RetryTaskConfirmDialog> | null>(null)
 
 const task = ref<TaskEventResponse | null>(null)
 const allEvents = ref<TaskEventResponse[]>([])
@@ -414,4 +435,19 @@ async function fetchTaskData() {
 onMounted(async () => {
   await fetchTaskData()
 })
+
+const openRetryDialog = () => {
+  retryDialogRef.value?.open()
+}
+
+const handleRetryConfirm = async () => {
+  if (!task.value?.task_id) return
+
+  try {
+    await tasksStore.retryTask(task.value.task_id)
+    await fetchTaskData()
+  } catch (error) {
+    console.error('Failed to rerun task:', error)
+  }
+}
 </script>

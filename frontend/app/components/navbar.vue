@@ -1,5 +1,5 @@
 <template>
-  <div class="sticky top-0 z-50 bg-background-surface border-b border-border-subtle backdrop-blur-sm bg-opacity-95">
+  <div class="navbar sticky top-0 z-50 bg-background-surface border-b border-border-subtle backdrop-blur-sm bg-opacity-95 relative overflow-hidden">
     <div class="px-6">
       <div class="flex h-14 items-center">
         <div class="flex items-center gap-6">
@@ -11,53 +11,17 @@
           <!-- Navigation Menu -->
           <NavigationMenu v-if="showNavigationMenu">
             <NavigationMenuList class="flex items-center gap-2">
-              <NavigationMenuItem>
+              <NavigationMenuItem v-for="item in navItems" :key="item.path">
                 <NavigationMenuLink
                   as-child
-                  :active="$route.path === '/'"
+                  :active="isActive(item.path)"
                 >
                   <NuxtLink
-                    to="/"
-                    class="px-4 py-2 text-sm font-medium rounded-md transition-colors"
-                    :class="$route.path === '/'
-                      ? 'bg-background-active text-text-primary'
-                      : 'text-text-secondary hover:bg-background-hover hover:text-text-primary'"
+                    :to="item.path"
+                    class="nav-link"
+                    :class="linkClass(item.path)"
                   >
-                    Dashboard
-                  </NuxtLink>
-                </NavigationMenuLink>
-              </NavigationMenuItem>
-
-              <NavigationMenuItem>
-                <NavigationMenuLink
-                  as-child
-                  :active="$route.path.startsWith('/tasks')"
-                >
-                  <NuxtLink
-                    to="/tasks"
-                    class="px-4 py-2 text-sm font-medium rounded-md transition-colors"
-                    :class="$route.path.startsWith('/tasks')
-                      ? 'bg-background-active text-text-primary'
-                      : 'text-text-secondary hover:bg-background-hover hover:text-text-primary'"
-                  >
-                    Tasks
-                  </NuxtLink>
-                </NavigationMenuLink>
-              </NavigationMenuItem>
-
-              <NavigationMenuItem>
-                <NavigationMenuLink
-                  as-child
-                  :active="$route.path.startsWith('/workflows')"
-                >
-                  <NuxtLink
-                    to="/workflows"
-                    class="px-4 py-2 text-sm font-medium rounded-md transition-colors"
-                    :class="$route.path.startsWith('/workflows')
-                      ? 'bg-background-active text-text-primary'
-                      : 'text-text-secondary hover:bg-background-hover hover:text-text-primary'"
-                  >
-                    Workflows
+                    {{ item.label }}
                   </NuxtLink>
                 </NavigationMenuLink>
               </NavigationMenuItem>
@@ -140,8 +104,78 @@ const isLoginRoute = computed(() => route.path === '/login')
 const showNavigationMenu = computed(() => !isLoginRoute.value && (!authEnabled.value || isAuthenticated.value))
 const showAuthPrompt = computed(() => !isLoginRoute.value && authEnabled.value && !isAuthenticated.value)
 const showUserControls = computed(() => !isLoginRoute.value)
+const navItems = [
+  { label: 'Dashboard', path: '/' },
+  { label: 'Tasks', path: '/tasks' },
+  { label: 'Workflows', path: '/workflows' },
+]
+
+const isActive = (path: string) => {
+  if (path === '/') return route.path === '/'
+  return route.path.startsWith(path)
+}
+
+const linkClass = (path: string) => {
+  const active = isActive(path)
+  return active
+    ? 'active'
+    : 'inactive'
+}
+
+onMounted(() => {
+  // client only
+})
 </script>
 
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap');
+
+.nav-link {
+  position: relative;
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  border-radius: 0.5rem;
+  transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease;
+}
+
+.nav-link::after {
+  content: '';
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: -6px;
+  height: 2px;
+  border-radius: 9999px;
+  background: currentColor;
+  transform-origin: center;
+  transform: scaleX(0);
+  transition: transform 200ms ease;
+}
+
+.nav-link.active {
+  color: var(--color-text-primary, #fff);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+}
+
+.nav-link.active::after {
+  transform: scaleX(1);
+}
+
+.nav-link.inactive {
+  color: var(--color-text-secondary, #94a3b8);
+}
+
+.nav-link.inactive:hover {
+  color: var(--color-text-primary, #fff);
+}
+
+.navbar::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-subtle), transparent);
+}
 </style>

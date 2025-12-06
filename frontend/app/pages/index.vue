@@ -40,10 +40,10 @@
         >
           <template #actions="{ task }">
 
-            <div>
+            <div class="flex items-center gap-2">
             <NuxtLink :to="`/tasks/${task.task_id}`">
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 class="gap-1.5"
               >
@@ -51,14 +51,8 @@
                 Open
               </Button>
             </NuxtLink>
-            <IconButton :icon="RefreshCw"
-              size="xs"
-              variant="ghost"
-              :disabled="retryLoadingIds.includes(task.task_id)"
-              @click.stop="handleFailedRetryAction(task)"
-            />
             <Button
-              variant="ghost"
+              variant="outline"
               size="xs"
               class="gap-1"
               :disabled="resolutionLoadingIds.includes(task.task_id)"
@@ -74,6 +68,20 @@
                 :class="isTaskResolved(task) ? 'text-status-success' : ''"
               />
               <span>{{ isTaskResolved(task) ? 'Unresolve' : 'Resolve' }}</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="xs"
+              class="gap-1"
+              :disabled="retryLoadingIds.includes(task.task_id)"
+              @click.stop="handleFailedRetryAction(task)"
+            >
+              <RefreshCw
+                v-if="retryLoadingIds.includes(task.task_id)"
+                class="h-3.5 w-3.5 animate-spin"
+              />
+              <RefreshCw v-else class="h-3.5 w-3.5" />
+              Retry
             </Button>
             </div>
           </template>
