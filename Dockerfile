@@ -7,10 +7,9 @@ RUN npm ci
 
 COPY frontend/ .
 
-ARG UI_BASE_PATH=/ui/
-ENV UI_BASE_PATH=${UI_BASE_PATH}
+ENV NUXT_APP_BASE_URL=/ui/
 
-RUN NUXT_APP_BASE_URL="${UI_BASE_PATH%/}/" npm run generate
+RUN NUXT_APP_BASE_URL="/ui/" npm run generate
 
 FROM python:3.12-slim
 

@@ -10,7 +10,4 @@ spec:
     - name: api
       port: 8765
       targetPort: 8765
-    - name: ui
-      port: 3000
-      targetPort: 3000
   type: ClusterIP
