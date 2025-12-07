@@ -16,6 +16,7 @@ Kanchi is a real-time Celery task monitoring (and management) system with an enj
 - Backend can serve the built frontend at `/ui`.
 - Point `FRONTEND_DIST_DIR` to the directory containing the built assets (defaults to `agent/ui`).
 - The requested `index.html` is transformed to inject all `NUXT_PUBLIC_*` variables at runtime (cached when `FRONTEND_CACHE_INDEX=true`).
+- The frontend reads `window.__KANCHI_UI_ENV__` for API/WS URLs and version, so changing `NUXT_PUBLIC_*` at runtime does not require a rebuild.
 - Build static assets for backend hosting with `./scripts/build-frontend-ui.sh` or `make build-ui` (output to `agent/ui`).
 - Docker builds bake the generated UI into the backend image and run only the FastAPI process (UI at `/ui`).
 - Customize the base path during Docker builds with `--build-arg UI_BASE_PATH=/custom/`.
