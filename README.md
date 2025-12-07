@@ -20,6 +20,7 @@ Kanchi is a real-time Celery task monitoring (and management) system with an enj
 - Build static assets for backend hosting with `./scripts/build-frontend-ui.sh` or `make build-ui` (output to `agent/ui`).
 - Docker builds bake the generated UI into the backend image and run only the FastAPI process (UI at `/ui`).
 - Customize the base path during Docker builds with `--build-arg UI_BASE_PATH=/custom/`.
+- Deploy behind a path prefix (e.g., `/kanchi`) by setting `NUXT_PUBLIC_URL_PREFIX=/kanchi`; API and WebSocket calls will prepend the prefix while the backend continues to serve the UI at `/ui`.
 
 ## Screenshots
 

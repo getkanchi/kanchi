@@ -27,6 +27,7 @@ def collect_frontend_env(config: Config) -> Dict[str, str]:
     env.setdefault("NUXT_PUBLIC_API_URL", f"http://{config.ws_host}:{config.ws_port}")
     env.setdefault("NUXT_PUBLIC_WS_URL", f"ws://{config.ws_host}:{config.ws_port}/ws")
     env.setdefault("NUXT_PUBLIC_KANCHI_VERSION", "dev")
+    env.setdefault("NUXT_PUBLIC_URL_PREFIX", os.getenv("NUXT_PUBLIC_URL_PREFIX", ""))
 
     return env
 

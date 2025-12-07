@@ -5,7 +5,7 @@ import { Api } from '../src/types/api'
 import type {
   TaskStats,
   TaskEventResponse,
- WorkerInfo
+  WorkerInfo
 } from '../src/types/api'
 import { usePublicEnv } from '~/composables/usePublicEnv'
 
