@@ -11,6 +11,12 @@ Kanchi is a real-time Celery task monitoring (and management) system with an enj
 - Worker health monitoring
 - Auto-migrations with Alembic
 
+## Backend-hosted UI
+
+- Backend can serve the built frontend at `/ui`.
+- Point `FRONTEND_DIST_DIR` to the directory containing the built assets (defaults to `agent/ui`).
+- The requested `index.html` is transformed to inject all `NUXT_PUBLIC_*` variables at runtime (cached when `FRONTEND_CACHE_INDEX=true`).
+
 ## Screenshots
 
 ### Dashboard
