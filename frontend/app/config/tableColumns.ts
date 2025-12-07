@@ -13,6 +13,9 @@ export function getTaskColumns(): ColumnDef<TaskEventResponse>[] {
     {
       accessorKey: 'task_name',
       header: 'Task Name',
+      meta: {
+        columnClass: 'w-[240px] min-w-[220px]',
+      },
       cell: ({ row }) => {
         const taskName = row.getValue("task_name") as string
 
@@ -28,6 +31,9 @@ export function getTaskColumns(): ColumnDef<TaskEventResponse>[] {
     {
       accessorKey: 'event_type',
       header: 'Status',
+      meta: {
+        columnClass: 'w-[140px] min-w-[120px]',
+      },
       cell: ({ row }) => {
         const { eventTypeToStatus, getStatusVariant, formatStatus } = useTaskStatus()
         const isOrphan = row.original.is_orphan
@@ -48,6 +54,9 @@ export function getTaskColumns(): ColumnDef<TaskEventResponse>[] {
     {
       accessorKey: 'timestamp',
       header: 'Time',
+      meta: {
+        columnClass: 'w-[170px] min-w-[150px]',
+      },
       cell: ({ row }) => h(TimeDisplay, {
         timestamp: row.getValue("timestamp"),
         layout: 'inline',
@@ -60,6 +69,9 @@ export function getTaskColumns(): ColumnDef<TaskEventResponse>[] {
     {
       accessorKey: 'runtime',
       header: 'Runtime',
+      meta: {
+        columnClass: 'w-[120px] min-w-[110px]',
+      },
       cell: ({ row }) => {
         const runtime = row.original.runtime
         if (!runtime) return h("div", { class: "text-gray-400" }, "-")
@@ -68,19 +80,11 @@ export function getTaskColumns(): ColumnDef<TaskEventResponse>[] {
       enableSorting: true
     },
     {
-      accessorKey: 'retries',
-      header: 'Retries',
-      cell: ({ row }) => {
-        const retries = row.original.retries || 0
-        return h("div", { 
-          class: retries > 0 ? "text-orange-500 font-medium" : "text-gray-400" 
-        }, retries.toString())
-      },
-      enableSorting: true
-    },
-    {
       accessorKey: 'hostname',
       header: 'Worker',
+      meta: {
+        columnClass: 'w-[180px] min-w-[160px]',
+      },
       cell: ({ row }) => {
         const hostname = row.original.hostname
         if (!hostname) return h("div", { class: "text-gray-400" }, "-")

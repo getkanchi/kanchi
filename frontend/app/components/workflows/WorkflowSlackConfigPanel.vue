@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-5">
-    <div class="rounded-2xl border border-border bg-background-surface shadow-sm">
-      <div class="flex flex-wrap items-start justify-between gap-4 border-b border-border px-6 py-5">
+    <div class="rounded-2xl border border-border-subtle bg-background-surface shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-4 border-b border-border-subtle px-6 py-5">
         <div>
           <h2 class="text-sm font-semibold text-text-primary">Slack Webhooks</h2>
           <p class="text-xs text-text-muted">
@@ -27,7 +27,7 @@
         <div
           v-for="config in slackConfigs"
           :key="config.id"
-          class="rounded-xl border border-border bg-background-base px-4 py-4 shadow-sm"
+          class="rounded-xl border border-border-subtle bg-background-base px-4 py-4 shadow-sm"
         >
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="space-y-2">
@@ -83,7 +83,7 @@
 
         <div
           v-if="mode === 'form'"
-          class="rounded-xl border border-border bg-background-base px-5 py-5 shadow-sm space-y-5"
+          class="rounded-xl border border-border-subtle bg-background-base px-5 py-5 shadow-sm space-y-5"
         >
           <div class="flex items-center justify-between">
             <span class="text-sm font-medium text-text-primary">

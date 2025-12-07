@@ -29,7 +29,7 @@
     <!-- Main Form -->
     <div class="space-y-6">
       <!-- Basic Info -->
-      <div class="border border-border rounded-md p-5">
+      <div class="border border-border-subtle rounded-md p-5">
         <div class="mb-4">
           <h2 class="text-sm font-medium text-text-primary">Basic Information</h2>
           <p class="text-xs text-text-muted mt-0.5">Give the workflow a clear title and optional description.</p>
@@ -61,7 +61,7 @@
       </div>
 
       <!-- Workflow Builder -->
-      <div class="border border-border rounded-md p-5">
+      <div class="border border-border-subtle rounded-md p-5">
         <div class="flex flex-row items-center justify-between mb-4">
           <div>
             <h2 class="text-sm font-medium text-text-primary">Workflow Builder</h2>
@@ -123,7 +123,7 @@
       </div>
 
       <!-- Circuit Breaker -->
-      <div class="border border-border rounded-md p-5">
+      <div class="border border-border-subtle rounded-md p-5">
         <div class="mb-4">
           <h2 class="text-sm font-medium text-text-primary">Circuit Breaker</h2>
           <p class="text-xs text-text-muted mt-0.5">Prevent excessive executions for the same context.</p>
@@ -135,7 +135,7 @@
       </div>
 
       <!-- Advanced Settings -->
-      <div class="border border-border rounded-md p-5">
+      <div class="border border-border-subtle rounded-md p-5">
         <div class="mb-4">
           <h2 class="text-sm font-medium text-text-primary">Advanced Controls</h2>
           <p class="text-xs text-text-muted mt-0.5">Tune execution priority, throttling, and status.</p>
@@ -184,7 +184,7 @@
             />
             <p class="text-xs text-text-muted mt-1">Leave blank for no hourly cap.</p>
           </div>
-          <div class="flex items-center justify-between rounded-lg border border-border px-4 py-3">
+          <div class="flex items-center justify-between rounded-lg border border-border-subtle px-4 py-3">
             <div>
               <label class="text-sm font-medium text-text-primary">Enabled</label>
               <p class="text-xs text-text-muted">Toggle workflow activation.</p>

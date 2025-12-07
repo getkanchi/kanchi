@@ -2,7 +2,7 @@
   <div>
     <div
       v-if="!trigger?.type"
-      class="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-border-highlight transition-colors cursor-pointer"
+      class="border-2 border-dashed border-border-subtle rounded-lg p-6 text-center hover:border-border-highlight transition-colors cursor-pointer"
       @click="showSelector = true"
     >
       <Target class="h-8 w-8 text-text-muted mx-auto mb-2" />
@@ -10,7 +10,7 @@
       <p class="text-xs text-text-muted">Choose what will start this workflow</p>
     </div>
 
-    <div v-else class="border border-border rounded-lg p-4 bg-background-raised">
+    <div v-else class="border border-border-subtle rounded-lg p-4 bg-background-raised">
       <div class="flex items-start justify-between gap-3">
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2 mb-1">
@@ -62,7 +62,7 @@
                 <button
                   v-for="triggerOpt in category.triggers"
                   :key="triggerOpt.type"
-                  class="w-full text-left p-3 rounded-lg border border-border hover:border-primary hover:bg-background-hover transition-colors"
+                  class="w-full text-left p-3 rounded-lg border border-border-subtle hover:border-primary hover:bg-background-hover transition-colors"
                   :class="trigger?.type === triggerOpt.type ? 'border-primary bg-background-selected' : ''"
                   @click="selectTrigger(triggerOpt.type)"
                 >
@@ -83,7 +83,7 @@
           </div>
         </div>
 
-        <DialogFooter class="border-t border-border pt-4 mt-4">
+        <DialogFooter class="border-t border-border-subtle pt-4 mt-4">
           <Button variant="outline" @click="showSelector = false">Cancel</Button>
           <Button @click="confirmSelection" :disabled="!trigger?.type">Select</Button>
         </DialogFooter>

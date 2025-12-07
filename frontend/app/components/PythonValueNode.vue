@@ -161,7 +161,7 @@ const valueColor = computed(() => {
       </CollapsibleTrigger>
 
       <CollapsibleContent>
-        <div class="ml-4 border-l border-border pl-3">
+        <div class="ml-4 border-l border-border-subtle pl-3">
           <PythonValueNode
             v-for="(child, idx) in children"
             :key="idx"

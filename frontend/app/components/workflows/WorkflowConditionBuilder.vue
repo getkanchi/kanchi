@@ -1,6 +1,6 @@
 <template>
   <div>
-    <div v-if="!conditions || conditions.conditions.length === 0" class="border-2 border-dashed border-border rounded-lg p-6 text-center">
+    <div v-if="!conditions || conditions.conditions.length === 0" class="border-2 border-dashed border-border-subtle rounded-lg p-6 text-center">
       <Filter class="h-8 w-8 text-text-muted mx-auto mb-2" />
       <p class="text-sm text-text-secondary mb-3">No conditions (workflow will always execute)</p>
       <Button size="sm" variant="outline" @click="addCondition">
@@ -25,7 +25,7 @@
         <div
           v-for="(condition, index) in conditions.conditions"
           :key="index"
-          class="border border-border rounded-lg p-3 bg-background-raised"
+          class="border border-border-subtle rounded-lg p-3 bg-background-raised"
         >
           <div class="flex items-start gap-2">
             <div class="flex-1 grid grid-cols-[1fr_auto_1fr] gap-2 items-center">

@@ -1,5 +1,5 @@
 <template>
-  <div class="flex h-screen w-64 flex-col border-r border-border bg-background">
+  <div class="flex h-screen w-64 flex-col border-r border-border-subtle bg-background">
     <!-- Logo/App Name -->
     <div class="flex h-16 items-center border-b px-6">
       <div class="flex items-center gap-3">

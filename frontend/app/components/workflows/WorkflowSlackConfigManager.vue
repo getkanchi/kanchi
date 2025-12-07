@@ -2,10 +2,10 @@
   <Sheet :open="open" @update:open="onOpenChange">
     <SheetContent
       side="right"
-      class="w-[640px] max-w-[95vw] border-l border-border bg-background-base p-0"
+      class="w-[640px] max-w-[95vw] border-l border-border-subtle bg-background-base p-0"
     >
       <div class="flex h-full flex-col">
-        <SheetHeader class="border-b border-border px-6 py-5 bg-background-surface">
+        <SheetHeader class="border-b border-border-subtle px-6 py-5 bg-background-surface">
           <div class="flex items-start justify-between gap-3">
             <div class="space-y-1">
               <SheetTitle>Slack Webhooks</SheetTitle>

@@ -9,7 +9,7 @@
         <p class="text-base text-text-secondary">
           Stream task events, stay ahead of failures, and keep your queues healthy without hopping across dashboards.
         </p>
-        <div class="space-y-4 rounded-2xl border border-border bg-background-surface p-6 shadow-sm">
+        <div class="space-y-4 rounded-2xl border border-border-subtle bg-background-surface p-6 shadow-sm">
           <div class="flex items-center gap-3">
             <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-bg text-primary">
               <Sparkles class="h-5 w-5" />

@@ -1,6 +1,6 @@
 <template>
   <div class="mx-auto max-w-5xl space-y-10 py-6 lg:py-8">
-    <section class="rounded-3xl border border-border bg-background-surface px-8 py-10 shadow-sm">
+    <section class="rounded-3xl border border-border-subtle bg-background-surface px-8 py-10 shadow-sm">
       <p class="text-xs font-semibold uppercase tracking-[0.3em] text-text-secondary">Workspace</p>
       <h1 class="mt-3 text-3xl font-semibold text-text-primary">Workspace settings</h1>
       <p class="mt-4 max-w-2xl text-sm text-text-secondary">
@@ -10,7 +10,7 @@
     </section>
 
     <div class="space-y-6">
-      <section class="rounded-2xl border border-border bg-background-surface p-6 shadow-sm">
+      <section class="rounded-2xl border border-border-subtle bg-background-surface p-6 shadow-sm">
         <div class="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 class="text-base font-semibold text-text-primary">Appearance</h2>
@@ -22,7 +22,7 @@
         </div>
       </section>
 
-      <section class="rounded-2xl border border-border bg-background-surface p-6 shadow-sm">
+      <section class="rounded-2xl border border-border-subtle bg-background-surface p-6 shadow-sm">
         <div class="space-y-4">
           <div>
             <h2 class="text-base font-semibold text-text-primary">Resources</h2>
@@ -57,7 +57,7 @@
         </div>
       </section>
 
-      <section class="rounded-2xl border border-border bg-background-surface p-6 shadow-sm">
+      <section class="rounded-2xl border border-border-subtle bg-background-surface p-6 shadow-sm">
         <div class="mb-6">
           <h2 class="text-base font-semibold text-text-primary">Slack webhooks</h2>
           <p class="mt-1 text-sm text-text-secondary">

@@ -1,7 +1,7 @@
 <template>
   <span
     :class="cn(
-      'relative inline-flex h-9 w-9 shrink-0 overflow-hidden rounded-full border border-border bg-background-surface text-sm text-text-primary',
+      'relative inline-flex h-9 w-9 shrink-0 overflow-hidden rounded-full border border-border-subtle bg-background-surface text-sm text-text-primary',
       props.class
     )"
   >

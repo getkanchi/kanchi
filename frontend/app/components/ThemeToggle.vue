@@ -2,7 +2,7 @@
   <component
     :is="interactive ? Button : 'div'"
     v-bind="interactive ? buttonAttrs : {}"
-    class="relative inline-flex items-center justify-center w-6 h-6 rounded-lg transition-all duration-200 bg-background-base hover:bg-background-surface border border-border group"
+    class="relative inline-flex items-center justify-center w-6 h-6 rounded-lg transition-all duration-200 bg-background-base hover:bg-background-surface border border-border-subtle group"
     :aria-label="interactive ? `Switch to ${nextThemeLabel} theme` : undefined"
     :role="interactive ? undefined : 'presentation'"
   >
