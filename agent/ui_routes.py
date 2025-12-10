@@ -72,7 +72,9 @@ class FrontendIndexRenderer:
         return transformed
 
     def _inject_env(self, html: str, env_payload: str) -> str:
-        script_tag = f"<script>{ENV_TARGET}={env_payload};</script>"
+        # Escape </script> to prevent breaking out of the script context
+        safe_env_payload = env_payload.replace("</script>", "<\\/script>")
+        script_tag = f"<script>{ENV_TARGET}={safe_env_payload};</script>"
 
         if "</head>" in html:
             return html.replace("</head>", f"{script_tag}\n</head>", 1)
