@@ -1,4 +1,4 @@
-.PHONY: dev logs backend frontend seed help
+.PHONY: dev logs backend frontend seed help build-ui
 
 help:
 	@echo "Kanchi Development Commands"
@@ -32,6 +32,10 @@ frontend:
 logs:
 	@echo "Tailing unified log file (Ctrl+C to stop)..."
 	tail -n 100 -f agent/kanchi.log
+
+build-ui:
+	@echo "Building frontend for backend hosting..."
+	./scripts/build-frontend-ui.sh
 
 seed:
 	@echo "Seeding database with marketing/demo data..."

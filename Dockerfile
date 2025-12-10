@@ -7,7 +7,9 @@ RUN npm ci
 
 COPY frontend/ .
 
-RUN npm run build
+ENV NUXT_APP_BASE_URL=/ui/
+
+RUN NUXT_APP_BASE_URL="/ui/" npm run generate
 
 FROM python:3.12-slim
 
@@ -15,11 +17,6 @@ RUN apt-get update && apt-get install -y \
     gcc \
     default-libmysqlclient-dev \
     pkg-config \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN apt-get update && apt-get install -y curl \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -31,28 +28,17 @@ RUN pip install poetry && \
     poetry install --without dev
 
 COPY agent/ ./agent/
+COPY --from=frontend-builder /app/frontend/.output/public ./agent/ui
 
-COPY --from=frontend-builder /app/frontend/.output ./frontend/.output
-COPY --from=frontend-builder /app/frontend/package*.json ./frontend/
+ENV CELERY_BROKER_URL=amqp://guest:guest@localhost:5672// \
+    WS_HOST=0.0.0.0 \
+    WS_PORT=8765 \
+    LOG_LEVEL=INFO \
+    FRONTEND_DIST_DIR=/app/agent/ui \
+    FRONTEND_CACHE_INDEX=true
 
-WORKDIR /app/frontend
-RUN npm ci --production
+EXPOSE 8765
 
-WORKDIR /app
+WORKDIR /app/agent
 
-ENV CELERY_BROKER_URL=amqp://guest:guest@localhost:5672//
-ENV WS_HOST=0.0.0.0
-ENV WS_PORT=8765
-ENV LOG_LEVEL=INFO
-ENV NITRO_PORT=3000
-ENV NITRO_HOST=0.0.0.0
-ENV NUXT_PUBLIC_WS_URL=ws://localhost:8765/ws
-
-EXPOSE 8765 3000
-
-RUN echo '#!/bin/bash\n\
-cd /app/agent && python main.py &\n\
-cd /app/frontend && npm run preview &\n\
-wait' > /app/start.sh && chmod +x /app/start.sh
-
-CMD ["/app/start.sh"]
+CMD ["python", "app.py"]

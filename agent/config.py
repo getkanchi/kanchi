@@ -1,7 +1,11 @@
 import os
 import secrets
+from pathlib import Path
 from dataclasses import dataclass, field
 from typing import List, Optional
+
+
+BASE_DIR = Path(__file__).resolve().parent
 
 
 def _as_bool(value: Optional[str], default: bool = False) -> bool:
@@ -43,6 +47,18 @@ class Config:
     log_level: str = os.getenv('LOG_LEVEL', 'INFO')
     log_format: str = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     log_file: str = os.getenv('LOG_FILE', 'kanchi.log')
+
+    # Frontend hosting
+    frontend_dist_path: str = field(
+        default_factory=lambda: os.getenv('FRONTEND_DIST_DIR') or str(
+            BASE_DIR / "ui"
+        )
+    )
+    frontend_index_file: str = os.getenv('FRONTEND_INDEX_FILE', 'index.html')
+    frontend_cache_index: bool = _as_bool(
+        os.getenv('FRONTEND_CACHE_INDEX', 'true'),
+        default=True
+    )
 
     # Performance settings
     max_clients: int = int(os.getenv('MAX_WS_CLIENTS', 100))

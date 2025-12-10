@@ -7,6 +7,7 @@ import type {
   TaskEventResponse,
   WorkerInfo
 } from '../src/types/api'
+import { usePublicEnv } from '~/composables/usePublicEnv'
 
 export type AuthProvider = 'google' | 'github'
 
@@ -609,8 +610,8 @@ let apiService: ApiService | null = null
 
 export function useApiService(): ApiService {
   if (!apiService) {
-    const config = useRuntimeConfig()
-    apiService = new ApiService(config.public.apiUrl as string)
+    const { apiUrl } = usePublicEnv()
+    apiService = new ApiService(apiUrl)
   }
   return apiService
 }

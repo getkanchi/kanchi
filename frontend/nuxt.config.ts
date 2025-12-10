@@ -1,7 +1,13 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+const baseURL = process.env.NUXT_APP_BASE_URL
+  || (process.env.NODE_ENV === 'development' ? '/' : '/ui/')
+
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
+  app: {
+    baseURL,
+  },
   modules: [
     '@nuxtjs/tailwindcss',
     '@pinia/nuxt',

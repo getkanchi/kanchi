@@ -11,6 +11,16 @@ Kanchi is a real-time Celery task monitoring (and management) system with an enj
 - Worker health monitoring
 - Auto-migrations with Alembic
 
+## Backend-hosted UI
+
+- Backend can serve the built frontend at `/ui`.
+- Point `FRONTEND_DIST_DIR` to the directory containing the built assets (defaults to `agent/ui`).
+- The requested `index.html` is transformed to inject all `NUXT_PUBLIC_*` variables at runtime (cached when `FRONTEND_CACHE_INDEX=true`).
+- The frontend reads `window.__KANCHI_UI_ENV__` for API/WS URLs and version, so changing `NUXT_PUBLIC_*` at runtime does not require a rebuild.
+- Build static assets for backend hosting with `./scripts/build-frontend-ui.sh` or `make build-ui` (output to `agent/ui`).
+- Docker builds bake the generated UI into the backend image and run only the FastAPI process (UI at `/ui`).
+- Deploy behind a path prefix (e.g., `/kanchi`) by setting `NUXT_PUBLIC_URL_PREFIX=/kanchi`; API and WebSocket calls will prepend the prefix while the backend continues to serve the UI at `/ui`.
+
 ## Screenshots
 
 ### Dashboard
@@ -21,7 +31,7 @@ Kanchi is a real-time Celery task monitoring (and management) system with an enj
 
 ## Quick Start (Docker Compose)
 
-Run Kanchi using pre-built images from Docker Hub. No repository cloning required—just set a few environment variables and start the container.
+Run Kanchi using pre-built images from Docker Hub. No repository cloning required—just set a few environment variables and start the container. The container runs a single FastAPI process and serves the UI from `/ui` on port 8765 (no separate frontend port).
 
 ### Prerequisites
 
@@ -38,11 +48,10 @@ Run Kanchi using pre-built images from Docker Hub. No repository cloning require
        image: getkanchi/kanchi:latest
        container_name: kanchi
        ports:
-         - "3000:3000"
          - "8765:8765"
-       environment:
-         # Required: Your Celery broker connection string
-         CELERY_BROKER_URL: ${CELERY_BROKER_URL}
+         environment:
+          # Required: Your Celery broker connection string
+          CELERY_BROKER_URL: ${CELERY_BROKER_URL}
 
          # Optional: Database (defaults to SQLite)
          DATABASE_URL: ${DATABASE_URL:-sqlite:////data/kanchi.db}
@@ -138,7 +147,7 @@ Run Kanchi using pre-built images from Docker Hub. No repository cloning require
    export ALLOWED_EMAIL_PATTERNS='*@example.com,*@example.org'
 
    # CORS and host controls
-   export ALLOWED_ORIGINS=https://your-kanchi-host,http://localhost:3000
+   export ALLOWED_ORIGINS=https://your-kanchi-host,http://localhost:8765
    export ALLOWED_HOSTS=your-kanchi-host,localhost,127.0.0.1
 
    # Token secrets (must be non-default in production)
@@ -159,7 +168,7 @@ export ENABLE_PICKLE_SERIALIZATION=false
 
 4. **Visit the app**
 
-   - Frontend: `http://localhost:3000`
+   - Frontend: `http://localhost:8765/ui`
    - API / Docs: `http://localhost:8765`
 
 5. **Optional commands**
