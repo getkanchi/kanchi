@@ -629,6 +629,38 @@ class ActionConfigDB(Base):
         }
 
 
+class AppSettingDB(Base):
+    """Key-value application settings stored in the database."""
+    __tablename__ = 'app_settings'
+
+    key = Column(String(255), primary_key=True)
+    value = Column(JSON, nullable=False)
+    value_type = Column(String(50), nullable=False, default="string")
+    label = Column(String(255))
+    description = Column(Text)
+    category = Column(String(100))
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+    __table_args__ = (
+        Index('idx_app_settings_category', 'category'),
+        Index('idx_app_settings_updated_at', 'updated_at'),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for API responses."""
+        return {
+            'key': self.key,
+            'value': self.value,
+            'value_type': self.value_type,
+            'label': self.label,
+            'description': self.description,
+            'category': self.category,
+            'created_at': ensure_utc_isoformat(self.created_at),
+            'updated_at': ensure_utc_isoformat(self.updated_at),
+        }
+
+
 class DatabaseManager:
     """Manage database connections and sessions."""
 

@@ -40,6 +40,35 @@ export interface LoginResponseDTO {
   provider: string
 }
 
+export type AppSettingValueType = 'string' | 'number' | 'boolean' | 'json'
+
+export interface AppSettingDTO {
+  key: string
+  value: any
+  value_type: AppSettingValueType
+  label?: string | null
+  description?: string | null
+  category?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AppSettingInput {
+  value: any
+  value_type?: AppSettingValueType
+  label?: string | null
+  description?: string | null
+  category?: string | null
+}
+
+export interface TaskIssueConfigDTO {
+  lookback_hours: number
+}
+
+export interface AppConfigSnapshotDTO {
+  task_issue_summary: TaskIssueConfigDTO
+}
+
 class ApiService {
   private api: Api<unknown>
 
@@ -107,6 +136,39 @@ class ApiService {
 
   getAccessToken(): string | null {
     return this.accessToken
+  }
+
+  // Configuration endpoints
+  async getAppConfig(): Promise<AppConfigSnapshotDTO> {
+    const response = await this.api.request({
+      path: '/api/config',
+      method: 'GET'
+    })
+    return response.data
+  }
+
+  async listSettings(): Promise<AppSettingDTO[]> {
+    const response = await this.api.request({
+      path: '/api/config/settings',
+      method: 'GET'
+    })
+    return response.data
+  }
+
+  async upsertSetting(key: string, payload: AppSettingInput): Promise<AppSettingDTO> {
+    const response = await this.api.request({
+      path: `/api/config/settings/${encodeURIComponent(key)}`,
+      method: 'PUT',
+      body: payload
+    })
+    return response.data
+  }
+
+  async deleteSetting(key: string): Promise<void> {
+    await this.api.request({
+      path: `/api/config/settings/${encodeURIComponent(key)}`,
+      method: 'DELETE'
+    })
   }
 
   async getAuthConfig(): Promise<AuthConfigDTO> {
@@ -615,7 +677,15 @@ export function useApiService(): ApiService {
   return apiService
 }
 
-export type { TaskStats, TaskEventResponse, WorkerInfo }
+export type {
+  TaskStats,
+  TaskEventResponse,
+  WorkerInfo,
+  AppConfigSnapshotDTO,
+  AppSettingDTO,
+  AppSettingInput,
+  TaskIssueConfigDTO
+}
 
 // Re-export session types from auto-generated API
 export type { UserSessionResponse, UserSessionUpdate } from '../src/types/api'

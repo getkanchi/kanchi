@@ -3,70 +3,81 @@
     v-if="!shouldHideCard"
     class="border border-border-subtle rounded-md bg-background-surface glow-border"
   >
-    <div class="flex items-center border-border-subtle justify-between p-2 border-b gap-4">
+    <button
+      type="button"
+      class="flex w-full items-center border-border-subtle justify-between p-2 border-b gap-4 text-left hover:bg-background-hover-subtle transition-colors"
+      @click="toggleCollapsed"
+    >
       <div class="flex items-center gap-3">
-        <button
-          type="button"
-          class="flex items-center gap-2 text-text-secondary hover:text-text-primary transition-colors"
-          @click="toggleCollapsed"
-        >
-          <ChevronRight
-            class="h-4 w-4 transition-transform duration-200"
-            :class="{ 'rotate-90': !isCollapsed }"
-          />
-          <StatusDot
-            :status="effectiveStatus"
-            :pulse="statusDotPulse"
-            class="scale-110"
-          />
-          <div class="flex items-center gap-2 text-left">
-            <span class="font-medium text-sm text-text-primary truncate">{{ title }}</span>
-            <div class="flex items-center gap-2 text-xs text-text-secondary">
-              <span class="flex items-center gap-1">
-                <span class="font-mono">{{ unresolvedCount }}</span>
-                <span>{{ primaryLabel }}</span>
-              </span>
-              <span
-                v-if="recentCount > 0 && secondaryLabel"
-                class="flex items-center gap-1"
-              >
-                <span class="font-mono">{{ recentCount }}</span>
-                <span>{{ secondaryLabel }}</span>
-              </span>
-            </div>
-          </div>
-        </button>
-      </div>
-      <div class="flex items-center gap-3">
-        <span v-if="isLoading" class="flex items-center gap-1 text-xs text-text-muted">
-          <Loader2 class="h-3.5 w-3.5 animate-spin" />
-          Updating…
-        </span>
-        <Button variant="outline" size="xs" @click="toggleCollapsed">
-          {{ isCollapsed ? 'Show' : 'Hide' }}
-        </Button>
-      </div>
-    </div>
-
-    <div v-if="!isCollapsed" class="flex items-center border-border-subtle justify-between p-4 border-b gap-4">
-      <div class="flex-1 min-w-[240px]">
-        <SearchInput
-          :model-value="searchQuery"
-          :filters="activeFilters"
-          @update:model-value="handleSearchUpdate"
-          @update:filters="handleFiltersUpdate"
+        <ChevronRight
+          class="h-4 w-4 transition-transform duration-200 text-text-muted group-hover:text-text-primary"
+          :class="{ 'rotate-90': !isCollapsed }"
         />
+        <StatusDot
+          :status="effectiveStatus"
+          :pulse="statusDotPulse"
+          class="scale-110"
+        />
+        <div class="flex items-center gap-2 text-left">
+          <span class="font-medium text-sm text-text-primary truncate">{{ title }}</span>
+          <div class="flex items-center gap-2 text-xs text-text-secondary">
+            <span class="flex items-center gap-1">
+              <span class="font-mono">{{ unresolvedCount }}</span>
+              <span>{{ primaryLabel }}</span>
+            </span>
+            <span
+              v-if="recentCount > 0 && secondaryLabel"
+              class="flex items-center gap-1"
+            >
+              <span class="font-mono">{{ recentCount }}</span>
+              <span>{{ secondaryLabel }}</span>
+            </span>
+          </div>
+        </div>
       </div>
-      <div class="text-sm text-gray-500 text-right">
-        <template v-if="totalFiltered > 0">
-          Showing {{ pageStart }} to {{ pageEnd }} of {{ totalFiltered }} tasks
-          <span v-if="showFilteredHint" class="text-text-muted/80"> (filtered from {{ totalCount }})</span>
-        </template>
-        <template v-else>
-          No matching tasks
-          <span v-if="showFilteredHint" class="text-text-muted/80"> (from {{ totalCount }})</span>
-        </template>
+    </button>
+
+    <div v-if="!isCollapsed" class="border-b border-border-subtle px-4 py-3 space-y-2">
+      <div class="flex flex-wrap items-center gap-4 justify-between">
+        <div class="flex-1 min-w-[240px]">
+          <SearchInput
+            :model-value="searchQuery"
+            :filters="activeFilters"
+            @update:model-value="handleSearchUpdate"
+            @update:filters="handleFiltersUpdate"
+          />
+        </div>
+        <div class="flex flex-wrap items-center justify-end gap-3">
+            <Tabs
+              :model-value="activeLookbackString"
+              :disabled="isUpdatingLookback"
+              @update:model-value="handleLookbackSelectString"
+              class="flex items-center"
+            >
+              <TabsList class="bg-background-surface border-border-subtle p-0.5">
+                <TabsTrigger
+                  v-for="option in lookbackOptionsNormalized"
+                  :key="option"
+                  :value="String(option)"
+                  class="min-w-[44px] px-2.5 py-1 text-xs"
+                >
+                  {{ formatLookbackLabel(option) }}
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          <div class="text-sm text-gray-500 text-right">
+            <template v-if="totalFiltered > 0">
+              Showing {{ pageStart }} to {{ pageEnd }} of {{ totalFiltered }} tasks
+              <span v-if="showFilteredHint" class="text-text-muted"> (filtered from {{ totalCount }})</span>
+            </template>
+            <template v-else>
+              No matching tasks
+              <span v-if="showFilteredHint" class="text-text-muted"> (from {{ totalCount }})</span>
+            </template>
+          </div>
+        </div>
       </div>
+      <p v-if="lookbackError" class="text-xs text-status-danger text-right">{{ lookbackError }}</p>
     </div>
 
     <div v-if="!isCollapsed">
@@ -309,6 +320,7 @@ import CopyButton from '~/components/CopyButton.vue'
 import StatusDot from '~/components/StatusDot.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Table,
   TableBody,
@@ -331,6 +343,8 @@ const props = withDefaults(defineProps<{
   tasks: TaskEventResponse[]
   status?: 'success' | 'warning' | 'error' | 'info'
   isLoading?: boolean
+  showLookbackSelector?: boolean
+  lookbackHours?: number | null
   primaryLabel: string
   secondaryLabel?: string
   recentField?: keyof TaskEventResponse
@@ -360,13 +374,17 @@ const props = withDefaults(defineProps<{
   itemActionLoadingIds: () => [],
   itemActionDisabledIds: () => [],
   hideWhenEmpty: false,
+  showLookbackSelector: false,
+  lookbackHours: null,
 })
 
 const emit = defineEmits<{
   'item-action': [task: TaskEventResponse]
+  'lookback-change': [hours: number]
 }>()
 
 const { eventTypeToStatus, getStatusVariant, formatStatus } = useTaskStatus()
+const configStore = useConfigStore()
 
 const expandedTaskIds = ref(new Set<string>())
 const searchQuery = ref('')
@@ -544,6 +562,37 @@ const pageSizeOptions = computed(() => {
 const hasPrevPage = computed(() => currentPage.value > 0)
 const hasNextPage = computed(() => totalFiltered.value > 0 && currentPage.value < totalPages.value - 1)
 
+const lookbackOptionsNormalized = computed(() => [12, 24, 48, 72])
+
+const activeLookback = computed(() => {
+  const options = lookbackOptionsNormalized.value
+  const sourceHours = props.lookbackHours ?? configStore.taskIssueLookbackHours
+  const candidate = Number.isFinite(sourceHours) ? Math.round(Number(sourceHours)) : NaN
+  if (!Number.isFinite(candidate)) {
+    return options[0]
+  }
+  if (options.includes(candidate)) {
+    return candidate
+  }
+  return options.reduce((closest, option) => {
+    const currentDiff = Math.abs(option - candidate)
+    const bestDiff = Math.abs(closest - candidate)
+    return currentDiff < bestDiff ? option : closest
+  }, options[0])
+})
+const activeLookbackString = computed(() => String(activeLookback.value))
+
+const isUpdatingLookback = ref(false)
+const lookbackError = ref<string | null>(null)
+
+const formatLookbackLabel = (hours: number) => {
+  if (hours % 24 === 0 && hours >= 24) {
+    const days = hours / 24
+    return `${days}d`
+  }
+  return `${hours}h`
+}
+
 watch(() => props.limit, (next) => {
   if (typeof next === 'number' && next > 0) {
     pageSize.value = next
@@ -606,6 +655,29 @@ const goToLastPage = () => {
 
 const toggleCollapsed = () => {
   isCollapsed.value = !isCollapsed.value
+}
+
+const handleLookbackSelect = async (hours: number) => {
+  if (isUpdatingLookback.value || hours === activeLookback.value) {
+    return
+  }
+  isUpdatingLookback.value = true
+  lookbackError.value = null
+  try {
+    emit('lookback-change', hours)
+    await configStore.updateTaskIssueLookback(hours)
+  } catch (error) {
+    lookbackError.value = error instanceof Error ? error.message : 'Failed to update lookback'
+  } finally {
+    isUpdatingLookback.value = false
+  }
+}
+
+const handleLookbackSelectString = (value: string) => {
+  const parsed = Number(value)
+  if (Number.isFinite(parsed)) {
+    handleLookbackSelect(parsed)
+  }
 }
 
 const isActionLoading = (task: TaskEventResponse) => {

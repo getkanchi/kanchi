@@ -4,11 +4,11 @@ import logging
 import uuid
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from services import TaskService, EnvironmentService, SessionService
+from services import TaskService, EnvironmentService, SessionService, AppConfigService
 from database import TaskEventDB
 from models import TaskEvent
 from database import ensure_utc_isoformat
@@ -201,7 +201,12 @@ def create_router(app_state) -> APIRouter:
 
     @router.get("/tasks/failed/recent", response_model=List[TaskEvent])
     async def get_recent_failed_tasks(
-        hours: int = 24,
+        hours: Optional[int] = Query(
+            default=None,
+            ge=1,
+            le=168,
+            description="Lookback window in hours (defaults to configured value)"
+        ),
         limit: int = 50,
         include_retried: bool = False,
         session: Session = Depends(get_db),
@@ -209,8 +214,10 @@ def create_router(app_state) -> APIRouter:
     ):
         """Get failed tasks within the last ``hours`` window."""
         task_service = TaskService(session, active_env=active_env)
+        config_service = AppConfigService(session)
+        lookback_hours = hours if hours is not None else config_service.get_task_issue_lookback_hours()
         failed_tasks = task_service.get_recent_failed_tasks(
-            hours=hours,
+            hours=lookback_hours,
             limit=limit,
             exclude_retried=not include_retried
         )
