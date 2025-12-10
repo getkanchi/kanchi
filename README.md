@@ -49,7 +49,7 @@ Run Kanchi using pre-built images from Docker Hub. No repository cloning require
        container_name: kanchi
        ports:
          - "8765:8765"
-        environment:
+         environment:
           # Required: Your Celery broker connection string
           CELERY_BROKER_URL: ${CELERY_BROKER_URL}
 
