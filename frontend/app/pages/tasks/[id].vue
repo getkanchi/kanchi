@@ -34,11 +34,28 @@
         </div>
 
         <div class="flex items-center gap-2">
-          <CopyButton
-            :text="shareUrl"
-            title="Copy shareable link"
-            :show-text="true"
-          />
+          <Button
+            @click="handleTaskIdUrlCopy"
+            variant="outline"
+            size="sm"
+          >
+            <Transition
+              mode="out-in"
+              enter-active-class="transition duration-150 ease-out"
+              enter-from-class="opacity-0 scale-90"
+              enter-to-class="opacity-100 scale-100"
+              leave-active-class="transition duration-150 ease-in"
+              leave-from-class="opacity-100 scale-100"
+              leave-to-class="opacity-0 scale-90"
+            >
+              <Check v-if="isTaskUrlCopied" key="copied" class="h-4 w-4 text-green-400" />
+              <CopyIcon v-else key="copy" class="h-4 w-4" />
+            </Transition>
+            <span class="ml-1.5">
+              {{ isTaskUrlCopied ? 'Copied' : 'Copy URL' }}
+            </span>
+
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -279,26 +296,26 @@
       <!-- Stats Rail (Right Sidebar) -->
       <aside class="w-full lg:w-64 lg:sticky lg:top-6 lg:self-start">
         <div class="space-y-3">
-          <div class="border border-border-subtle rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
+          <div class="border border-border-subtle rounded-md px-4 py-3.5 hover:border-border transition-colors">
             <p class="text-[10px] uppercase tracking-wider text-text-muted mb-1.5 font-medium">Status</p>
             <Badge :variant="statusVariant">{{ statusDisplay }}</Badge>
           </div>
 
-          <div v-if="task.runtime" class="border border-border-subtle rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
+          <div v-if="task.runtime" class="border border-border-subtle rounded-md px-4 py-3.5 hover:border-border transition-colors">
             <p class="text-[10px] uppercase tracking-wider text-text-muted mb-1.5 font-medium">Runtime</p>
             <p class="text-2xl font-semibold text-text-primary tabular-nums">
               {{ task.runtime.toFixed(2) }}<span class="text-sm text-text-muted">s</span>
             </p>
           </div>
 
-          <div class="border border-border-subtle rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
+          <div class="border border-border-subtle rounded-md px-4 py-3.5 hover:border-border transition-colors">
             <p class="text-[10px] uppercase tracking-wider text-text-muted mb-1.5 font-medium">Retries</p>
             <p class="text-2xl font-semibold tabular-nums" :class="task.retries > 0 ? 'text-status-retry' : 'text-text-primary'">
               {{ task.retries }}
             </p>
           </div>
 
-          <div class="border border-border-subtle rounded-md px-4 py-3.5 hover:border-border-highlight transition-colors">
+          <div class="border border-border-subtle rounded-md px-4 py-3.5 hover:border-border transition-colors">
             <p class="text-[10px] uppercase tracking-wider text-text-muted mb-1.5 font-medium">Events</p>
             <p class="text-2xl font-semibold text-text-primary tabular-nums">
               {{ allEvents.length }}
@@ -345,16 +362,16 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { ChevronLeft, AlertCircle, RefreshCw } from 'lucide-vue-next'
+import { ChevronLeft, AlertCircle, RefreshCw, CopyIcon, Check } from 'lucide-vue-next'
 import { Button } from '~/components/ui/button'
 import { Badge } from '~/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs'
 import TimeDisplay from '~/components/TimeDisplay.vue'
 import UuidDisplay from '~/components/UuidDisplay.vue'
-import CopyButton from '~/components/CopyButton.vue'
 import PayloadTruncationNotice from '~/components/PayloadTruncationNotice.vue'
 import RetryTaskConfirmDialog from '~/components/RetryTaskConfirmDialog.vue'
 import type { TaskEventResponse } from '~/services/apiClient'
+import { useCopy } from '~/composables/useCopy'
 
 const route = useRoute()
 const tasksStore = useTasksStore()
@@ -384,6 +401,10 @@ const shareUrl = computed(() => {
   if (typeof window === 'undefined') return ''
   return window.location.href
 })
+
+const { copyToClipboard, isCopied } = useCopy()
+const shareCopyKey = computed(() => task.value?.task_id ? `task-url-${task.value.task_id}` : 'task-url')
+const isTaskUrlCopied = computed(() => isCopied(shareCopyKey.value))
 
 function formatJson(data: any): string {
   try {
@@ -452,5 +473,10 @@ const handleRetryConfirm = async () => {
   } catch (error) {
     console.error('Failed to rerun task:', error)
   }
+}
+
+const handleTaskIdUrlCopy = async () => {
+  if (!shareUrl.value) return
+  await copyToClipboard(shareUrl.value, shareCopyKey.value)
 }
 </script>
