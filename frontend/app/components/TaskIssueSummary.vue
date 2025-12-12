@@ -359,6 +359,7 @@ const props = withDefaults(defineProps<{
   itemActionLoadingIds?: string[]
   itemActionDisabledIds?: string[]
   hideWhenEmpty?: boolean
+  ignoreResolved?: boolean
 }>(), {
   status: 'info',
   isLoading: false,
@@ -374,6 +375,7 @@ const props = withDefaults(defineProps<{
   itemActionLoadingIds: () => [],
   itemActionDisabledIds: () => [],
   hideWhenEmpty: false,
+  ignoreResolved: false,
   showLookbackSelector: false,
   lookbackHours: null,
 })
@@ -395,8 +397,13 @@ const isCollapsed = ref(true)
 
 const summaryColumnCount = 5
 
-const unresolvedCount = computed(() => props.tasks.filter(task => !resolutionState(task).resolved).length)
-const totalCount = computed(() => props.tasks.length)
+const visibleTasks = computed(() => {
+  if (!props.ignoreResolved) return props.tasks
+  return props.tasks.filter(task => !resolutionState(task).resolved)
+})
+
+const unresolvedCount = computed(() => visibleTasks.value.filter(task => !resolutionState(task).resolved).length)
+const totalCount = computed(() => visibleTasks.value.length)
 const shouldHideCard = computed(() => props.hideWhenEmpty && totalCount.value === 0)
 
 type ResolvableTask = TaskEventResponse & { resolved?: boolean; resolved_by?: string | null; resolved_at?: string | null }
@@ -411,7 +418,7 @@ const resolutionState = (task: TaskEventResponse) => {
 
 const sortedTasks = computed(() => {
   const field = props.timeField ?? 'timestamp'
-  return [...props.tasks].sort((a, b) => {
+  return [...visibleTasks.value].sort((a, b) => {
     const aTime = Date.parse(String((a[field] as string | undefined) ?? a.timestamp ?? 0))
     const bTime = Date.parse(String((b[field] as string | undefined) ?? b.timestamp ?? 0))
     return bTime - aTime
@@ -523,7 +530,7 @@ const displayedTasks = computed(() => paginatedTasks.value)
 const recentCount = computed(() => {
   if (!props.recentField || props.recentWindowMinutes === undefined) return 0
   const threshold = Date.now() - props.recentWindowMinutes * 60 * 1000
-  return props.tasks.filter(task => {
+  return visibleTasks.value.filter(task => {
     const raw = task[props.recentField!]
     if (!raw) return false
     const parsed = Date.parse(String(raw))
@@ -600,7 +607,7 @@ watch(() => props.limit, (next) => {
   }
 })
 
-watch(() => props.tasks, () => {
+watch(() => [props.tasks, props.ignoreResolved], () => {
   currentPage.value = 0
 })
 

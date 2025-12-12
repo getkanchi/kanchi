@@ -105,6 +105,7 @@
           time-field="orphaned_at"
           badge-label="Orphaned"
           badge-variant="orphaned"
+          :ignore-resolved="true"
           empty-state-title="No orphaned tasks detected"
           empty-state-description="Tasks are marked as orphaned when their workers go offline."
           :item-action-loading-ids="retryLoadingIds"
