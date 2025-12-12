@@ -21,8 +21,10 @@
           :is-loading="failedTasksStore.isLoading"
           :status="failedCardStatus"
           :summary-variant="failedSummaryVariant"
-          :hide-when-empty="true"
-          title="Failed tasks (24h)"
+          :hide-when-empty="false"
+          :title="failedTasksTitle"
+          :show-lookback-selector="true"
+          :lookback-hours="failedTasksStore.lookbackHours"
           primary-label="unresolved"
           secondary-label="last hour"
           recent-field="timestamp"
@@ -30,13 +32,14 @@
           latest-label="Last failure"
           time-field="timestamp"
           badge-label="Failed"
-          badge-variant="destructive"
+          :badge-variant="failedTasksStore.failedTasks.length > 0 ? 'destructive': 'success'"
           :show-retry-badge="true"
           :show-exception="true"
-          empty-state-title="No failed tasks detected in the last 24 hours"
+          :empty-state-title="failedTasksEmptyTitle"
           empty-state-description="New failures will appear here instantly."
           :item-action-loading-ids="retryLoadingIds"
           @item-action="handleFailedRetryAction"
+          @lookback-change="handleLookbackChange"
         >
           <template #actions="{ task }">
 
@@ -102,6 +105,7 @@
           time-field="orphaned_at"
           badge-label="Orphaned"
           badge-variant="orphaned"
+          :ignore-resolved="true"
           empty-state-title="No orphaned tasks detected"
           empty-state-description="Tasks are marked as orphaned when their workers go offline."
           :item-action-loading-ids="retryLoadingIds"
@@ -222,11 +226,29 @@ const tasksStore = useTasksStore()
 const workersStore = useWorkersStore()
 const orphanTasksStore = useOrphanTasksStore()
 const failedTasksStore = useFailedTasksStore()
+const configStore = useConfigStore()
 const wsStore = useWebSocketStore()
 const environmentStore = useEnvironmentStore()
 
 // Time range state
 const timeRange = ref<TimeRange>({ start: null, end: null })
+const LOOKBACK_OPTIONS = [12, 24, 48, 72] as const
+
+const normalizeLookback = (hours?: number | null) => {
+  const candidate = Number.isFinite(hours) ? Math.round(Number(hours)) : NaN
+  if (!Number.isFinite(candidate)) {
+    return LOOKBACK_OPTIONS[1] // default 24h
+  }
+  const options = Array.from(LOOKBACK_OPTIONS)
+  if (options.includes(candidate as typeof LOOKBACK_OPTIONS[number])) {
+    return candidate as (typeof LOOKBACK_OPTIONS)[number]
+  }
+  return options.reduce((closest, option) => {
+    const currentDiff = Math.abs(option - candidate)
+    const bestDiff = Math.abs(closest - candidate)
+    return currentDiff < bestDiff ? option : closest
+  }, options[0])
+}
 
 const { queryStringToFilters, filtersToQueryString } = useFilterParser()
 
@@ -272,6 +294,16 @@ const failedCardStatus = computed(() => failedTasksStore.failedTasks.length > 0 
 const failedSummaryVariant = computed(() => failedTasksStore.failedTasks.length > 0 ? 'error' : 'success')
 const orphanCardStatus = computed(() => uniqueOrphanedTasks.value.length > 0 ? 'warning' : 'success')
 const orphanSummaryVariant = computed(() => uniqueOrphanedTasks.value.length > 0 ? 'warning' : 'success')
+const failedTasksLookbackHours = computed(() => failedTasksStore.lookbackHours)
+const formatLookbackLabel = (hours: number) => {
+  if (!Number.isFinite(hours)) return `${LOOKBACK_OPTIONS[1]}h`
+  if (hours % 24 === 0 && hours >= 24) {
+    return `${hours / 24}d`
+  }
+  return `${hours}h`
+}
+const failedTasksTitle = computed(() => `Failed tasks (${formatLookbackLabel(failedTasksLookbackHours.value)})`)
+const failedTasksEmptyTitle = computed(() => `No failed tasks detected in the last ${formatLookbackLabel(failedTasksLookbackHours.value)}`)
 
 const retryDialogRef = ref<InstanceType<typeof RetryTaskConfirmDialog> | null>(null)
 const retryDialogState = ref<{ task: TaskEventResponse; type: 'failed' | 'orphan' } | null>(null)
@@ -333,6 +365,12 @@ function handleToggleLiveMode() {
   } else {
     tasksStore.fetchRecentEvents()
   }
+}
+
+function handleLookbackChange(hours: number) {
+  const normalized = normalizeLookback(hours)
+  failedTasksStore.setLookbackHours(normalized)
+  failedTasksStore.fetchFailedTasks({ hours: normalized }).catch(() => {})
 }
 
 function handleSetSorting(sorting: { id: string; desc: boolean }[]) {
@@ -525,8 +563,17 @@ watch(() => environmentStore.activeEnvironment, async () => {
     tasksStore.fetchStats(),
     workersStore.fetchWorkers(),
     orphanTasksStore.fetchOrphanedTasks(),
-    failedTasksStore.fetchFailedTasks()
+    failedTasksStore.fetchFailedTasks({ hours: failedTasksStore.lookbackHours })
   ])
+})
+
+watch(() => configStore.taskIssueLookbackHours, (hours) => {
+  const normalized = normalizeLookback(hours)
+  if (normalized === failedTasksStore.lookbackHours) {
+    return
+  }
+  failedTasksStore.setLookbackHours(normalized)
+  failedTasksStore.fetchFailedTasks({ hours: normalized }).catch(() => {})
 })
 
 // Store interval IDs at component scope
@@ -538,13 +585,16 @@ let workerInterval: ReturnType<typeof setInterval> | null = null
 onMounted(async () => {
   document.addEventListener('mousemove', handleMouseMove)
 
+  await configStore.fetchConfig().catch(() => {})
+  failedTasksStore.setLookbackHours(normalizeLookback(configStore.taskIssueLookbackHours))
+
   // Initial data fetch
   await Promise.all([
     tasksStore.fetchRecentEvents(),
     tasksStore.fetchStats(),
     workersStore.fetchWorkers(),
     orphanTasksStore.fetchOrphanedTasks(),
-    failedTasksStore.fetchFailedTasks()
+    failedTasksStore.fetchFailedTasks({ hours: failedTasksStore.lookbackHours })
   ])
 
   tasksStore.setLiveMode(wsStore.clientMode === 'live')
@@ -557,7 +607,7 @@ onMounted(async () => {
   }, 60000) // Poll every 60 seconds for orphaned tasks
 
   failedTasksInterval = setInterval(() => {
-    failedTasksStore.fetchFailedTasks().catch(() => {})
+    failedTasksStore.fetchFailedTasks({ hours: failedTasksStore.lookbackHours }).catch(() => {})
   }, 60000) // Poll every 60 seconds for failed tasks
 
   workerInterval = setInterval(() => {

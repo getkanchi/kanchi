@@ -8,6 +8,7 @@ from .daily_stats_service import DailyStatsService
 from .environment_service import EnvironmentService
 from .session_service import SessionService
 from .auth_service import AuthService
+from .app_config_service import AppConfigService
 
 __all__ = [
     'TaskService',
@@ -17,5 +18,6 @@ __all__ = [
     'DailyStatsService',
     'EnvironmentService',
     'SessionService',
-    'AuthService'
+    'AuthService',
+    'AppConfigService'
 ]

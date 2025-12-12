@@ -352,6 +352,43 @@ class UserSessionUpdate(BaseModel):
     preferences: Optional[Dict[str, Any]] = None
 
 
+class AppSetting(BaseModel):
+    """Database-backed application setting."""
+    key: str
+    value: Any
+    value_type: Literal["string", "number", "boolean", "json"] = "string"
+    label: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.replace(tzinfo=timezone.utc).isoformat() if v.tzinfo is None else v.isoformat()
+        }
+
+
+class AppSettingUpdate(BaseModel):
+    """Create/update payload for an application setting."""
+    value: Any
+    value_type: Optional[Literal["string", "number", "boolean", "json"]] = None
+    label: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[str] = None
+
+
+class TaskIssueConfig(BaseModel):
+    """Configuration for the task issue summary section."""
+    lookback_hours: int = Field(default=24, ge=1, le=168)
+
+
+class AppConfigSnapshot(BaseModel):
+    """Grouped configuration snapshot returned to clients."""
+    task_issue_summary: TaskIssueConfig
+
+
 class UserInfo(BaseModel):
     """Authenticated user information returned to clients."""
     id: str

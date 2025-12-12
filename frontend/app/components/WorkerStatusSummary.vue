@@ -5,13 +5,16 @@
     
     <!-- Collapsed Summary View -->
     <div 
-      class="py-2 px-4 cursor-pointer hover:bg-background-surface/5 transition-all duration-200"
+      class="p-2 border-b border-border-subtle cursor-pointer hover:bg-background-hover-subtle transition-colors duration-200"
       @click="toggleExpanded"
     >
-      <div class="flex items-center justify-between">
-        
-        <!-- Left: Status Overview -->
+      <div class="flex items-center justify-between gap-3">
+        <!-- Left: Chevron + Status Overview + Quick Stats -->
         <div class="flex items-center gap-3">
+          <ChevronRight
+            class="h-4 w-4 text-text-muted transition-transform duration-200"
+            :class="{ 'rotate-90': isExpanded }"
+          />
           <div class="flex items-center gap-2">
             <StatusDot 
               :status="overallStatus" 
@@ -20,38 +23,22 @@
             />
             <span class="font-medium text-sm">{{ statusText }}</span>
           </div>
-          
-          <!-- Quick Stats -->
-          <div class="hidden sm:flex items-center gap-2 text-xs text-text-secondary">
-            <span class="flex items-center gap-1">
-              <span class="font-mono">{{ activeWorkersCount }}</span>
-              <span>online</span>
-            </span>
-            <span class="flex items-center gap-1">
-              <span class="font-mono">{{ totalActiveTasks }}</span>
-              <span>active tasks</span>
-            </span>
-            <span v-if="totalErrors > 0" class="flex items-center gap-1 text-status-error">
-              <span class="font-mono">{{ totalErrors }}</span>
-              <span>errors</span>
-            </span>
-          </div>
         </div>
-
-        <!-- Right: Expand Button -->
-        <div class="flex items-center gap-2">
-          <span class="text-xs text-text-muted hidden sm:inline">
-            {{ isExpanded ? 'Hide details' : 'View details' }}
+        
+        <!-- Quick Stats -->
+        <div class="flex flex-1 items-center gap-2 text-xs text-text-secondary min-w-0">
+          <span class="flex items-center gap-1">
+            <span class="font-mono">{{ activeWorkersCount }}</span>
+            <span>online</span>
           </span>
-          <svg 
-            class="w-4 h-4 text-text-muted transition-transform duration-200"
-            :class="{ 'rotate-180': isExpanded }"
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24"
-          >
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-          </svg>
+          <span class="flex items-center gap-1">
+            <span class="font-mono">{{ totalActiveTasks }}</span>
+            <span>active tasks</span>
+          </span>
+          <span v-if="totalErrors > 0" class="flex items-center gap-1 text-status-error">
+            <span class="font-mono">{{ totalErrors }}</span>
+            <span>errors</span>
+          </span>
         </div>
       </div>
 
@@ -156,6 +143,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { ChevronRight } from 'lucide-vue-next'
 import StatusDot from '~/components/StatusDot.vue'
 import WorkerCard from '~/components/WorkerCard.vue'
 import Alert from '~/components/alert/Alert.vue'
