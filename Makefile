@@ -1,4 +1,4 @@
-.PHONY: dev logs backend frontend seed help
+.PHONY: dev logs backend frontend seed demo-data help
 
 help:
 	@echo "Kanchi Development Commands"
@@ -8,6 +8,7 @@ help:
 	@echo "make backend  - Start backend only"
 	@echo "make frontend - Start frontend only"
 	@echo "make seed     - Seed database with marketing/demo data (clears existing data)"
+	@echo "make demo-data - Seed database with full demo dataset (clears existing data)"
 
 dev:
 	@echo "Starting Kanchi in development mode..."
@@ -40,6 +41,17 @@ seed:
 	echo; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
 		cd agent && poetry run python seed_database.py --days 7; \
+	else \
+		echo "Cancelled."; \
+	fi
+
+demo-data:
+	@echo "Seeding database with full demo dataset..."
+	@echo "This will clear existing data and populate comprehensive demo data."
+	@read -p "Continue? [y/N] " -n 1 -r; \
+	echo; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		cd agent && poetry run python generate_demo_data.py --days 7 --tasks-per-day 40; \
 	else \
 		echo "Cancelled."; \
 	fi

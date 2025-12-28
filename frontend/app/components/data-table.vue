@@ -350,13 +350,19 @@ const getProgressMessage = (snapshot: any) => snapshot?.latest?.message || ''
                       v-if="getProgressSnapshot(row.original.task_id)"
                       class="p-4 border border-border-subtle rounded-md bg-background-surface space-y-3"
                     >
-                      <div class="flex items-center justify-between gap-3">
+                      <div
+                        v-if="getProgressPercent(getProgressSnapshot(row.original.task_id)) !== null"
+                        class="flex items-center justify-between gap-3"
+                      >
                         <h4 class="text-sm font-medium text-text-primary">Progress</h4>
                         <span class="text-xs font-mono text-text-primary">
                           {{ Math.round(getProgressPercent(getProgressSnapshot(row.original.task_id)) as number) }}%
                         </span>
                       </div>
-                      <div class="h-2 rounded-full bg-border-subtle overflow-hidden">
+                      <div
+                        v-if="getProgressPercent(getProgressSnapshot(row.original.task_id)) !== null"
+                        class="h-2 rounded-full bg-border-subtle overflow-hidden"
+                      >
                         <div
                           class="h-full bg-primary transition-all duration-300"
                           :style="{ width: `${getProgressPercent(getProgressSnapshot(row.original.task_id)) || 0}%` }"

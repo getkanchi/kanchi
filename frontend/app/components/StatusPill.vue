@@ -71,7 +71,7 @@ const isRunning = computed(() => {
 
 const pillClass = computed(() => {
   const config = getStatusColor(props.status || 'pending')
-  const base = `border border-border-highlight`
+  const base = `border border-gray-700`
   return props.isCurrent && config.ring ? `${base} ${config.ring}` : base
 })
 

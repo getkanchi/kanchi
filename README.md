@@ -13,11 +13,12 @@ Kanchi is a real-time Celery task monitoring (and management) system with an enj
 
 ## Screenshots
 
-### Dashboard
-![Dashboard](.github/images/dashboard.png)
-
-### Task Registry
-![Task Registry](.github/images/task_registry.png)
+![Dashboard overview](.github/images/dashboard-overview.png)
+![Failed tasks table](.github/images/failed-tasks-table.png)
+![Task detail panel](.github/images/task-detail-panel.png)
+![Workflow automation](.github/images/workflow-automation.png)
+![Task retry chain](.github/images/task-retry-chain.png)
+![Retry task modal](.github/images/retry-task-modal.png)
 
 ## Quick Start (Docker Compose)
 
