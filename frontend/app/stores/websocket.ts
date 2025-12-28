@@ -168,6 +168,9 @@ export const useWebSocketStore = defineStore('websocket', () => {
           orphanTasksStore.updateFromLiveEvent(message)
           failedTasksStore.updateFromLiveEvent(message)
         }
+        else if (eventType === 'kanchi-task-progress' || eventType === 'kanchi-task-steps') {
+          tasksStore.handleProgressLiveEvent(message)
+        }
         else if (eventType.startsWith('worker-')) {
           workersStore.updateFromLiveEvent(message)
         }

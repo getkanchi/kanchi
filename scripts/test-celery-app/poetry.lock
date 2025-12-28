@@ -418,6 +418,24 @@ files = [
 ]
 
 [[package]]
+name = "kanchi-sdk"
+version = "0.0.1"
+description = "Lightweight SDK for emitting Kanchi-compatible Celery events."
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "kanchi_sdk-0.0.1-py3-none-any.whl", hash = "sha256:5a1fe3b5918e8a59c11b91467b752d561cc5643e2571e86c44a054f0aded6d04"},
+    {file = "kanchi_sdk-0.0.1.tar.gz", hash = "sha256:81ec2edbeb2edb79fea464af8f211163a68be3bb18dc99f7ebd502ddcb5fa2c0"},
+]
+
+[package.dependencies]
+celery = ">=5"
+
+[package.extras]
+dev = ["celery (>=5)", "mypy (>=1.8.0)", "pytest (>=7.4)", "pytest-cov (>=4.1)", "ruff (>=0.1.9)"]
+
+[[package]]
 name = "kombu"
 version = "5.5.4"
 description = "Messaging library for Python."
@@ -902,4 +920,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.9"
-content-hash = "44c40f8d7a26be29cf262dca07ae89c238445d2b7e237ef95ecbc3bdec2ef78d"
+content-hash = "08be5d29f8e1dd9b771a8adfd1006f386f596c9a9b00b2a3642ec8a17b755f8e"
