@@ -84,6 +84,15 @@ python test_producer.py --mode error --count 5
 # Generate mixed load for 60 seconds
 python test_producer.py --mode mixed --duration 60
 
+# Trigger SDK-based progress/steps demo tasks
+python - <<'PY'
+from tasks import sdk_progress_task, sdk_steps_task
+
+sdk_progress_task.delay(total_steps=5, delay=0.5)
+sdk_steps_task.delay(delay=1.0)
+print("Dispatched SDK progress + steps demo tasks")
+PY
+
 # Stress test with 1000 tasks
 python test_producer.py --mode stress --count 1000 --burst
 ```

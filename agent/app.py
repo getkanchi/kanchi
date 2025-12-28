@@ -22,6 +22,8 @@ from worker_health_monitor import WorkerHealthMonitor
 from security.auth import AuthManager
 from security.dependencies import build_auth_dependencies, get_auth_dependency
 
+from kanchi_sdk import send_kanchi_progress
+
 logger = logging.getLogger(__name__)
 
 # Track application start time for uptime calculation
@@ -299,6 +301,8 @@ def start_monitor(config: Config):
     
     app_state.monitor_instance.set_task_callback(app_state.event_handler.handle_task_event)
     app_state.monitor_instance.set_worker_callback(app_state.event_handler.handle_worker_event)
+    app_state.monitor_instance.set_progress_callback(app_state.event_handler.handle_progress_event)
+    app_state.monitor_instance.set_steps_callback(app_state.event_handler.handle_steps_event)
     
     app_state.monitor_thread = threading.Thread(target=app_state.monitor_instance.start_monitoring)
     app_state.monitor_thread.daemon = True

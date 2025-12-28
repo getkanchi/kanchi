@@ -69,6 +69,40 @@ export interface AppConfigSnapshotDTO {
   task_issue_summary: TaskIssueConfigDTO
 }
 
+export interface TaskStepDefinition {
+  key: string
+  label: string
+  description?: string | null
+  total?: number | null
+  order?: number | null
+}
+
+export interface TaskProgressEventResponse {
+  task_id: string
+  task_name: string
+  progress: number
+  timestamp: string
+  step_key?: string | null
+  message?: string | null
+  meta?: Record<string, any> | null
+  event_type: 'kanchi-task-progress'
+}
+
+export interface TaskStepsEventResponse {
+  task_id: string
+  task_name: string
+  steps: TaskStepDefinition[]
+  timestamp: string
+  event_type: 'kanchi-task-steps'
+}
+
+export interface TaskProgressSnapshotResponse {
+  task_id: string
+  latest?: TaskProgressEventResponse | null
+  steps: TaskStepDefinition[]
+  history: TaskProgressEventResponse[]
+}
+
 class ApiService {
   private api: Api<unknown>
 
@@ -253,6 +287,14 @@ class ApiService {
 
   async getTaskEvents(taskId: string): Promise<TaskEventResponse[]> {
     const response = await this.api.api.getTaskEventsApiEventsTaskIdGet(taskId)
+    return response.data
+  }
+
+  async getTaskProgress(taskId: string): Promise<TaskProgressSnapshotResponse> {
+    const response = await this.api.request({
+      path: `/api/tasks/${encodeURIComponent(taskId)}/progress`,
+      method: 'GET'
+    })
     return response.data
   }
 

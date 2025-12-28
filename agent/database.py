@@ -128,6 +128,85 @@ class TaskEventDB(Base):
         }
 
 
+class TaskProgressDB(Base):
+    """History of progress updates per task."""
+    __tablename__ = 'task_progress_events'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    task_id = Column(String(255), nullable=False, index=True)
+    task_name = Column(String(255), index=True)
+    progress = Column(Float, nullable=False)
+    step_key = Column(String(255))
+    message = Column(Text)
+    meta = Column(JSON)
+    timestamp = Column(DateTime(timezone=True), nullable=False, index=True, default=utc_now)
+
+    __table_args__ = (
+        Index('idx_progress_task_ts', 'task_id', 'timestamp'),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'task_id': self.task_id,
+            'task_name': self.task_name,
+            'progress': self.progress,
+            'step_key': self.step_key,
+            'message': self.message,
+            'meta': self.meta or {},
+            'timestamp': ensure_utc_isoformat(self.timestamp),
+        }
+
+
+class TaskProgressLatestDB(Base):
+    """Snapshot of latest progress per task."""
+    __tablename__ = 'task_progress_latest'
+
+    task_id = Column(String(255), primary_key=True)
+    task_name = Column(String(255), index=True)
+    progress = Column(Float, nullable=False)
+    step_key = Column(String(255))
+    message = Column(Text)
+    meta = Column(JSON)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+
+    __table_args__ = (
+        Index('idx_progress_latest_updated', 'updated_at'),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'task_id': self.task_id,
+            'task_name': self.task_name,
+            'progress': self.progress,
+            'step_key': self.step_key,
+            'message': self.message,
+            'meta': self.meta or {},
+            'timestamp': ensure_utc_isoformat(self.updated_at),
+        }
+
+
+class TaskStepsDB(Base):
+    """Latest set of step definitions per task."""
+    __tablename__ = 'task_steps'
+
+    task_id = Column(String(255), primary_key=True)
+    task_name = Column(String(255), index=True)
+    steps = Column(JSON, nullable=False)
+    defined_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+
+    __table_args__ = (
+        Index('idx_task_steps_defined', 'defined_at'),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'task_id': self.task_id,
+            'task_name': self.task_name,
+            'steps': self.steps or [],
+            'timestamp': ensure_utc_isoformat(self.defined_at),
+        }
+
+
 class TaskLatestDB(Base):
     """
     Snapshot of the latest event per task for high-performance aggregated queries.

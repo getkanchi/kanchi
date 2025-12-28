@@ -86,6 +86,35 @@
           <!-- Overview Tab -->
           <TabsContent value="overview">
             <div class="space-y-6">
+              <!-- Progress -->
+              <div class="border border-border-subtle rounded-md p-5">
+                <div class="flex items-center justify-between gap-3 mb-3">
+                  <h2 class="text-sm font-medium text-text-primary">Progress</h2>
+                  <span class="text-xs font-mono text-text-primary">
+                    <span v-if="currentProgress !== null">{{ Math.round(currentProgress) }}%</span>
+                    <span v-else class="text-text-muted">No updates</span>
+                  </span>
+                </div>
+
+                <div class="h-2 rounded-full bg-border-subtle overflow-hidden">
+                  <div
+                    class="h-full bg-primary transition-all duration-300"
+                    :style="{ width: `${currentProgress || 0}%` }"
+                  />
+                </div>
+
+                <p class="text-xs text-text-muted mt-2" v-if="currentMessage">
+                  {{ currentMessage }}
+                </p>
+                <p class="text-xs text-text-muted mt-2" v-else>
+                  Awaiting first progress update
+                </p>
+
+                <div v-if="progressSnapshot?.steps?.length" class="mt-4">
+                  <TaskProgressSteps :snapshot="progressSnapshot" />
+                </div>
+              </div>
+
               <!-- Task Information -->
               <div class="border border-border-subtle rounded-md p-5">
                 <h2 class="text-sm font-medium text-text-primary mb-4">Task Information</h2>
@@ -370,6 +399,7 @@ import TimeDisplay from '~/components/TimeDisplay.vue'
 import UuidDisplay from '~/components/UuidDisplay.vue'
 import PayloadTruncationNotice from '~/components/PayloadTruncationNotice.vue'
 import RetryTaskConfirmDialog from '~/components/RetryTaskConfirmDialog.vue'
+import TaskProgressSteps from '~/components/tasks/TaskProgressSteps.vue'
 import type { TaskEventResponse } from '~/services/apiClient'
 import { useCopy } from '~/composables/useCopy'
 
@@ -397,6 +427,11 @@ const statusVariant = computed(() => {
   return getStatusVariant(eventTypeToStatus(task.value.event_type))
 })
 
+const taskId = computed(() => route.params.id as string)
+const progressSnapshot = computed(() => tasksStore.getProgressSnapshot(taskId.value))
+const currentProgress = computed(() => progressSnapshot.value?.latest?.progress ?? null)
+const currentMessage = computed(() => progressSnapshot.value?.latest?.message ?? '')
+
 const shareUrl = computed(() => {
   if (typeof window === 'undefined') return ''
   return window.location.href
@@ -423,6 +458,7 @@ function getEventVariant(eventType: string): string {
   return getStatusVariant(status)
 }
 
+
 async function fetchTaskData() {
   const taskId = route.params.id as string
 
@@ -436,7 +472,10 @@ async function fetchTaskData() {
     isLoading.value = true
     error.value = null
 
-    const events = await tasksStore.getTaskEvents(taskId)
+    const [events] = await Promise.all([
+      tasksStore.getTaskEvents(taskId),
+      tasksStore.getTaskProgress(taskId).catch(() => null)
+    ])
 
     if (!events || events.length === 0) {
       error.value = 'Task not found'

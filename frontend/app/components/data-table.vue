@@ -33,6 +33,7 @@ import TimeDisplay from "~/components/TimeDisplay.vue";
 import type { ParsedFilter } from '~/composables/useFilterParser'
 import type { TimeRange } from '~/components/TimeRangeFilter.vue'
 import TaskDetailsSection from '~/components/common/TaskDetailsSection.vue'
+import TaskProgressSteps from '~/components/tasks/TaskProgressSteps.vue'
 
 const props = defineProps<{
   columns: ColumnDef<TData, TValue>[]
@@ -83,6 +84,7 @@ const handleSearch = (value: string) => {
 const table = useVueTable({
   get data() { return props.data },
   get columns() { return props.columns },
+  getRowId: (row: any) => row?.task_id ?? row?.id,
   getCoreRowModel: getCoreRowModel(),
   getExpandedRowModel: getExpandedRowModel(),
   state: {
@@ -105,6 +107,10 @@ const toggleRowExpansion = (taskId: string | undefined) => {
     expandedRows.value.delete(taskId)
   } else {
     expandedRows.value.add(taskId)
+    // Fetch progress/steps snapshot lazily when expanding
+    if (!tasksStore.getProgressSnapshot(taskId)) {
+      tasksStore.getTaskProgress(taskId).catch(() => null)
+    }
   }
 }
 
@@ -162,6 +168,13 @@ const getRetryCount = (task: any) => {
   const retryOf = task?.retry_of ? 1 : 0
   return retriedBy + retryOf
 }
+
+const getProgressSnapshot = (taskId: string) => {
+  return tasksStore.getProgressSnapshot(taskId)
+}
+
+const getProgressPercent = (snapshot: any) => snapshot?.latest?.progress ?? null
+const getProgressMessage = (snapshot: any) => snapshot?.latest?.message || ''
 
 </script>
 
@@ -286,6 +299,14 @@ const getRetryCount = (task: any) => {
                     :result="row.original.result"
                     :traceback="row.original.traceback"
                   >
+                    <template #meta-extra>
+                      <div v-if="getProgressPercent(getProgressSnapshot(row.original.task_id)) !== null" class="flex items-center gap-2">
+                        <span class="text-[11px] uppercase text-text-muted tracking-wider">Progress</span>
+                        <span class="text-xs font-mono text-text-primary">
+                          {{ Math.round(getProgressPercent(getProgressSnapshot(row.original.task_id)) as number) }}%
+                        </span>
+                      </div>
+                    </template>
                     <template #actions>
                       <NuxtLink :to="`/tasks/${row.original.task_id}`">
                         <Button
@@ -322,6 +343,32 @@ const getRetryCount = (task: any) => {
                           .filter(task => task !== null) : []"
                         :show-details="false"
                       />
+                    </div>
+
+                    <!-- Progress & Steps -->
+                    <div
+                      v-if="getProgressSnapshot(row.original.task_id)"
+                      class="p-4 border border-border-subtle rounded-md bg-background-surface space-y-3"
+                    >
+                      <div class="flex items-center justify-between gap-3">
+                        <h4 class="text-sm font-medium text-text-primary">Progress</h4>
+                        <span class="text-xs font-mono text-text-primary">
+                          {{ Math.round(getProgressPercent(getProgressSnapshot(row.original.task_id)) as number) }}%
+                        </span>
+                      </div>
+                      <div class="h-2 rounded-full bg-border-subtle overflow-hidden">
+                        <div
+                          class="h-full bg-primary transition-all duration-300"
+                          :style="{ width: `${getProgressPercent(getProgressSnapshot(row.original.task_id)) || 0}%` }"
+                        />
+                      </div>
+                      <p v-if="getProgressMessage(getProgressSnapshot(row.original.task_id))" class="text-xs text-text-muted">
+                        {{ getProgressMessage(getProgressSnapshot(row.original.task_id)) }}
+                      </p>
+
+                      <div v-if="getProgressSnapshot(row.original.task_id)?.steps?.length" class="pt-2">
+                        <TaskProgressSteps :snapshot="getProgressSnapshot(row.original.task_id)" />
+                      </div>
                     </div>
                     
                   </TaskDetailsSection>

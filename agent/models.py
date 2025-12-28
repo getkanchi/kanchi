@@ -133,6 +133,81 @@ class TaskEvent(BaseModel):
 TaskEvent.model_rebuild()
 
 
+class StepDefinition(BaseModel):
+    """Single step definition for task progress."""
+    key: str
+    label: str
+    description: Optional[str] = None
+    total: Optional[int] = None
+    order: Optional[int] = None
+
+
+class TaskStepsEvent(BaseModel):
+    """Progress steps definition event."""
+    task_id: str
+    task_name: str
+    steps: List[StepDefinition]
+    timestamp: datetime
+    event_type: Literal["kanchi-task-steps"] = "kanchi-task-steps"
+
+    model_config = {
+        'json_encoders': {
+            datetime: lambda v: v.isoformat() if v else None
+        }
+    }
+
+
+class TaskProgressEvent(BaseModel):
+    """Task progress update event."""
+    task_id: str
+    task_name: str
+    progress: float
+    timestamp: datetime
+    step_key: Optional[str] = None
+    message: Optional[str] = None
+    meta: Optional[Dict[str, Any]] = None
+    event_type: Literal["kanchi-task-progress"] = "kanchi-task-progress"
+
+    model_config = {
+        'json_encoders': {
+            datetime: lambda v: v.isoformat() if v else None
+        }
+    }
+
+    @classmethod
+    def from_celery_event(cls, event: dict) -> 'TaskProgressEvent':
+        sanitized_meta, _ = sanitize_payload(event.get('meta'))
+        ts_value = event.get('timestamp')
+        if isinstance(ts_value, (int, float)):
+            ts = datetime.fromtimestamp(ts_value, tz=timezone.utc)
+        elif isinstance(ts_value, str):
+            try:
+                ts = datetime.fromisoformat(ts_value)
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=timezone.utc)
+            except Exception:
+                ts = datetime.now(timezone.utc)
+        else:
+            ts = datetime.now(timezone.utc)
+        return cls(
+            task_id=event.get('task_id', ''),
+            task_name=event.get('task_name', ''),
+            progress=float(event.get('progress', 0)),
+            timestamp=ts,
+            step_key=event.get('step_key'),
+            message=event.get('message'),
+            meta=sanitized_meta if isinstance(sanitized_meta, dict) else None,
+        )
+
+
+class TaskProgressSnapshot(BaseModel):
+    """Aggregate view of progress and steps for a task."""
+    task_id: str
+    latest: Optional[TaskProgressEvent] = None
+    steps: List[StepDefinition] = Field(default_factory=list)
+    history: List[TaskProgressEvent] = Field(default_factory=list)
+
+
 class WorkerInfo(BaseModel):
     """Worker information model"""
     hostname: str

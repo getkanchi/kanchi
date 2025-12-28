@@ -1,7 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref, computed, readonly } from 'vue'
 import { useApiService } from '../services/apiClient'
-import type { TaskStats, TaskEventResponse } from '../services/apiClient'
+import type {
+  TaskStats,
+  TaskEventResponse,
+  TaskProgressSnapshotResponse,
+  TaskProgressEventResponse,
+  TaskStepsEventResponse,
+} from '../services/apiClient'
 
 export interface TaskFilters {
   search?: string | null
@@ -36,6 +42,7 @@ export const useTasksStore = defineStore('tasks', () => {
   const stats = ref<TaskStats | null>(null)
   const events = ref<TaskEventResponse[]>([])
   const activeTasks = ref<TaskEventResponse[]>([])
+  const progressSnapshots = ref<Record<string, TaskProgressSnapshotResponse>>({})
   const pagination = ref<PaginationInfo>({
     page: 0,
     limit: 10,
@@ -147,6 +154,25 @@ export const useTasksStore = defineStore('tasks', () => {
     }
   }
 
+  async function getTaskProgress(taskId: string): Promise<TaskProgressSnapshotResponse> {
+    try {
+      error.value = null
+      const snapshot = await apiService.getTaskProgress(taskId)
+      progressSnapshots.value = {
+        ...progressSnapshots.value,
+        [taskId]: snapshot,
+      }
+      return snapshot
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to fetch task progress'
+      throw err
+    }
+  }
+
+  function getProgressSnapshot(taskId: string): TaskProgressSnapshotResponse | undefined {
+    return progressSnapshots.value[taskId]
+  }
+
   function setPage(page: number) {
     const maxPage = Math.max(0, (pagination.value.total_pages || 1) - 1)
     const validPage = Math.max(0, Math.min(page, maxPage))
@@ -256,10 +282,53 @@ export const useTasksStore = defineStore('tasks', () => {
     lastRefreshTime.value = new Date()
   }
 
+  function handleProgressLiveEvent(event: TaskProgressEventResponse | TaskStepsEventResponse) {
+    const taskId = (event as any)?.task_id
+    if (!taskId) return
+
+    const existing = progressSnapshots.value[taskId] || {
+      task_id: taskId,
+      steps: [],
+      history: [],
+      latest: null,
+    }
+
+    if ((event as TaskProgressEventResponse).event_type === 'kanchi-task-progress') {
+      const progressEvent = event as TaskProgressEventResponse
+      const latestTs = existing.latest ? new Date(existing.latest.timestamp).getTime() : -1
+      const incomingTs = new Date(progressEvent.timestamp).getTime()
+      const history = [progressEvent, ...(existing.history || [])].slice(0, 50)
+
+      const updated = {
+        ...existing,
+        latest: incomingTs >= latestTs ? progressEvent : existing.latest,
+        history,
+      }
+
+      progressSnapshots.value = {
+        ...progressSnapshots.value,
+        [taskId]: updated,
+      }
+    }
+
+    if ((event as TaskStepsEventResponse).event_type === 'kanchi-task-steps') {
+      const stepsEvent = event as TaskStepsEventResponse
+      const updated = {
+        ...existing,
+        steps: stepsEvent.steps || [],
+      }
+      progressSnapshots.value = {
+        ...progressSnapshots.value,
+        [taskId]: updated,
+      }
+    }
+  }
+
   return {
     stats: readonly(stats),
     events: readonly(events),
     activeTasks: readonly(activeTasks),
+    progressSnapshots: readonly(progressSnapshots),
     pagination: readonly(pagination),
     isLoading: readonly(isLoading),
     error: readonly(error),
@@ -279,6 +348,8 @@ export const useTasksStore = defineStore('tasks', () => {
     fetchActiveTasks,
     retryTask,
     getTaskEvents,
+    getTaskProgress,
+    getProgressSnapshot,
     setPage,
     setPageSize,
     nextPage,
@@ -289,5 +360,6 @@ export const useTasksStore = defineStore('tasks', () => {
     setTimeRange,
     setLiveMode,
     handleLiveEvent,
+    handleProgressLiveEvent,
   }
 })

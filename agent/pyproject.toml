@@ -23,6 +23,7 @@ asyncpg = {version = "^0.30.0", optional = true}
 mysqlclient = {version = "^2.2.0", optional = true}
 aiohttp = ">=3.8,<3.13"
 prometheus-client = "^0.22.0"
+kanchi-sdk = "^0.0.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"

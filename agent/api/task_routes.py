@@ -8,9 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException, Header, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from services import TaskService, EnvironmentService, SessionService, AppConfigService
+from services import TaskService, EnvironmentService, SessionService, AppConfigService, ProgressService
 from database import TaskEventDB
-from models import TaskEvent
+from models import TaskEvent, TaskProgressSnapshot
 from database import ensure_utc_isoformat
 from config import Config
 from security.auth import AuthenticatedUser
@@ -113,6 +113,21 @@ def create_router(app_state) -> APIRouter:
             raise HTTPException(status_code=404, detail="Task not found")
 
         return task_events
+
+    @router.get("/tasks/{task_id}/progress", response_model=TaskProgressSnapshot)
+    async def get_task_progress(task_id: str, session: Session = Depends(get_db)):
+        """Get latest progress, steps, and recent history for a task."""
+        progress_service = ProgressService(session)
+        latest = progress_service.get_latest_progress(task_id)
+        steps = progress_service.get_steps(task_id)
+        history = progress_service.get_progress_history(task_id)
+
+        return TaskProgressSnapshot(
+            task_id=task_id,
+            latest=latest,
+            steps=steps,
+            history=history,
+        )
 
 
     @router.get("/tasks/active", response_model=List[TaskEvent])
