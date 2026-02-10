@@ -2863,4 +2863,4 @@ db-postgres-async = ["asyncpg"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "d1ba752f507f194e4920f861842eb33c48ee2b60a120ae42f6a113db1ee891ec"
+content-hash = "d34e20abbbbb5fbfe62a21797283308eb6acbb1671d27d5df40940b0b0d28730"

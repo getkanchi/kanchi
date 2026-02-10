@@ -227,7 +227,7 @@ cd agent && poetry install
 cd ../frontend && npm install
 ```
 
-If you require another DB than sqlite, you need to follow one of those supported options: 
+If you require a database other than SQLite, install one of the supported extras:
 
 ```bash
 poetry install -E db-postgres

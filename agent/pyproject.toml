@@ -9,7 +9,7 @@ package-mode = false
 python = "^3.10"
 celery = "5.6.2"
 kombu = "5.6.2"
-amqp = "^5.1.0"
+amqp = "5.3.1"
 redis = "7.1.1"
 fastapi = "0.128.6"
 uvicorn = {extras = ["standard"], version = "0.39.0"}
@@ -19,12 +19,12 @@ sqlalchemy = "2.0.46"
 greenlet = "3.3.1" # Necessary for python 3.14 + sqlalchemy
 alembic = "1.18.3"
 psycopg = {extras = ["binary"], version = "3.3.2"}
-pymysql = "^1.1.1"
+pymysql = "1.1.2"
 asyncpg = {version = "0.31.0", optional = true}
-mysqlclient = {version = "^2.2.0", optional = true}
+mysqlclient = {version = "2.2.7", optional = true}
 aiohttp = "3.13.3"
 prometheus-client = "0.24.1"
-kanchi-sdk = "^0.0.1"
+kanchi-sdk = "0.0.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "9.0.2"
