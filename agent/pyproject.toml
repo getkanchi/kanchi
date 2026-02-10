@@ -6,33 +6,34 @@ authors = ["czyber <czypka.github@gmail.com>"]
 package-mode = false
 
 [tool.poetry.dependencies]
-python = "^3.9"
-celery = "^5.3.0"
-kombu = "^5.3.0"
+python = "^3.10"
+celery = "5.6.2"
+kombu = "5.6.2"
 amqp = "^5.1.0"
-redis = "^5.0.0"
-fastapi = "^0.104.0"
-uvicorn = {extras = ["standard"], version = "^0.24.0"}
-pydantic = "^2.5.0"
-sqlalchemy = "^2.0.43"
-alembic = "^1.13.0"
-psycopg = {extras = ["binary"], version = "^3.1.12"}
-psycopg2-binary = "^2.9.9"
+redis = "7.1.1"
+fastapi = "0.128.6"
+uvicorn = {extras = ["standard"], version = "0.39.0"}
+watchfiles = "1.1.1"
+pydantic = "2.12.5"
+sqlalchemy = "2.0.46"
+greenlet = "3.3.1" # Necessary for python 3.14 + sqlalchemy
+alembic = "1.18.3"
+psycopg = {extras = ["binary"], version = "3.3.2"}
 pymysql = "^1.1.1"
-asyncpg = {version = "^0.30.0", optional = true}
+asyncpg = {version = "0.31.0", optional = true}
 mysqlclient = {version = "^2.2.0", optional = true}
-aiohttp = ">=3.8,<3.13"
-prometheus-client = "^0.22.0"
+aiohttp = "3.13.3"
+prometheus-client = "0.24.1"
 kanchi-sdk = "^0.0.1"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^7.4.0"
-black = "^23.7.0"
-mypy = "^1.5.1"
-ruff = "^0.0.287"
+pytest = "9.0.2"
+black = "26.1.0"
+mypy = "1.19.1"
+ruff = "0.15.0"
 
 [tool.poetry.extras]
-db-postgres = ["psycopg", "psycopg2-binary"]
+db-postgres = ["psycopg"]
 db-postgres-async = ["asyncpg"]
 db-mysql = ["pymysql"]
 db-mysql-native = ["mysqlclient"]
