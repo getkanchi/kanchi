@@ -2,6 +2,7 @@ import os
 import secrets
 from dataclasses import dataclass, field
 from typing import List, Optional
+from urllib.parse import urlparse, urlunparse
 
 
 def _as_bool(value: Optional[str], default: bool = False) -> bool:
@@ -20,6 +21,27 @@ def _split_csv(value: Optional[str]) -> List[str]:
         if item:
             parts.append(item)
     return parts
+
+
+def mask_sensitive_url(url: str) -> str:
+    """Mask password in URLs for safe logging."""
+    if not url:
+        return url
+    try:
+        parsed = urlparse(url)
+        if parsed.password:
+            netloc = parsed.hostname
+            if parsed.port:
+                netloc = f"{parsed.hostname}:{parsed.port}"
+            if parsed.username:
+                netloc = f"{parsed.username}:******@{netloc}"
+            else:
+                netloc = f"******@{netloc}"
+            masked = parsed._replace(netloc=netloc)
+            return urlunparse(masked)
+    except Exception:
+        pass
+    return url
 
 
 @dataclass

@@ -6,7 +6,7 @@ For backwards compatibility, this can still be used but FastAPI app is recommend
 import argparse
 import logging
 import uvicorn
-from config import Config
+from config import Config, mask_sensitive_url
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ def main():
         config.log_level = args.log_level
     
     logger.info(f"Starting Celery Event Monitor server on {config.ws_host}:{config.ws_port}")
-    logger.info(f"Monitoring Celery broker: {config.broker_url}")
+    logger.info(f"Monitoring Celery broker: {mask_sensitive_url(config.broker_url)}")
     logger.info(f"Web interface: http://{config.ws_host}:{config.ws_port}")
     logger.info(f"WebSocket endpoint: ws://{config.ws_host}:{config.ws_port}/ws")
     

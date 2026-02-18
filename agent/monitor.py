@@ -9,6 +9,7 @@ from celery import Celery
 from models import TaskEvent, WorkerEvent
 from models import TaskProgressEvent, TaskStepsEvent
 from constants import EventType
+from config import mask_sensitive_url
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +168,7 @@ class CeleryEventMonitor:
 
     def start_monitoring(self):
         """Start monitoring Celery events."""
-        logger.info(f"Starting Celery event monitor - Broker: {self.broker_url}")
+        logger.info(f"Starting Celery event monitor - Broker: {mask_sensitive_url(self.broker_url)}")
 
         self.state = self.app.events.State()
 

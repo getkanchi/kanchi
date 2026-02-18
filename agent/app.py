@@ -13,7 +13,7 @@ from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
-from config import Config
+from config import Config, mask_sensitive_url
 from database import DatabaseManager
 from connection_manager import ConnectionManager
 from event_handler import EventHandler
@@ -241,7 +241,7 @@ async def initialize_application():
         )
 
     app_state.db_manager = DatabaseManager(config.database_url)
-    logger.info(f"Running database migrations for: {config.database_url}")
+    logger.info(f"Running database migrations for: {mask_sensitive_url(config.database_url)}")
     app_state.db_manager.run_migrations()
     logger.info(f"Database migrations completed")
 
@@ -293,7 +293,7 @@ def start_monitor(config: Config):
         logger.warning("Monitor already running")
         return
     
-    logger.info(f"Starting Celery monitor with broker: {config.broker_url}")
+    logger.info(f"Starting Celery monitor with broker: {mask_sensitive_url(config.broker_url)}")
     app_state.monitor_instance = CeleryEventMonitor(
         broker_url=config.broker_url,
         allow_pickle_serialization=config.enable_pickle_serialization,
