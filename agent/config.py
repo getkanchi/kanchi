@@ -37,7 +37,7 @@ def mask_sensitive_url(url: Optional[str]) -> Optional[str]:
             if ":" in hostname:
                 hostname = f"[{hostname}]"
             if parsed.port:
-                hostname = f"{parsed.hostname}:{parsed.port}"
+                hostname = f"{hostname}:{parsed.port}"
             if parsed.username:
                 hostname = f"{parsed.username}:******@{hostname}"
             else:
