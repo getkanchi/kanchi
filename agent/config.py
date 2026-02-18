@@ -1,8 +1,11 @@
 import os
+import logging
 import secrets
 from dataclasses import dataclass, field
 from typing import List, Optional
 from urllib.parse import urlparse, urlunparse
+
+logger = logging.getLogger(__name__)
 
 
 def _as_bool(value: Optional[str], default: bool = False) -> bool:
@@ -40,7 +43,7 @@ def mask_sensitive_url(url: Optional[str]) -> Optional[str]:
             masked = parsed._replace(netloc=netloc)
             return urlunparse(masked)
     except Exception:
-        pass
+        logger.warning("Failed to mask sensitive URL; raw URL will be used.")
     return url
 
 
