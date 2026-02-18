@@ -33,14 +33,16 @@ def mask_sensitive_url(url: Optional[str]) -> Optional[str]:
     try:
         parsed = urlparse(url)
         if parsed.password:
-            netloc = parsed.hostname
+            hostname = parsed.hostname or ""
+            if ":" in hostname:
+                hostname = f"[{hostname}]"
             if parsed.port:
-                netloc = f"{parsed.hostname}:{parsed.port}"
+                hostname = f"{parsed.hostname}:{parsed.port}"
             if parsed.username:
-                netloc = f"{parsed.username}:******@{netloc}"
+                hostname = f"{parsed.username}:******@{hostname}"
             else:
-                netloc = f"******@{netloc}"
-            masked = parsed._replace(netloc=netloc)
+                hostname = f"******@{hostname}"
+            masked = parsed._replace(netloc=hostname)
             return urlunparse(masked)
     except Exception:
         logger.warning("Failed to mask sensitive URL; raw URL will be used.")
