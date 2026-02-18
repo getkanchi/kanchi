@@ -23,7 +23,7 @@ def _split_csv(value: Optional[str]) -> List[str]:
     return parts
 
 
-def mask_sensitive_url(url: str) -> str:
+def mask_sensitive_url(url: Optional[str]) -> Optional[str]:
     """Mask password in URLs for safe logging."""
     if not url:
         return url
