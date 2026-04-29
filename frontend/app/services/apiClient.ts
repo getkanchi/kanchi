@@ -87,6 +87,22 @@ export interface RetentionCleanupResponseDTO {
   results: RetentionCleanupResultDTO[]
 }
 
+export interface FailureGroupSummaryResponse {
+  id: string
+  fingerprint: string
+  task_name: string
+  exception_fingerprint?: string | null
+  queue?: string | null
+  hostname?: string | null
+  environment?: string | null
+  first_seen: string
+  last_seen: string
+  failure_count: number
+  last_task_id: string
+  recurrence_rate_per_hour: number
+  latest_failure?: TaskEventResponse | null
+}
+
 export interface AppConfigSnapshotDTO {
   task_issue_summary: TaskIssueConfigDTO
   data_retention: DataRetentionConfigDTO
@@ -372,6 +388,24 @@ class ApiService {
   async getRecentFailedTasks(params?: { hours?: number; limit?: number; include_retried?: boolean }): Promise<TaskEventResponse[]> {
     const response = await this.api.request({
       path: '/api/tasks/failed/recent',
+      method: 'GET',
+      query: params
+    })
+    return response.data
+  }
+
+  async getRecentFailureGroups(params?: { hours?: number; limit?: number; include_retried?: boolean }): Promise<FailureGroupSummaryResponse[]> {
+    const response = await this.api.request({
+      path: '/api/tasks/failed/groups/recent',
+      method: 'GET',
+      query: params
+    })
+    return response.data
+  }
+
+  async getFailureGroupEvents(groupId: string, params?: { limit?: number }): Promise<TaskEventResponse[]> {
+    const response = await this.api.request({
+      path: `/api/tasks/failed/groups/${encodeURIComponent(groupId)}`,
       method: 'GET',
       query: params
     })

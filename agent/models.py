@@ -29,6 +29,9 @@ class TaskEvent(BaseModel):
     runtime: Optional[float] = None
     exception: Optional[str] = None
     traceback: Optional[str] = None
+    failure_fingerprint: Optional[str] = None
+    failure_group_id: Optional[str] = None
+    environment: Optional[str] = None
     retry_of: Optional['TaskEvent'] = None
     retried_by: List['TaskEvent'] = Field(default_factory=list)
     is_retry: bool = False
@@ -131,6 +134,29 @@ class TaskEvent(BaseModel):
 
 
 TaskEvent.model_rebuild()
+
+class FailureGroupSummary(BaseModel):
+    id: str
+    fingerprint: str
+    task_name: str
+    exception_fingerprint: Optional[str] = None
+    queue: Optional[str] = None
+    hostname: Optional[str] = None
+    environment: Optional[str] = None
+    first_seen: datetime
+    last_seen: datetime
+    failure_count: int = 0
+    last_task_id: str
+    recurrence_rate_per_hour: float = 0.0
+    latest_failure: Optional[TaskEvent] = None
+
+    model_config = {
+        'from_attributes': True,
+        'json_encoders': {
+            datetime: lambda v: v.isoformat() if v else None
+        }
+    }
+
 
 
 class StepDefinition(BaseModel):

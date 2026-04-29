@@ -72,6 +72,9 @@ class TaskEventDB(Base):
     runtime = Column(Float)
     exception = Column(Text)
     traceback = Column(Text)
+    failure_fingerprint = Column(String(64), index=True)
+    failure_group_id = Column(String(64), index=True)
+    environment = Column(String(255), index=True)
     
     retry_of = Column(String(255), index=True)
     retried_by = Column(Text)  # JSON serialized list
@@ -118,6 +121,9 @@ class TaskEventDB(Base):
             'runtime': self.runtime,
             'exception': self.exception,
             'traceback': self.traceback,
+            'failure_fingerprint': self.failure_fingerprint,
+            'failure_group_id': self.failure_group_id,
+            'environment': self.environment,
             'retry_of': self.retry_of,
             'retried_by': json.loads(self.retried_by) if self.retried_by else [],
             'is_retry': self.is_retry,
@@ -242,6 +248,9 @@ class TaskLatestDB(Base):
     runtime = Column(Float)
     exception = Column(Text)
     traceback = Column(Text)
+    failure_fingerprint = Column(String(64), index=True)
+    failure_group_id = Column(String(64), index=True)
+    environment = Column(String(255), index=True)
 
     retry_of = Column(String(255), index=True)
     retried_by = Column(Text)  # JSON serialized list of task IDs
@@ -260,7 +269,45 @@ class TaskLatestDB(Base):
         Index('idx_task_latest_hostname_ts', 'hostname', 'timestamp'),
         Index('idx_task_latest_routing_ts', 'routing_key', 'timestamp'),
         Index('idx_task_latest_event_type_ts', 'event_type', 'timestamp'),
+        Index('idx_task_latest_failure_group_ts', 'failure_group_id', 'timestamp'),
     )
+
+
+class FailureGroupDB(Base):
+    """Durable incident-style grouping for failed tasks."""
+    __tablename__ = 'failure_groups'
+
+    id = Column(String(64), primary_key=True)
+    fingerprint = Column(String(64), nullable=False, index=True)
+    task_name = Column(String(255), nullable=False, index=True)
+    exception_fingerprint = Column(Text)
+    queue = Column(String(255), index=True)
+    hostname = Column(String(255), index=True)
+    environment = Column(String(255), index=True)
+    first_seen = Column(DateTime(timezone=True), nullable=False)
+    last_seen = Column(DateTime(timezone=True), nullable=False, index=True)
+    failure_count = Column(Integer, default=1, nullable=False)
+    last_task_id = Column(String(255), nullable=False, index=True)
+
+    __table_args__ = (
+        Index('idx_failure_groups_last_seen', 'last_seen'),
+        Index('idx_failure_groups_task_name', 'task_name', 'last_seen'),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'id': self.id,
+            'fingerprint': self.fingerprint,
+            'task_name': self.task_name,
+            'exception_fingerprint': self.exception_fingerprint,
+            'queue': self.queue,
+            'hostname': self.hostname,
+            'environment': self.environment,
+            'first_seen': ensure_utc_isoformat(self.first_seen),
+            'last_seen': ensure_utc_isoformat(self.last_seen),
+            'failure_count': self.failure_count,
+            'last_task_id': self.last_task_id,
+        }
 
 class TaskResolutionDB(Base):
     """Tracks manual resolution state per task."""
