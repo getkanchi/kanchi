@@ -59,8 +59,10 @@ async def lifespan(app: FastAPI):
         app_state.health_monitor.stop()
     if app_state.connection_manager:
         await app_state.connection_manager.stop_background_broadcaster()
+    if app_state.monitor_instance:
+        app_state.monitor_instance.stop()
     if app_state.monitor_thread and app_state.monitor_thread.is_alive():
-        logger.info("Shutting down monitor thread")
+        logger.info("Monitor thread signalled to stop (daemon; exits with process)")
 
 
 def create_app() -> FastAPI:

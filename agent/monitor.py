@@ -1,6 +1,7 @@
 """Simplified Celery event monitor."""
 
 import logging
+import time
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Optional
 
@@ -12,6 +13,10 @@ from constants import EventType
 from config import mask_sensitive_url
 
 logger = logging.getLogger(__name__)
+
+_RECONNECT_BASE_DELAY = 1    # seconds
+_RECONNECT_MAX_DELAY  = 60   # seconds
+_RECONNECT_MULTIPLIER = 2
 
 
 class CeleryEventMonitor:
@@ -44,6 +49,7 @@ class CeleryEventMonitor:
         self.progress_callback: Optional[Callable] = None
         self.steps_callback: Optional[Callable] = None
         self.workers: Dict[str, Dict[str, Any]] = {}
+        self._stop = False
 
     def set_task_callback(self, callback: Callable[[TaskEvent], None]):
         """Set callback for task events."""
@@ -166,42 +172,82 @@ class CeleryEventMonitor:
         """Get current worker states."""
         return self.workers.copy()
 
+    def stop(self):
+        """Signal the monitor loop to stop reconnecting and exit cleanly."""
+        self._stop = True
+
+    def _run_once(self):
+        """Open one broker connection and capture events until it closes."""
+        with self.app.connection() as connection:
+            handlers = {
+                EventType.TASK_SENT.value: self._handle_task_event,
+                EventType.TASK_RECEIVED.value: self._handle_task_event,
+                EventType.TASK_STARTED.value: self._handle_task_event,
+                EventType.TASK_SUCCEEDED.value: self._handle_task_event,
+                EventType.TASK_FAILED.value: self._handle_task_event,
+                EventType.TASK_RETRIED.value: self._handle_task_event,
+                EventType.TASK_REVOKED.value: self._handle_task_event,
+                EventType.WORKER_ONLINE.value: lambda event: self._handle_worker_event(
+                    event, EventType.WORKER_ONLINE.value
+                ),
+                EventType.WORKER_OFFLINE.value: lambda event: self._handle_worker_event(
+                    event, EventType.WORKER_OFFLINE.value
+                ),
+                EventType.WORKER_HEARTBEAT.value: lambda event: self._handle_worker_event(
+                    event, EventType.WORKER_HEARTBEAT.value
+                ),
+                EventType.TASK_PROGRESS.value: self._handle_progress_event,
+                EventType.TASK_STEPS.value: self._handle_steps_event,
+            }
+            recv = self.app.events.Receiver(connection, handlers=handlers)
+            logger.info("Monitoring Celery events...")
+            recv.capture(limit=None, timeout=None, wakeup=True)
+
     def start_monitoring(self):
-        """Start monitoring Celery events."""
-        logger.info(f"Starting Celery event monitor - Broker: {mask_sensitive_url(self.broker_url)}")
+        """Start monitoring Celery events, reconnecting automatically on broker disconnects.
 
-        self.state = self.app.events.State()
+        Uses exponential backoff (1s → 60s) between reconnect attempts so that
+        a flapping broker does not spin the thread at full speed.  The loop only
+        exits when ``stop()`` is called or a ``KeyboardInterrupt`` is received.
+        """
+        logger.info(
+            "Starting Celery event monitor - Broker: %s",
+            mask_sensitive_url(self.broker_url),
+        )
+        delay = _RECONNECT_BASE_DELAY
 
-        try:
-            with self.app.connection() as connection:
-                handlers = {
-                    EventType.TASK_SENT.value: self._handle_task_event,
-                    EventType.TASK_RECEIVED.value: self._handle_task_event,
-                    EventType.TASK_STARTED.value: self._handle_task_event,
-                    EventType.TASK_SUCCEEDED.value: self._handle_task_event,
-                    EventType.TASK_FAILED.value: self._handle_task_event,
-                    EventType.TASK_RETRIED.value: self._handle_task_event,
-                    EventType.TASK_REVOKED.value: self._handle_task_event,
-                    EventType.WORKER_ONLINE.value: lambda event: self._handle_worker_event(
-                        event, EventType.WORKER_ONLINE.value
-                    ),
-                    EventType.WORKER_OFFLINE.value: lambda event: self._handle_worker_event(
-                        event, EventType.WORKER_OFFLINE.value
-                    ),
-                    EventType.WORKER_HEARTBEAT.value: lambda event: self._handle_worker_event(
-                        event, EventType.WORKER_HEARTBEAT.value
-                    ),
-                    EventType.TASK_PROGRESS.value: self._handle_progress_event,
-                    EventType.TASK_STEPS.value: self._handle_steps_event,
-                }
+        while not self._stop:
+            # Fresh State on every (re)connect: stale in-memory worker data is
+            # discarded and rebuilt from the first heartbeats after reconnection.
+            self.state = self.app.events.State()
+            try:
+                self._run_once()
+                # recv.capture() returns without raising only when the broker
+                # closed the connection cleanly (e.g. graceful broker restart).
+                # Reconnect just as we would for an error.
+                if not self._stop:
+                    logger.warning(
+                        "Event stream closed by broker; reconnecting in %ds...",
+                        _RECONNECT_BASE_DELAY,
+                    )
+            except KeyboardInterrupt:
+                logger.info("Monitoring stopped by user")
+                break
+            except Exception as exc:
+                if self._stop:
+                    break
+                logger.error(
+                    "Error in event monitoring, reconnecting in %ds: %s",
+                    delay,
+                    exc,
+                )
+            else:
+                # Clean close: reset backoff so the next reconnect is fast.
+                delay = _RECONNECT_BASE_DELAY
+                if not self._stop:
+                    time.sleep(delay)
+                continue
 
-                recv = self.app.events.Receiver(connection, handlers=handlers)
-
-                logger.info("Monitoring Celery events... Press Ctrl+C to stop")
-                recv.capture(limit=None, timeout=None, wakeup=True)
-
-        except KeyboardInterrupt:
-            logger.info("Monitoring stopped by user")
-        except Exception as e:
-            logger.error(f"Error in event monitoring: {e}", exc_info=True)
-            raise
+            if not self._stop:
+                time.sleep(delay)
+                delay = min(delay * _RECONNECT_MULTIPLIER, _RECONNECT_MAX_DELAY)
