@@ -334,7 +334,7 @@ import PythonValueViewer from '~/components/PythonValueViewer.vue'
 import { IconButton, Select } from '~/components/common'
 import TaskDetailsSection from '~/components/common/TaskDetailsSection.vue'
 import { ChevronDown, ChevronRight, Loader2, AlertTriangle, ChevronsLeft, ChevronLeft, ChevronsRight, CheckCircle2 } from 'lucide-vue-next'
-import type { TaskEventResponse } from '~/services/apiClient'
+import type { TaskEventResponse, TaskFailureNoveltyResponse } from '~/services/apiClient'
 import { useTaskStatus } from '~/composables/useTaskStatus'
 import type { ParsedFilter } from '~/composables/useFilterParser'
 
@@ -456,6 +456,8 @@ const matchesSearch = (task: TaskEventResponse) => {
   )
 }
 
+const getFailureNovelty = (task: TaskEventResponse) => (task as TaskFailureNoveltyResponse).failure_novelty_status ?? ''
+
 const getFieldCandidates = (task: TaskEventResponse, field: string): string[] => {
   switch (field) {
     case 'state': {
@@ -470,6 +472,8 @@ const getFieldCandidates = (task: TaskEventResponse, field: string): string[] =>
       return [task.routing_key ?? 'default']
     case 'id':
       return [task.task_id ?? '']
+    case 'novelty':
+      return [getFailureNovelty(task)]
     default:
       return ['']
   }

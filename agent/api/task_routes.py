@@ -160,6 +160,21 @@ def create_router(app_state) -> APIRouter:
         ),
         limit: int = 50,
         include_retried: bool = False,
+        novelty_status: Optional[str] = Query(
+            default=None,
+            description="Optional novelty filter: new, recurring, or regressed"
+        ),
+        novelty_lookback_hours: Optional[int] = Query(
+            default=None,
+            ge=1,
+            le=720,
+            description="How far back to inspect matching failure fingerprints"
+        ),
+        sort_by: Optional[str] = Query(
+            default=None,
+            description="Optional sort field. Use novelty to prioritize new and regressed failures."
+        ),
+        sort_order: str = Query(default="desc", pattern="^(asc|desc)$"),
         session: Session = Depends(get_db),
         active_env = Depends(get_active_env)
     ):
@@ -170,7 +185,11 @@ def create_router(app_state) -> APIRouter:
         failed_tasks = task_service.get_recent_failed_tasks(
             hours=lookback_hours,
             limit=limit,
-            exclude_retried=not include_retried
+            exclude_retried=not include_retried,
+            novelty_status=novelty_status,
+            novelty_lookback_hours=novelty_lookback_hours or config_service.get_task_issue_novelty_lookback_hours(),
+            sort_by=sort_by,
+            sort_order=sort_order,
         )
         return failed_tasks
 

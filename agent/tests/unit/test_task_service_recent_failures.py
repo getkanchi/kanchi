@@ -89,6 +89,86 @@ class TestTaskServiceRecentFailedTasks(DatabaseTestCase):
         self.assertEqual(len(ordered_ids), 2)
         self.assertEqual(ordered_ids, ["failed-0", "failed-1"])
 
+    def test_classifies_new_recurring_and_regressed_failures(self):
+        base_exception = "ValueError: boom"
+
+        self.create_task_event_db(
+            task_id="prior-recurring",
+            task_name="tasks.example",
+            event_type="task-failed",
+            timestamp=self.now - timedelta(hours=30),
+            exception=base_exception,
+        )
+        self.create_task_event_db(
+            task_id="prior-regressed",
+            task_name="tasks.other",
+            event_type="task-failed",
+            timestamp=self.now - timedelta(hours=28),
+            exception="TimeoutError: upstream",
+        )
+        self.service.set_task_resolution("prior-regressed", resolved_by="tester")
+        self.create_task_event_db(
+            task_id="current-new",
+            task_name="tasks.brand_new",
+            event_type="task-failed",
+            timestamp=self.now - timedelta(minutes=20),
+            exception="LookupError: never seen",
+        )
+        self.create_task_event_db(
+            task_id="current-recurring",
+            task_name="tasks.example",
+            event_type="task-failed",
+            timestamp=self.now - timedelta(minutes=10),
+            exception=base_exception,
+        )
+        self.create_task_event_db(
+            task_id="current-regressed",
+            task_name="tasks.other",
+            event_type="task-failed",
+            timestamp=self.now - timedelta(minutes=5),
+            exception="TimeoutError: upstream",
+        )
+
+        results = self.service.get_recent_failed_tasks(hours=24, novelty_lookback_hours=168, sort_by="novelty")
+        by_id = {task.task_id: task for task in results}
+
+        self.assertEqual(by_id["current-new"].failure_novelty_status, "new")
+        self.assertEqual(by_id["current-recurring"].failure_novelty_status, "recurring")
+        self.assertEqual(by_id["current-regressed"].failure_novelty_status, "regressed")
+        self.assertEqual(results[0].task_id, "current-new")
+        self.assertEqual(results[1].task_id, "current-regressed")
+
+    def test_filters_by_novelty_status(self):
+        self.create_task_event_db(
+            task_id="prior-known",
+            task_name="tasks.example",
+            event_type="task-failed",
+            timestamp=self.now - timedelta(hours=30),
+            exception="RuntimeError: repeated",
+        )
+        self.create_task_event_db(
+            task_id="current-known",
+            task_name="tasks.example",
+            event_type="task-failed",
+            timestamp=self.now - timedelta(minutes=15),
+            exception="RuntimeError: repeated",
+        )
+        self.create_task_event_db(
+            task_id="current-new",
+            task_name="tasks.unique",
+            event_type="task-failed",
+            timestamp=self.now - timedelta(minutes=5),
+            exception="KeyError: fresh",
+        )
+
+        results = self.service.get_recent_failed_tasks(
+            hours=24,
+            novelty_status="new",
+            novelty_lookback_hours=168,
+        )
+
+        self.assertEqual([task.task_id for task in results], ["current-new"])
+
 
 if __name__ == "__main__":
     unittest.main()

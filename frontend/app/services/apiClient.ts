@@ -8,6 +8,17 @@ import type {
   WorkerInfo
 } from '../src/types/api'
 
+export type FailureNoveltyStatus = 'new' | 'recurring' | 'regressed'
+export type TaskFailureNoveltyResponse = TaskEventResponse & {
+  failure_fingerprint?: string | null
+  failure_novelty_status?: FailureNoveltyStatus | null
+  failure_novelty_rank?: number | null
+  failure_first_seen_at?: string | null
+  failure_last_seen_at?: string | null
+  failure_occurrence_count?: number | null
+  known_failure?: boolean
+}
+
 export type AuthProvider = 'google' | 'github'
 
 export interface UserInfoDTO {
@@ -369,7 +380,15 @@ class ApiService {
     return response.data
   }
 
-  async getRecentFailedTasks(params?: { hours?: number; limit?: number; include_retried?: boolean }): Promise<TaskEventResponse[]> {
+  async getRecentFailedTasks(params?: {
+    hours?: number
+    limit?: number
+    include_retried?: boolean
+    novelty_status?: FailureNoveltyStatus
+    novelty_lookback_hours?: number
+    sort_by?: 'novelty'
+    sort_order?: 'asc' | 'desc'
+  }): Promise<TaskFailureNoveltyResponse[]> {
     const response = await this.api.request({
       path: '/api/tasks/failed/recent',
       method: 'GET',

@@ -11,6 +11,7 @@ from models import AppSetting, AppSettingUpdate, AppConfigSnapshot, TaskIssueCon
 logger = logging.getLogger(__name__)
 
 TASK_ISSUE_LOOKBACK_KEY = "task_issue_summary.lookback_hours"
+TASK_ISSUE_NOVELTY_LOOKBACK_KEY = "task_issue_summary.novelty_lookback_hours"
 RETENTION_TASK_SUCCESSFUL_DAYS_KEY = "data_retention.task_successful_days"
 RETENTION_TASK_UNSUCCESSFUL_DAYS_KEY = "data_retention.task_unsuccessful_days"
 RETENTION_WORKER_EVENTS_DAYS_KEY = "data_retention.worker_events_days"
@@ -81,6 +82,15 @@ DEFAULT_SETTING_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "category": "data_retention",
         "min": 1,
         "max": 3650,
+    },
+    TASK_ISSUE_NOVELTY_LOOKBACK_KEY: {
+        "default": 168,
+        "value_type": "number",
+        "label": "Failure novelty lookback (hours)",
+        "description": "How far back Kanchi looks when deciding whether a failure fingerprint is new, recurring, or regressed.",
+        "category": "task_issue_summary",
+        "min": 1,
+        "max": 720,
     },
 }
 
@@ -285,6 +295,9 @@ class AppConfigService:
         if max_value is not None:
             numeric_value = min(max_value, numeric_value)
         return numeric_value
+
+    def get_task_issue_novelty_lookback_hours(self) -> int:
+        return self._get_bounded_number_setting(TASK_ISSUE_NOVELTY_LOOKBACK_KEY)
 
     def get_data_retention_config(self) -> DataRetentionConfig:
         """Return normalized data retention configuration."""

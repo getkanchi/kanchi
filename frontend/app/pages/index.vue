@@ -41,6 +41,15 @@
           @item-action="handleFailedRetryAction"
           @lookback-change="handleLookbackChange"
         >
+          <template #meta-badges="{ task }">
+            <Badge
+              v-if="failureNoveltyLabel(task)"
+              :variant="failureNoveltyBadgeVariant(task)"
+              class="text-[11px] px-2 py-0.5 capitalize"
+            >
+              {{ failureNoveltyLabel(task) }}
+            </Badge>
+          </template>
           <template #actions="{ task }">
 
             <div class="flex items-center gap-2">
@@ -218,7 +227,7 @@ import type { ParsedFilter } from '~/composables/useFilterParser'
 import type { TimeRange } from '~/components/TimeRangeFilter.vue'
 import { useUrlQuerySync } from '~/composables/useUrlQuerySync'
 import type { UrlQueryState } from '~/composables/useUrlQuerySync'
-import type { TaskEventResponse } from '~/services/apiClient'
+import type { TaskEventResponse, TaskFailureNoveltyResponse } from '~/services/apiClient'
 import {ChevronRight, RefreshCw, Check, Loader2} from 'lucide-vue-next'
 import {IconButton} from "~/components/common";
 
@@ -319,6 +328,23 @@ const retryLoadingIds = computed(() => {
 })
 
 const resolutionLoadingIds = ref<string[]>([])
+
+const failureNoveltyLabel = (task: TaskEventResponse) => {
+  return (task as TaskFailureNoveltyResponse).failure_novelty_status ?? ''
+}
+
+const failureNoveltyBadgeVariant = (task: TaskEventResponse) => {
+  switch (failureNoveltyLabel(task)) {
+    case 'new':
+      return 'destructive'
+    case 'regressed':
+      return 'pending'
+    case 'recurring':
+      return 'secondary'
+    default:
+      return 'outline'
+  }
+}
 
 const isTaskResolved = (task: TaskEventResponse) => {
   return Boolean((task as TaskEventResponse & { resolved?: boolean }).resolved)
