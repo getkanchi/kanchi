@@ -147,72 +147,8 @@ def create_router(app_state) -> APIRouter:
         active_env = Depends(get_active_env)
     ):
         """Get tasks that have been marked as orphaned and NOT yet retried."""
-        from sqlalchemy import func, and_, or_
-        from database import RetryRelationshipDB
-
-        FINAL_STATES = {'task-succeeded', 'task-failed', 'task-revoked', 'task-rejected', 'task-retried'}
-
-        latest_orphaned_subquery = session.query(
-            TaskEventDB.task_id,
-            func.max(TaskEventDB.timestamp).label('max_timestamp')
-        ).filter(
-            TaskEventDB.is_orphan == True
-        )
-
-        if active_env:
-            env_conditions = []
-
-            if active_env.queue_patterns:
-                queue_conditions = []
-                for pattern in active_env.queue_patterns:
-                    sql_pattern = pattern.replace('*', '%').replace('?', '_')
-                    queue_conditions.append(TaskEventDB.queue.like(sql_pattern))
-                if queue_conditions:
-                    env_conditions.append(or_(*queue_conditions))
-
-            if active_env.worker_patterns:
-                worker_conditions = []
-                for pattern in active_env.worker_patterns:
-                    sql_pattern = pattern.replace('*', '%').replace('?', '_')
-                    worker_conditions.append(TaskEventDB.hostname.like(sql_pattern))
-                if worker_conditions:
-                    env_conditions.append(or_(*worker_conditions))
-
-            if env_conditions:
-                latest_orphaned_subquery = latest_orphaned_subquery.filter(or_(*env_conditions))
-
-        latest_orphaned_subquery = latest_orphaned_subquery.group_by(TaskEventDB.task_id).subquery()
-
-        orphaned_events_db = session.query(TaskEventDB).join(
-            latest_orphaned_subquery,
-            and_(
-                TaskEventDB.task_id == latest_orphaned_subquery.c.task_id,
-                TaskEventDB.timestamp == latest_orphaned_subquery.c.max_timestamp
-            )
-        ).order_by(TaskEventDB.orphaned_at.desc()).all()
-
-        task_service = TaskService(session)
-        orphaned_events = [task_service._db_to_task_event(event_db) for event_db in orphaned_events_db]
-        task_service._bulk_enrich_with_retry_info(orphaned_events)
-        task_service._attach_resolution_info(orphaned_events)
-
-        unretried_orphaned = []
-        for event in orphaned_events:
-            # Check if task has been retried
-            retry_rel = session.query(RetryRelationshipDB).filter_by(task_id=event.task_id).first()
-            if retry_rel and retry_rel.retry_chain and len(retry_rel.retry_chain) > 0:
-                continue
-
-            # Check if task has any final state events
-            has_final_state = session.query(TaskEventDB).filter(
-                TaskEventDB.task_id == event.task_id,
-                TaskEventDB.event_type.in_(FINAL_STATES)
-            ).first() is not None
-
-            if not has_final_state:
-                unretried_orphaned.append(event)
-
-        return unretried_orphaned
+        task_service = TaskService(session, active_env=active_env)
+        return task_service.get_unretried_orphaned_tasks()
 
     @router.get("/tasks/failed/recent", response_model=List[TaskEvent])
     async def get_recent_failed_tasks(

@@ -206,6 +206,89 @@ class TaskService:
 
         return events
 
+    def get_unretried_orphaned_tasks(self) -> List[TaskEvent]:
+        """Get orphaned tasks that have not been retried and have no final-state event."""
+        FINAL_STATES = {
+            'task-succeeded', 'task-failed', 'task-revoked',
+            'task-rejected', 'task-retried',
+        }
+
+        # Latest orphaned event per task (same subquery as before, now in service)
+        latest_orphaned_sq = (
+            self.session.query(
+                TaskEventDB.task_id,
+                func.max(TaskEventDB.timestamp).label('max_timestamp'),
+            )
+            .filter(TaskEventDB.is_orphan == True)
+        )
+
+        if self.active_env:
+            env_conditions = []
+            if self.active_env.queue_patterns:
+                queue_conditions = [
+                    TaskEventDB.queue.like(p.replace('*', '%').replace('?', '_'))
+                    for p in self.active_env.queue_patterns
+                ]
+                env_conditions.append(or_(*queue_conditions))
+            if self.active_env.worker_patterns:
+                worker_conditions = [
+                    TaskEventDB.hostname.like(p.replace('*', '%').replace('?', '_'))
+                    for p in self.active_env.worker_patterns
+                ]
+                env_conditions.append(or_(*worker_conditions))
+            if env_conditions:
+                latest_orphaned_sq = latest_orphaned_sq.filter(or_(*env_conditions))
+
+        latest_orphaned_sq = latest_orphaned_sq.group_by(TaskEventDB.task_id).subquery()
+
+        orphaned_events_db = (
+            self.session.query(TaskEventDB)
+            .join(
+                latest_orphaned_sq,
+                and_(
+                    TaskEventDB.task_id == latest_orphaned_sq.c.task_id,
+                    TaskEventDB.timestamp == latest_orphaned_sq.c.max_timestamp,
+                ),
+            )
+            .order_by(TaskEventDB.orphaned_at.desc())
+            .all()
+        )
+
+        orphaned_events = [self._db_to_task_event(e) for e in orphaned_events_db]
+        self._bulk_enrich_with_retry_info(orphaned_events)
+        self._attach_resolution_info(orphaned_events)
+
+        if not orphaned_events:
+            return []
+
+        orphaned_task_ids = [e.task_id for e in orphaned_events]
+
+        # Batch query 1: retry relationships for all orphaned tasks at once
+        retry_rels = (
+            self.session.query(RetryRelationshipDB)
+            .filter(RetryRelationshipDB.task_id.in_(orphaned_task_ids))
+            .all()
+        )
+        retry_map = {r.task_id: r for r in retry_rels}
+
+        # Batch query 2: which tasks have any final-state event
+        tasks_with_final_state = {
+            row[0]
+            for row in self.session.query(TaskEventDB.task_id)
+            .filter(
+                TaskEventDB.task_id.in_(orphaned_task_ids),
+                TaskEventDB.event_type.in_(list(FINAL_STATES)),
+            )
+            .distinct()
+            .all()
+        }
+
+        return [
+            event for event in orphaned_events
+            if not (retry_map.get(event.task_id) and retry_map[event.task_id].retry_chain)
+            and event.task_id not in tasks_with_final_state
+        ]
+
     def get_recent_failed_tasks(
         self,
         hours: int = 24,
@@ -1037,9 +1120,9 @@ class TaskService:
             query, filters, start_time, end_time,
             filter_state, filter_worker, filter_task, filter_queue, search
         )
-        query = self._apply_sorting(query, sort_by, sort_order)
+        total_events = query.with_entities(func.count(TaskEventDB.id)).scalar()
 
-        total_events = query.count()
+        query = self._apply_sorting(query, sort_by, sort_order)
         start_idx = page * limit
         events_db = query.offset(start_idx).limit(limit).all()
 
@@ -1103,9 +1186,9 @@ class TaskService:
             filter_state, filter_worker, filter_task, filter_queue, search,
             model=TaskLatestDB
         )
-        query = self._apply_sorting(query, sort_by, sort_order, model=TaskLatestDB)
+        total_events = query.with_entities(func.count(TaskLatestDB.task_id)).scalar()
 
-        total_events = query.count()
+        query = self._apply_sorting(query, sort_by, sort_order, model=TaskLatestDB)
         start_idx = page * limit
         events_db = query.offset(start_idx).limit(limit).all()
 
