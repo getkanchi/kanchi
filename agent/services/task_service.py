@@ -52,7 +52,9 @@ class TaskService:
             self._log_payload_truncation(task_event, args, kwargs, task_event.result)
 
             # Ensure the in-memory event (used for WebSocket broadcast) carries the
-            # inherited args/kwargs so downstream consumers don't lose them.
+            # inherited data so downstream consumers don't lose it.
+            task_event.routing_key = routing_key
+            task_event.queue = queue
             task_event.args = args
             task_event.kwargs = kwargs
 
@@ -493,7 +495,12 @@ class TaskService:
 
     def _inherit_queue_info(self, task_event: TaskEvent) -> Tuple[str, str]:
         """
-        Inherit queue information from previous task-sent event if not present.
+        Inherit routing metadata from earlier events in the same task lifecycle.
+
+        Celery does not guarantee that every task event repeats the original queue
+        and routing information. Later lifecycle events such as task-succeeded may
+        omit queue or fall back to routing_key="default". In those cases we keep
+        the most recent meaningful routing metadata already seen for that task.
 
         Args:
             task_event: Task event to process
@@ -504,16 +511,36 @@ class TaskService:
         routing_key = task_event.routing_key
         queue = task_event.queue
 
-        if not routing_key or routing_key == 'default':
-            existing_sent_event = (
-                self.session.query(TaskEventDB)
-                .filter_by(task_id=task_event.task_id, event_type=EventType.TASK_SENT.value)
-                .first()
-            )
+        routing_key_missing = not routing_key or routing_key == 'default'
+        queue_missing = not queue or queue == 'default'
 
-            if existing_sent_event and existing_sent_event.routing_key:
-                routing_key = existing_sent_event.routing_key
-                queue = existing_sent_event.queue
+        if not routing_key_missing and not queue_missing:
+            return routing_key, queue
+
+        existing_event = (
+            self.session.query(TaskEventDB)
+            .filter(TaskEventDB.task_id == task_event.task_id)
+            .filter(
+                or_(
+                    TaskEventDB.queue.isnot(None),
+                    and_(
+                        TaskEventDB.routing_key.isnot(None),
+                        TaskEventDB.routing_key != 'default'
+                    )
+                )
+            )
+            .order_by(TaskEventDB.timestamp.desc(), TaskEventDB.id.desc())
+            .first()
+        )
+
+        if not existing_event:
+            return routing_key, queue
+
+        if routing_key_missing and existing_event.routing_key:
+            routing_key = existing_event.routing_key
+
+        if queue_missing and existing_event.queue:
+            queue = existing_event.queue
 
         return routing_key, queue
 
