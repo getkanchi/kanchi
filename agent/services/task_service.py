@@ -12,7 +12,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 
 from database import TaskEventDB, RetryRelationshipDB, TaskLatestDB, TaskResolutionDB
-from models import TaskEvent
+from models import TaskEvent, IncidentSummary
 from constants import TaskState, EventType, STATE_TO_EVENT_MAP, ACTIVE_EVENT_TYPES
 from services.utils import EnvironmentFilter, GenericFilter, parse_filter_string
 from utils.payload_sanitizer import find_placeholder_paths
@@ -357,6 +357,143 @@ class TaskService:
         self._attach_resolution_info(events)
 
         return events
+
+    def get_incident_summaries(
+        self,
+        hours: int = 24,
+        limit: int = 12
+    ) -> List[IncidentSummary]:
+        """Aggregate current failed tasks into ranked dashboard incident summaries."""
+        since = datetime.now(timezone.utc) - timedelta(hours=hours)
+
+        latest_subquery = (
+            self.session.query(
+                TaskEventDB.task_id,
+                func.max(TaskEventDB.timestamp).label('max_timestamp')
+            )
+            .filter(TaskEventDB.timestamp >= since)
+        )
+
+        env_filtered_query = self.session.query(TaskEventDB.task_id)
+        env_filtered_query = EnvironmentFilter.apply(env_filtered_query, self.active_env)
+        env_conditions = env_filtered_query.whereclause
+
+        if env_conditions is not None:
+            latest_subquery = latest_subquery.filter(env_conditions)
+
+        latest_subquery = latest_subquery.group_by(TaskEventDB.task_id).subquery()
+
+        failed_events_db = (
+            self.session.query(TaskEventDB)
+            .join(
+                latest_subquery,
+                and_(
+                    TaskEventDB.task_id == latest_subquery.c.task_id,
+                    TaskEventDB.timestamp == latest_subquery.c.max_timestamp
+                )
+            )
+            .filter(
+                TaskEventDB.event_type == EventType.TASK_FAILED.value,
+                TaskEventDB.timestamp >= since
+            )
+            .order_by(TaskEventDB.timestamp.desc())
+            .all()
+        )
+
+        if not failed_events_db:
+            return []
+
+        resolved_task_ids = {
+            row[0]
+            for row in self.session.query(TaskResolutionDB.task_id)
+            .filter(TaskResolutionDB.task_id.in_([event.task_id for event in failed_events_db]))
+            .all()
+        }
+
+        now = datetime.now(timezone.utc)
+        recent_threshold = now - timedelta(hours=1)
+        grouped: Dict[str, Dict[str, Any]] = {}
+
+        for event in failed_events_db:
+            group_key = event.task_name or event.routing_key or event.task_id
+            timestamp = _ensure_utc(event.timestamp) or now
+            retried_by = json.loads(event.retried_by) if event.retried_by else []
+            retry_count = int(event.retry_count or 0)
+            has_retry_activity = bool(event.has_retries or retry_count > 0 or retried_by)
+            entry = grouped.setdefault(group_key, {
+                'incident_key': group_key,
+                'task_name': event.task_name or event.routing_key or 'unknown',
+                'failure_count': 0,
+                'unresolved_count': 0,
+                'retried_task_count': 0,
+                'retry_attempt_count': 0,
+                'affected_workers': set(),
+                'first_seen': timestamp,
+                'last_seen': timestamp,
+                'latest_task_id': event.task_id,
+                'latest_exception': event.exception,
+                'recent_failure_count': 0,
+            })
+
+            entry['failure_count'] += 1
+            if event.task_id not in resolved_task_ids:
+                entry['unresolved_count'] += 1
+            if has_retry_activity:
+                entry['retried_task_count'] += 1
+                entry['retry_attempt_count'] += max(retry_count, len(retried_by), 1)
+            if event.hostname:
+                entry['affected_workers'].add(event.hostname)
+            if timestamp < entry['first_seen']:
+                entry['first_seen'] = timestamp
+            if timestamp > entry['last_seen']:
+                entry['last_seen'] = timestamp
+                entry['latest_task_id'] = event.task_id
+                entry['latest_exception'] = event.exception
+            if timestamp >= recent_threshold:
+                entry['recent_failure_count'] += 1
+
+        summaries: List[IncidentSummary] = []
+        for entry in grouped.values():
+            worker_count = len(entry['affected_workers'])
+            age_minutes = max(int((now - entry['first_seen']).total_seconds() // 60), 0)
+            urgency = (
+                entry['unresolved_count'] * 20
+                + entry['recent_failure_count'] * 8
+                + worker_count * 6
+                + entry['retried_task_count'] * 4
+                + min(age_minutes // 30, 8) * 3
+            )
+            if entry['recent_failure_count'] >= 4 or entry['unresolved_count'] >= 5 or urgency >= 85:
+                severity = 'critical'
+            elif entry['unresolved_count'] >= 3 or urgency >= 40:
+                severity = 'high'
+            elif entry['unresolved_count'] >= 2 or urgency >= 20:
+                severity = 'medium'
+            else:
+                severity = 'low'
+
+            latest_status = 'recovering' if entry['retried_task_count'] > 0 else 'active'
+            summaries.append(IncidentSummary(
+                incident_key=entry['incident_key'],
+                task_name=entry['task_name'],
+                failure_count=entry['failure_count'],
+                unresolved_count=entry['unresolved_count'],
+                retried_task_count=entry['retried_task_count'],
+                retry_attempt_count=entry['retry_attempt_count'],
+                affected_workers=sorted(entry['affected_workers']),
+                worker_count=worker_count,
+                first_seen=entry['first_seen'],
+                last_seen=entry['last_seen'],
+                latest_task_id=entry['latest_task_id'],
+                latest_exception=entry['latest_exception'],
+                latest_status=latest_status,
+                severity=severity,
+                urgency_score=urgency,
+                recent_failure_count=entry['recent_failure_count'],
+            ))
+
+        summaries.sort(key=lambda summary: (-summary.urgency_score, -summary.last_seen.timestamp(), summary.task_name))
+        return summaries[:limit] if limit and limit > 0 else summaries
 
     def create_retry_relationship(
         self,

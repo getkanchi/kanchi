@@ -103,6 +103,25 @@ export interface TaskProgressSnapshotResponse {
   history: TaskProgressEventResponse[]
 }
 
+export interface IncidentSummaryDTO {
+  incident_key: string
+  task_name: string
+  failure_count: number
+  unresolved_count: number
+  retried_task_count: number
+  retry_attempt_count: number
+  affected_workers: string[]
+  worker_count: number
+  first_seen: string
+  last_seen: string
+  latest_task_id: string
+  latest_exception?: string | null
+  latest_status: 'active' | 'recovering'
+  severity: 'low' | 'medium' | 'high' | 'critical'
+  urgency_score: number
+  recent_failure_count: number
+}
+
 class ApiService {
   private api: Api<unknown>
 
@@ -333,6 +352,15 @@ class ApiService {
   async getRecentFailedTasks(params?: { hours?: number; limit?: number; include_retried?: boolean }): Promise<TaskEventResponse[]> {
     const response = await this.api.request({
       path: '/api/tasks/failed/recent',
+      method: 'GET',
+      query: params
+    })
+    return response.data
+  }
+
+  async getIncidentSummaries(params?: { hours?: number; limit?: number }): Promise<IncidentSummaryDTO[]> {
+    const response = await this.api.request({
+      path: '/api/incidents/summaries',
       method: 'GET',
       query: params
     })

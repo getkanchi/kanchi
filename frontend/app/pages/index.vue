@@ -16,6 +16,68 @@
 
       <!-- Failure & Orphaned Tasks Overview -->
       <div class="mb-6 flex flex-col gap-4 failure-insights-section">
+        <div v-if="incidentSummaries.length" class="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+          <div
+            v-for="incident in incidentSummaries"
+            :key="incident.incident_key"
+            class="rounded-md border border-border-subtle bg-background-surface p-4 glow-border"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-[11px] uppercase tracking-[0.18em] text-text-muted">Incident summary</p>
+                <TaskName :name="incident.task_name" size="sm" :max-length="36" :expandable="true" />
+              </div>
+              <Badge :variant="severityVariant(incident.severity)" class="capitalize">{{ incident.severity }}</Badge>
+            </div>
+            <div class="mt-3 grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p class="text-text-muted">Failures</p>
+                <p class="font-mono text-text-primary">{{ incident.failure_count }}</p>
+              </div>
+              <div>
+                <p class="text-text-muted">Retries</p>
+                <p class="font-mono text-text-primary">{{ incident.retry_attempt_count }}</p>
+              </div>
+              <div>
+                <p class="text-text-muted">Workers</p>
+                <p class="font-mono text-text-primary">{{ incident.worker_count }}</p>
+              </div>
+              <div>
+                <p class="text-text-muted">Status</p>
+                <p class="font-medium capitalize text-text-primary">{{ incident.latest_status }}</p>
+              </div>
+            </div>
+            <div class="mt-3 flex flex-wrap gap-2">
+              <Badge variant="outline" class="gap-1 border-border-subtle text-text-secondary">
+                First <TimeDisplay :timestamp="incident.first_seen" layout="inline" :auto-refresh="true" :refresh-interval="60000" />
+              </Badge>
+              <Badge variant="outline" class="gap-1 border-border-subtle text-text-secondary">
+                Last <TimeDisplay :timestamp="incident.last_seen" layout="inline" :auto-refresh="true" :refresh-interval="60000" />
+              </Badge>
+            </div>
+            <p v-if="incident.latest_exception" class="mt-3 line-clamp-2 text-xs text-text-muted">
+              {{ incident.latest_exception }}
+            </p>
+            <div class="mt-3 flex flex-wrap gap-2">
+              <Button variant="outline" size="xs" class="gap-1" @click="focusIncident(incident.task_name)">
+                Focus failures
+              </Button>
+              <NuxtLink :to="`/tasks/${incident.latest_task_id}`">
+                <Button variant="outline" size="xs" class="gap-1">
+                  <ChevronRight class="h-3.5 w-3.5" />
+                  Open latest
+                </Button>
+              </NuxtLink>
+            </div>
+            <div v-if="incident.affected_workers.length" class="mt-3 flex flex-wrap gap-1.5">
+              <Badge v-for="worker in incident.affected_workers.slice(0, 3)" :key="worker" variant="secondary" class="font-mono text-[10px]">
+                {{ worker }}
+              </Badge>
+              <span v-if="incident.affected_workers.length > 3" class="text-xs text-text-muted">+{{ incident.affected_workers.length - 3 }} more</span>
+            </div>
+          </div>
+        </div>
+
         <TaskIssueSummary
           :tasks="failedTasksStore.failedTasks"
           :is-loading="failedTasksStore.isLoading"
@@ -38,6 +100,7 @@
           :empty-state-title="failedTasksEmptyTitle"
           empty-state-description="New failures will appear here instantly."
           :item-action-loading-ids="retryLoadingIds"
+          :external-search-query="incidentSearchQuery"
           @item-action="handleFailedRetryAction"
           @lookback-change="handleLookbackChange"
         >
@@ -210,6 +273,7 @@ import WorkerStatusSummary from "~/components/WorkerStatusSummary.vue"
 import CommandPalette from "~/components/CommandPalette.vue"
 import TaskIssueSummary from "~/components/TaskIssueSummary.vue"
 import RetryTaskConfirmDialog from "~/components/RetryTaskConfirmDialog.vue"
+import TaskName from '~/components/TaskName.vue'
 import { Button } from '~/components/ui/button'
 import { Badge } from '~/components/ui/badge'
 import TimeDisplay from '~/components/TimeDisplay.vue'
@@ -218,7 +282,7 @@ import type { ParsedFilter } from '~/composables/useFilterParser'
 import type { TimeRange } from '~/components/TimeRangeFilter.vue'
 import { useUrlQuerySync } from '~/composables/useUrlQuerySync'
 import type { UrlQueryState } from '~/composables/useUrlQuerySync'
-import type { TaskEventResponse } from '~/services/apiClient'
+import type { TaskEventResponse, IncidentSummaryDTO } from '~/services/apiClient'
 import {ChevronRight, RefreshCw, Check, Loader2} from 'lucide-vue-next'
 import {IconButton} from "~/components/common";
 
@@ -229,6 +293,7 @@ const failedTasksStore = useFailedTasksStore()
 const configStore = useConfigStore()
 const wsStore = useWebSocketStore()
 const environmentStore = useEnvironmentStore()
+const apiService = useApiService()
 
 // Time range state
 const timeRange = ref<TimeRange>({ start: null, end: null })
@@ -304,6 +369,26 @@ const formatLookbackLabel = (hours: number) => {
 }
 const failedTasksTitle = computed(() => `Failed tasks (${formatLookbackLabel(failedTasksLookbackHours.value)})`)
 const failedTasksEmptyTitle = computed(() => `No failed tasks detected in the last ${formatLookbackLabel(failedTasksLookbackHours.value)}`)
+const incidentSummaries = ref<IncidentSummaryDTO[]>([])
+const incidentSearchQuery = ref('')
+
+const severityVariant = (severity: IncidentSummaryDTO['severity']) => ({
+  low: 'outline',
+  medium: 'secondary',
+  high: 'orphaned',
+  critical: 'destructive'
+}[severity] ?? 'outline')
+
+function focusIncident(taskName: string) {
+  incidentSearchQuery.value = taskName
+}
+
+async function refreshIncidentSummaries() {
+  incidentSummaries.value = await apiService.getIncidentSummaries({
+    hours: failedTasksStore.lookbackHours,
+    limit: 6
+  })
+}
 
 const retryDialogRef = ref<InstanceType<typeof RetryTaskConfirmDialog> | null>(null)
 const retryDialogState = ref<{ task: TaskEventResponse; type: 'failed' | 'orphan' } | null>(null)
@@ -371,6 +456,7 @@ function handleLookbackChange(hours: number) {
   const normalized = normalizeLookback(hours)
   failedTasksStore.setLookbackHours(normalized)
   failedTasksStore.fetchFailedTasks({ hours: normalized }).catch(() => {})
+  refreshIncidentSummaries().catch(() => {})
 }
 
 function handleSetSorting(sorting: { id: string; desc: boolean }[]) {
@@ -563,7 +649,8 @@ watch(() => environmentStore.activeEnvironment, async () => {
     tasksStore.fetchStats(),
     workersStore.fetchWorkers(),
     orphanTasksStore.fetchOrphanedTasks(),
-    failedTasksStore.fetchFailedTasks({ hours: failedTasksStore.lookbackHours })
+    failedTasksStore.fetchFailedTasks({ hours: failedTasksStore.lookbackHours }),
+    refreshIncidentSummaries()
   ])
 })
 
@@ -574,6 +661,11 @@ watch(() => configStore.taskIssueLookbackHours, (hours) => {
   }
   failedTasksStore.setLookbackHours(normalized)
   failedTasksStore.fetchFailedTasks({ hours: normalized }).catch(() => {})
+  refreshIncidentSummaries().catch(() => {})
+})
+
+watch(() => failedTasksStore.failedTasks.map(task => `${task.task_id}:${task.timestamp}`).join('|'), () => {
+  refreshIncidentSummaries().catch(() => {})
 })
 
 // Store interval IDs at component scope
@@ -594,7 +686,8 @@ onMounted(async () => {
     tasksStore.fetchStats(),
     workersStore.fetchWorkers(),
     orphanTasksStore.fetchOrphanedTasks(),
-    failedTasksStore.fetchFailedTasks({ hours: failedTasksStore.lookbackHours })
+    failedTasksStore.fetchFailedTasks({ hours: failedTasksStore.lookbackHours }),
+    refreshIncidentSummaries()
   ])
 
   tasksStore.setLiveMode(wsStore.clientMode === 'live')
@@ -608,6 +701,7 @@ onMounted(async () => {
 
   failedTasksInterval = setInterval(() => {
     failedTasksStore.fetchFailedTasks({ hours: failedTasksStore.lookbackHours }).catch(() => {})
+    refreshIncidentSummaries().catch(() => {})
   }, 60000) // Poll every 60 seconds for failed tasks
 
   workerInterval = setInterval(() => {
