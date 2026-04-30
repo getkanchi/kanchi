@@ -126,6 +126,36 @@ export interface TaskProgressSnapshotResponse {
   history: TaskProgressEventResponse[]
 }
 
+export interface AuditLogActorDTO {
+  type: 'user' | 'operator' | 'workflow' | 'system'
+  id?: string | null
+  name: string
+}
+
+export interface AuditLogEntryDTO {
+  id: number
+  timestamp: string
+  source: 'manual' | 'workflow' | 'system'
+  action_type: string
+  status: 'success' | 'failed' | 'skipped'
+  actor: AuditLogActorDTO
+  target_type: string
+  target_id: string
+  target_label?: string | null
+  task_id?: string | null
+  related_task_id?: string | null
+  workflow_id?: string | null
+  execution_id?: number | null
+  reason?: string | null
+  result_summary?: string | null
+  details: Record<string, any>
+}
+
+export interface AuditLogListResponseDTO {
+  total: number
+  items: AuditLogEntryDTO[]
+}
+
 class ApiService {
   private api: Api<unknown>
 
@@ -372,6 +402,51 @@ class ApiService {
   async getRecentFailedTasks(params?: { hours?: number; limit?: number; include_retried?: boolean }): Promise<TaskEventResponse[]> {
     const response = await this.api.request({
       path: '/api/tasks/failed/recent',
+      method: 'GET',
+      query: params
+    })
+    return response.data
+  }
+
+  async getAuditLogs(params?: {
+    limit?: number
+    offset?: number
+    search?: string | null
+    source?: string | null
+    status?: string | null
+    action_type?: string | null
+    target_type?: string | null
+    target_id?: string | null
+    workflow_id?: string | null
+    task_id?: string | null
+    actor?: string | null
+  }): Promise<AuditLogListResponseDTO> {
+    const response = await this.api.request({
+      path: '/api/audit-logs',
+      method: 'GET',
+      query: params
+    })
+    return response.data
+  }
+
+  async getTaskAuditLogs(taskId: string, params?: {
+    limit?: number
+    offset?: number
+  }): Promise<AuditLogListResponseDTO> {
+    const response = await this.api.request({
+      path: `/api/tasks/${encodeURIComponent(taskId)}/audit`,
+      method: 'GET',
+      query: params
+    })
+    return response.data
+  }
+
+  async getWorkflowAuditLogs(workflowId: string, params?: {
+    limit?: number
+    offset?: number
+  }): Promise<AuditLogListResponseDTO> {
+    const response = await this.api.request({
+      path: `/api/workflows/${encodeURIComponent(workflowId)}/audit`,
       method: 'GET',
       query: params
     })
@@ -765,7 +840,9 @@ export type {
   AppConfigSnapshotDTO,
   AppSettingDTO,
   AppSettingInput,
-  TaskIssueConfigDTO
+  TaskIssueConfigDTO,
+  AuditLogEntryDTO,
+  AuditLogListResponseDTO
 }
 
 // Re-export session types from auto-generated API

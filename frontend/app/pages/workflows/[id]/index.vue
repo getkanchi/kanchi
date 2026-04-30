@@ -30,6 +30,14 @@
         </div>
 
         <div class="flex items-center gap-2">
+          <NuxtLink :to="`/audit?workflow_id=${route.params.id}`">
+            <Button
+              variant="outline"
+              size="sm"
+            >
+              Audit Log
+            </Button>
+          </NuxtLink>
           <Button
             variant="outline"
             size="sm"
@@ -59,9 +67,10 @@
       <main class="flex-1 min-w-0">
         <!-- Tabs -->
         <Tabs default-value="overview" class="w-full">
-      <TabsList class="grid w-full grid-cols-3 mb-6">
+      <TabsList class="grid w-full grid-cols-4 mb-6">
         <TabsTrigger value="overview">Overview</TabsTrigger>
         <TabsTrigger value="executions">Executions</TabsTrigger>
+        <TabsTrigger value="audit">Audit</TabsTrigger>
         <TabsTrigger value="settings">Settings</TabsTrigger>
       </TabsList>
 
@@ -125,6 +134,27 @@
       <!-- Executions Tab -->
       <TabsContent value="executions">
         <WorkflowExecutionHistory :workflow-id="route.params.id as string" />
+      </TabsContent>
+
+      <TabsContent value="audit">
+        <div class="space-y-4">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <h2 class="text-sm font-medium text-text-primary">Audit History</h2>
+              <p class="text-xs text-text-muted">Manual edits and automated executions for this workflow.</p>
+            </div>
+            <NuxtLink :to="`/audit?workflow_id=${route.params.id}`">
+              <Button variant="outline" size="sm">Open Full Log</Button>
+            </NuxtLink>
+          </div>
+
+          <AuditLogList
+            :entries="workflowAuditEntries"
+            :loading="isAuditLoading"
+            empty-title="No audit events for this workflow"
+            empty-description="Workflow changes and executions will appear here."
+          />
+        </div>
       </TabsContent>
 
       <!-- Settings Tab -->
@@ -246,10 +276,14 @@ import { Badge } from '~/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs'
 import StatusDot from '~/components/StatusDot.vue'
 import WorkflowExecutionHistory from '~/components/workflows/WorkflowExecutionHistory.vue'
+import AuditLogList from '~/components/audit/AuditLogList.vue'
 
 const route = useRoute()
 const workflowStore = useWorkflowsStore()
+const auditStore = useAuditStore()
 const toggling = ref(false)
+const isAuditLoading = ref(false)
+const workflowAuditEntries = computed(() => auditStore.getWorkflowAudit(route.params.id as string))
 
 const successRate = computed(() => {
   const workflow = workflowStore.currentWorkflow
@@ -263,6 +297,9 @@ async function toggleEnabled() {
   toggling.value = true
   try {
     await workflowStore.toggleWorkflow(workflowStore.currentWorkflow.id)
+    await fetchWorkflowAudit().catch((auditError) => {
+      console.error('Failed to refresh workflow audit log:', auditError)
+    })
   } finally {
     toggling.value = false
   }
@@ -272,7 +309,21 @@ function formatDateTime(timestamp: string): string {
   return new Date(timestamp).toLocaleString()
 }
 
+async function fetchWorkflowAudit() {
+  try {
+    isAuditLoading.value = true
+    await auditStore.fetchWorkflowAuditLogs(route.params.id as string, 25)
+  } finally {
+    isAuditLoading.value = false
+  }
+}
+
 onMounted(async () => {
-  await workflowStore.fetchWorkflow(route.params.id as string)
+  await Promise.all([
+    workflowStore.fetchWorkflow(route.params.id as string),
+    fetchWorkflowAudit().catch((auditError) => {
+      console.error('Failed to load workflow audit log:', auditError)
+    }),
+  ])
 })
 </script>

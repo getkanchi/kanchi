@@ -16,6 +16,7 @@ from models import (
 from services.workflow_service import WorkflowService
 from services.workflow_executor import WorkflowExecutor
 from services.workflow_catalog import EVENT_TRIGGER_MAP, TRIGGER_METADATA
+from services.audit_service import AuditLogService
 
 logger = logging.getLogger(__name__)
 
@@ -101,13 +102,34 @@ class WorkflowEngine:
                         logger.warning(
                             f"Circuit breaker skipped workflow {workflow.name}: {cb_state.reason}"
                         )
-                        workflow_service.record_circuit_breaker_skip(
+                        execution_id = workflow_service.record_circuit_breaker_skip(
                             workflow=workflow,
                             trigger_type=trigger_type,
                             trigger_event=context,
-                            workflow_snapshot=workflow.dict(),
+                            workflow_snapshot=workflow.model_dump(),
                             circuit_breaker_key=cb_state.key,
                             reason=cb_state.reason,
+                        )
+                        AuditLogService(session).record_safe_entry(
+                            source="workflow",
+                            action_type="workflow.execution",
+                            status="skipped",
+                            actor_type="workflow",
+                            actor_id=workflow.id,
+                            actor_name=workflow.name,
+                            target_type="workflow",
+                            target_id=workflow.id or "",
+                            target_label=workflow.name,
+                            task_id=context.get("task_id"),
+                            workflow_id=workflow.id,
+                            execution_id=execution_id,
+                            reason=cb_state.reason,
+                            result_summary="Workflow execution skipped by circuit breaker",
+                            details={
+                                "trigger_type": trigger_type,
+                                "circuit_breaker_key": cb_state.key,
+                                "circuit_breaker_field": cb_state.field,
+                            },
                         )
                         continue
 
