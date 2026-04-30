@@ -11,8 +11,8 @@ from models import AppSetting, AppSettingUpdate, AppConfigSnapshot, TaskIssueCon
 logger = logging.getLogger(__name__)
 
 TASK_ISSUE_LOOKBACK_KEY = "task_issue_summary.lookback_hours"
-RETENTION_TASK_EVENTS_DAYS_KEY = "data_retention.task_events_days"
-RETENTION_TASK_PROGRESS_DAYS_KEY = "data_retention.task_progress_days"
+RETENTION_TASK_SUCCESSFUL_DAYS_KEY = "data_retention.task_successful_days"
+RETENTION_TASK_UNSUCCESSFUL_DAYS_KEY = "data_retention.task_unsuccessful_days"
 RETENTION_WORKER_EVENTS_DAYS_KEY = "data_retention.worker_events_days"
 RETENTION_WORKFLOW_EXECUTIONS_DAYS_KEY = "data_retention.workflow_executions_days"
 RETENTION_TASK_DAILY_STATS_DAYS_KEY = "data_retention.task_daily_stats_days"
@@ -28,20 +28,20 @@ DEFAULT_SETTING_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "min": 1,
         "max": 168,
     },
-    RETENTION_TASK_EVENTS_DAYS_KEY: {
-        "default": 30,
+    RETENTION_TASK_SUCCESSFUL_DAYS_KEY: {
+        "default": 14,
         "value_type": "number",
-        "label": "Task event retention (days)",
-        "description": "How long raw task event history should be kept before cleanup.",
+        "label": "Successful task retention (days)",
+        "description": "How long successful task records and related events should be kept before cleanup.",
         "category": "data_retention",
         "min": 1,
         "max": 3650,
     },
-    RETENTION_TASK_PROGRESS_DAYS_KEY: {
-        "default": 14,
+    RETENTION_TASK_UNSUCCESSFUL_DAYS_KEY: {
+        "default": 30,
         "value_type": "number",
-        "label": "Task progress retention (days)",
-        "description": "How long detailed task progress events should be kept before cleanup.",
+        "label": "Unsuccessful task retention (days)",
+        "description": "How long failed, retried, revoked, orphaned, or otherwise non-successful task records and related events should be kept before cleanup.",
         "category": "data_retention",
         "min": 1,
         "max": 3650,
@@ -290,8 +290,8 @@ class AppConfigService:
         """Return normalized data retention configuration."""
         self.ensure_defaults()
         return DataRetentionConfig(
-            task_events_days=self._get_bounded_number_setting(RETENTION_TASK_EVENTS_DAYS_KEY),
-            task_progress_days=self._get_bounded_number_setting(RETENTION_TASK_PROGRESS_DAYS_KEY),
+            task_successful_days=self._get_bounded_number_setting(RETENTION_TASK_SUCCESSFUL_DAYS_KEY),
+            task_unsuccessful_days=self._get_bounded_number_setting(RETENTION_TASK_UNSUCCESSFUL_DAYS_KEY),
             worker_events_days=self._get_bounded_number_setting(RETENTION_WORKER_EVENTS_DAYS_KEY),
             workflow_executions_days=self._get_bounded_number_setting(RETENTION_WORKFLOW_EXECUTIONS_DAYS_KEY),
             task_daily_stats_days=self._get_bounded_number_setting(RETENTION_TASK_DAILY_STATS_DAYS_KEY),

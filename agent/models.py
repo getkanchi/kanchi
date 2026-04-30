@@ -461,8 +461,8 @@ class TaskIssueConfig(BaseModel):
 
 class DataRetentionConfig(BaseModel):
     """Retention policy for stored operational data."""
-    task_events_days: int = Field(default=30, ge=1, le=3650)
-    task_progress_days: int = Field(default=14, ge=1, le=3650)
+    task_successful_days: int = Field(default=14, ge=1, le=3650)
+    task_unsuccessful_days: int = Field(default=30, ge=1, le=3650)
     worker_events_days: int = Field(default=30, ge=1, le=3650)
     workflow_executions_days: int = Field(default=30, ge=1, le=3650)
     task_daily_stats_days: int = Field(default=365, ge=1, le=3650)

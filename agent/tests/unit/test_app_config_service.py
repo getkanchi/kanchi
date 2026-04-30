@@ -3,7 +3,8 @@ import unittest
 from services.app_config_service import (
     AppConfigService,
     TASK_ISSUE_LOOKBACK_KEY,
-    RETENTION_TASK_EVENTS_DAYS_KEY,
+    RETENTION_TASK_SUCCESSFUL_DAYS_KEY,
+    RETENTION_TASK_UNSUCCESSFUL_DAYS_KEY,
 )
 from models import AppSettingUpdate
 from tests.base import DatabaseTestCase
@@ -43,15 +44,21 @@ class TestAppConfigService(DatabaseTestCase):
 
     def test_get_data_retention_config_uses_defaults_and_overrides(self):
         defaults = self.service.get_data_retention_config()
-        self.assertEqual(defaults.task_events_days, 30)
+        self.assertEqual(defaults.task_successful_days, 14)
+        self.assertEqual(defaults.task_unsuccessful_days, 30)
         self.assertEqual(defaults.inactive_sessions_days, 30)
 
         self.service.upsert_setting(
-            RETENTION_TASK_EVENTS_DAYS_KEY,
+            RETENTION_TASK_SUCCESSFUL_DAYS_KEY,
+            AppSettingUpdate(value=7, value_type="number"),
+        )
+        self.service.upsert_setting(
+            RETENTION_TASK_UNSUCCESSFUL_DAYS_KEY,
             AppSettingUpdate(value=45, value_type="number"),
         )
         updated = self.service.get_data_retention_config()
-        self.assertEqual(updated.task_events_days, 45)
+        self.assertEqual(updated.task_successful_days, 7)
+        self.assertEqual(updated.task_unsuccessful_days, 45)
 
 
 if __name__ == "__main__":
