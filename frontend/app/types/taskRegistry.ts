@@ -9,6 +9,9 @@ export interface TaskRegistryResponse {
   name: string
   human_readable_name?: string | null
   description?: string | null
+  runbook_url?: string | null
+  severity_default?: 'info' | 'warning' | 'error' | 'critical' | null
+  response_notes?: string | null
   tags: string[]
   created_at: string
   updated_at: string
@@ -19,6 +22,9 @@ export interface TaskRegistryResponse {
 export interface TaskRegistryUpdate {
   human_readable_name?: string | null
   description?: string | null
+  runbook_url?: string | null
+  severity_default?: 'info' | 'warning' | 'error' | 'critical' | null
+  response_notes?: string | null
   tags?: string[] | null
 }
 

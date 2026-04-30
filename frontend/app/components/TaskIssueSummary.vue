@@ -215,7 +215,13 @@
                         </span>
                       </div>
                     </template>
-
+                    <TaskResponseContext
+                      :runbook-url="task.runbook_url"
+                      :severity-default="task.severity_default"
+                      :response-notes="task.response_notes"
+                      compact
+                    />
+                    <slot name="details" :task="task" />
                   </TaskDetailsSection>
                 </TableCell>
               </TableRow>
@@ -333,6 +339,7 @@ import SearchInput from '~/components/SearchInput.vue'
 import PythonValueViewer from '~/components/PythonValueViewer.vue'
 import { IconButton, Select } from '~/components/common'
 import TaskDetailsSection from '~/components/common/TaskDetailsSection.vue'
+import TaskResponseContext from '~/components/tasks/TaskResponseContext.vue'
 import { ChevronDown, ChevronRight, Loader2, AlertTriangle, ChevronsLeft, ChevronLeft, ChevronsRight, CheckCircle2 } from 'lucide-vue-next'
 import type { TaskEventResponse } from '~/services/apiClient'
 import { useTaskStatus } from '~/composables/useTaskStatus'
