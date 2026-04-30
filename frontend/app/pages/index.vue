@@ -282,6 +282,7 @@ import type { ParsedFilter } from '~/composables/useFilterParser'
 import type { TimeRange } from '~/components/TimeRangeFilter.vue'
 import { useUrlQuerySync } from '~/composables/useUrlQuerySync'
 import type { UrlQueryState } from '~/composables/useUrlQuerySync'
+import { useApiService } from '~/services/apiClient'
 import type { TaskEventResponse, IncidentSummaryDTO } from '~/services/apiClient'
 import {ChevronRight, RefreshCw, Check, Loader2} from 'lucide-vue-next'
 import {IconButton} from "~/components/common";
