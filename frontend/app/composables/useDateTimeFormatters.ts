@@ -1,6 +1,8 @@
 // ============================================================================
 // ============================================================================
 
+const DATE_LOCALE = 'en-GB'
+
 const isToday = (date: Date): boolean => {
   const now = new Date()
   return (
@@ -66,7 +68,7 @@ export const formatSmartTime = (timestamp: string, currentTime?: Date): SmartTim
   const seconds = Math.floor(diff / 1000)
 
   // Time always with seconds (HH:mm:ss format)
-  const timeStr = date.toLocaleTimeString('en-US', {
+  const timeStr = date.toLocaleTimeString(DATE_LOCALE, {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
@@ -74,14 +76,14 @@ export const formatSmartTime = (timestamp: string, currentTime?: Date): SmartTim
   })
 
   // Full datetime for tooltip
-  const fullDateTime = date.toLocaleString('en-US', {
+  const fullDateTime = date.toLocaleString(DATE_LOCALE, {
     year: 'numeric',
-    month: 'long',
-    day: 'numeric',
+    month: 'short',
+    day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    hour12: true
+    hour12: false
   })
 
   // Determine context label and color based on recency
@@ -116,17 +118,17 @@ export const formatSmartTime = (timestamp: string, currentTime?: Date): SmartTim
     colorClass = 'text-gray-500'
   } else if (isThisWeek(date)) {
     // This week (Mon, Tue, etc.)
-    contextLabel = date.toLocaleDateString('en-US', { weekday: 'short' })
+    contextLabel = date.toLocaleDateString(DATE_LOCALE, { weekday: 'short' })
     colorClass = 'text-gray-500'
   } else if (isThisYear(date)) {
     // This year (Jan 15, Feb 3, etc.)
-    contextLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    contextLabel = date.toLocaleDateString(DATE_LOCALE, { day: '2-digit', month: 'short' })
     colorClass = 'text-gray-500'
   } else {
     // Older (Jan 15, 2024)
-    contextLabel = date.toLocaleDateString('en-US', {
+    contextLabel = date.toLocaleDateString(DATE_LOCALE, {
+      day: '2-digit',
       month: 'short',
-      day: 'numeric',
       year: 'numeric'
     })
     colorClass = 'text-gray-600'
@@ -148,7 +150,7 @@ export const formatSmartTime = (timestamp: string, currentTime?: Date): SmartTim
 export const formatTime = (timestamp: string): string => {
   if (!timestamp) return '-'
   const date = new Date(timestamp)
-  return date.toLocaleTimeString('en-US', {
+  return date.toLocaleTimeString(DATE_LOCALE, {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
@@ -176,7 +178,7 @@ export const formatTimestamp = (timestamp: string): string => {
 
   if (diff < 60000) return `${Math.floor(diff / 1000)}s ago`
   if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
-  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+  return date.toLocaleTimeString(DATE_LOCALE, { hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
 export const formatDuration = (seconds: number): string => {
