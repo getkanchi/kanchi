@@ -72,9 +72,21 @@
               <Button variant="outline" :disabled="cleanupRunning" @click="previewCleanup">
                 {{ cleanupRunning && cleanupMode === 'dry' ? 'Running preview…' : 'Preview cleanup' }}
               </Button>
-              <Button :disabled="cleanupRunning" @click="runCleanup">
-                {{ cleanupRunning && cleanupMode === 'live' ? 'Running cleanup…' : 'Run cleanup now' }}
-              </Button>
+              <ConfirmationDialog
+                title="Run retention cleanup?"
+                description="This will permanently delete data that falls outside the configured retention windows. Preview cleanup first if you want to inspect the impact before deleting anything."
+                confirm-text="Run cleanup"
+                cancel-text="Cancel"
+                variant="destructive"
+                :is-loading="cleanupRunning && cleanupMode === 'live'"
+                @confirm="runCleanup"
+              >
+                <template #trigger>
+                  <Button :disabled="cleanupRunning">
+                    {{ cleanupRunning && cleanupMode === 'live' ? 'Running cleanup…' : 'Run cleanup now' }}
+                  </Button>
+                </template>
+              </ConfirmationDialog>
             </div>
 
             <Alert v-if="cleanupError" variant="destructive">
@@ -161,6 +173,7 @@
 import { ArrowUpRight, Github, Sparkles } from 'lucide-vue-next'
 import { computed, onMounted, ref } from 'vue'
 import Alert from '~/components/alert/Alert.vue'
+import ConfirmationDialog from '~/components/ConfirmationDialog.vue'
 import ThemeToggle from '~/components/ThemeToggle.vue'
 import WorkflowSlackConfigPanel from '~/components/workflows/WorkflowSlackConfigPanel.vue'
 import { Button } from '~/components/ui/button'
