@@ -6,11 +6,17 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from database import AppSettingDB
-from models import AppSetting, AppSettingUpdate, AppConfigSnapshot, TaskIssueConfig
+from models import AppSetting, AppSettingUpdate, AppConfigSnapshot, TaskIssueConfig, DataRetentionConfig
 
 logger = logging.getLogger(__name__)
 
 TASK_ISSUE_LOOKBACK_KEY = "task_issue_summary.lookback_hours"
+RETENTION_TASK_SUCCESSFUL_DAYS_KEY = "data_retention.task_successful_days"
+RETENTION_TASK_UNSUCCESSFUL_DAYS_KEY = "data_retention.task_unsuccessful_days"
+RETENTION_WORKER_EVENTS_DAYS_KEY = "data_retention.worker_events_days"
+RETENTION_WORKFLOW_EXECUTIONS_DAYS_KEY = "data_retention.workflow_executions_days"
+RETENTION_TASK_DAILY_STATS_DAYS_KEY = "data_retention.task_daily_stats_days"
+RETENTION_INACTIVE_SESSIONS_DAYS_KEY = "data_retention.inactive_sessions_days"
 
 DEFAULT_SETTING_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     TASK_ISSUE_LOOKBACK_KEY: {
@@ -20,7 +26,61 @@ DEFAULT_SETTING_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "description": "Number of hours of failed tasks to surface in the dashboard issue summary.",
         "category": "task_issue_summary",
         "min": 1,
-        "max": 168,  # one week window cap to keep queries bounded
+        "max": 168,
+    },
+    RETENTION_TASK_SUCCESSFUL_DAYS_KEY: {
+        "default": 14,
+        "value_type": "number",
+        "label": "Successful task retention (days)",
+        "description": "How long successful task records and related events should be kept before cleanup.",
+        "category": "data_retention",
+        "min": 1,
+        "max": 3650,
+    },
+    RETENTION_TASK_UNSUCCESSFUL_DAYS_KEY: {
+        "default": 30,
+        "value_type": "number",
+        "label": "Unsuccessful task retention (days)",
+        "description": "How long failed, retried, revoked, orphaned, or otherwise non-successful task records and related events should be kept before cleanup.",
+        "category": "data_retention",
+        "min": 1,
+        "max": 3650,
+    },
+    RETENTION_WORKER_EVENTS_DAYS_KEY: {
+        "default": 30,
+        "value_type": "number",
+        "label": "Worker event retention (days)",
+        "description": "How long worker heartbeat and lifecycle events should be kept before cleanup.",
+        "category": "data_retention",
+        "min": 1,
+        "max": 3650,
+    },
+    RETENTION_WORKFLOW_EXECUTIONS_DAYS_KEY: {
+        "default": 30,
+        "value_type": "number",
+        "label": "Workflow execution retention (days)",
+        "description": "How long workflow execution logs should be kept before cleanup.",
+        "category": "data_retention",
+        "min": 1,
+        "max": 3650,
+    },
+    RETENTION_TASK_DAILY_STATS_DAYS_KEY: {
+        "default": 365,
+        "value_type": "number",
+        "label": "Task daily stats retention (days)",
+        "description": "How long aggregated daily task statistics should be kept before cleanup.",
+        "category": "data_retention",
+        "min": 1,
+        "max": 3650,
+    },
+    RETENTION_INACTIVE_SESSIONS_DAYS_KEY: {
+        "default": 30,
+        "value_type": "number",
+        "label": "Inactive session retention (days)",
+        "description": "How long inactive user sessions should be kept before cleanup.",
+        "category": "data_retention",
+        "min": 1,
+        "max": 3650,
     },
 }
 
@@ -212,10 +272,37 @@ class AppConfigService:
             numeric_value = min(max_value, numeric_value)
         return numeric_value
 
+    def _get_bounded_number_setting(self, key: str) -> int:
+        definition = DEFAULT_SETTING_DEFINITIONS[key]
+        value = self.get_setting_value(key, definition["default"])
+        try:
+            normalized, _ = self._normalize_number(value)
+            numeric_value = int(normalized)
+        except ValueError:
+            numeric_value = definition["default"]
+        numeric_value = max(definition.get("min", 1), numeric_value)
+        max_value = definition.get("max")
+        if max_value is not None:
+            numeric_value = min(max_value, numeric_value)
+        return numeric_value
+
+    def get_data_retention_config(self) -> DataRetentionConfig:
+        """Return normalized data retention configuration."""
+        self.ensure_defaults()
+        return DataRetentionConfig(
+            task_successful_days=self._get_bounded_number_setting(RETENTION_TASK_SUCCESSFUL_DAYS_KEY),
+            task_unsuccessful_days=self._get_bounded_number_setting(RETENTION_TASK_UNSUCCESSFUL_DAYS_KEY),
+            worker_events_days=self._get_bounded_number_setting(RETENTION_WORKER_EVENTS_DAYS_KEY),
+            workflow_executions_days=self._get_bounded_number_setting(RETENTION_WORKFLOW_EXECUTIONS_DAYS_KEY),
+            task_daily_stats_days=self._get_bounded_number_setting(RETENTION_TASK_DAILY_STATS_DAYS_KEY),
+            inactive_sessions_days=self._get_bounded_number_setting(RETENTION_INACTIVE_SESSIONS_DAYS_KEY),
+        )
+
     def get_config_snapshot(self) -> AppConfigSnapshot:
         """Return grouped configuration for clients."""
         self.ensure_defaults()
         lookback_hours = self.get_task_issue_lookback_hours()
         return AppConfigSnapshot(
-            task_issue_summary=TaskIssueConfig(lookback_hours=lookback_hours)
+            task_issue_summary=TaskIssueConfig(lookback_hours=lookback_hours),
+            data_retention=self.get_data_retention_config(),
         )

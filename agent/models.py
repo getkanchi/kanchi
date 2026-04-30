@@ -459,9 +459,35 @@ class TaskIssueConfig(BaseModel):
     lookback_hours: int = Field(default=24, ge=1, le=168)
 
 
+class DataRetentionConfig(BaseModel):
+    """Retention policy for stored operational data."""
+    task_successful_days: int = Field(default=14, ge=1, le=3650)
+    task_unsuccessful_days: int = Field(default=30, ge=1, le=3650)
+    worker_events_days: int = Field(default=30, ge=1, le=3650)
+    workflow_executions_days: int = Field(default=30, ge=1, le=3650)
+    task_daily_stats_days: int = Field(default=365, ge=1, le=3650)
+    inactive_sessions_days: int = Field(default=30, ge=1, le=3650)
+
+
+class RetentionCleanupResult(BaseModel):
+    """Result for a single retention target cleanup."""
+    key: str
+    label: str
+    retention_days: int = Field(ge=1)
+    deleted: int = Field(ge=0)
+
+
+class RetentionCleanupResponse(BaseModel):
+    """Summary of a retention cleanup run."""
+    dry_run: bool = False
+    total_deleted: int = Field(ge=0)
+    results: List[RetentionCleanupResult] = Field(default_factory=list)
+
+
 class AppConfigSnapshot(BaseModel):
     """Grouped configuration snapshot returned to clients."""
     task_issue_summary: TaskIssueConfig
+    data_retention: DataRetentionConfig
 
 
 class UserInfo(BaseModel):

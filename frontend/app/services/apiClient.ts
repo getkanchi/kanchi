@@ -65,8 +65,31 @@ export interface TaskIssueConfigDTO {
   lookback_hours: number
 }
 
+export interface DataRetentionConfigDTO {
+  task_successful_days: number
+  task_unsuccessful_days: number
+  worker_events_days: number
+  workflow_executions_days: number
+  task_daily_stats_days: number
+  inactive_sessions_days: number
+}
+
+export interface RetentionCleanupResultDTO {
+  key: string
+  label: string
+  retention_days: number
+  deleted: number
+}
+
+export interface RetentionCleanupResponseDTO {
+  dry_run: boolean
+  total_deleted: number
+  results: RetentionCleanupResultDTO[]
+}
+
 export interface AppConfigSnapshotDTO {
   task_issue_summary: TaskIssueConfigDTO
+  data_retention: DataRetentionConfigDTO
 }
 
 export interface TaskStepDefinition {
@@ -203,6 +226,22 @@ class ApiService {
       path: `/api/config/settings/${encodeURIComponent(key)}`,
       method: 'DELETE'
     })
+  }
+
+  async getRetentionConfig(): Promise<DataRetentionConfigDTO> {
+    const response = await this.api.request({
+      path: '/api/config/retention',
+      method: 'GET'
+    })
+    return response.data
+  }
+
+  async runRetentionCleanup(dryRun = true): Promise<RetentionCleanupResponseDTO> {
+    const response = await this.api.request({
+      path: `/api/config/retention/cleanup?dry_run=${dryRun ? 'true' : 'false'}`,
+      method: 'POST'
+    })
+    return response.data
   }
 
   async getAuthConfig(): Promise<AuthConfigDTO> {
