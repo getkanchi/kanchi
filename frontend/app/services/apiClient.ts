@@ -350,11 +350,7 @@ class ApiService {
   }
 
   async bulkTaskAction(payload: BulkTaskActionRequest): Promise<BulkTaskActionResult> {
-    const response = await this.api.request<BulkTaskActionResult>({
-      path: '/api/tasks/bulk-action',
-      method: 'POST',
-      body: payload
-    })
+    const response = await this.api.api.bulkTaskActionApiTasksBulkActionPost(payload)
     return response.data
   }
 
