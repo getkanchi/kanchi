@@ -1,6 +1,8 @@
 import unittest
 from datetime import datetime, timezone, timedelta
 
+from pydantic import ValidationError
+
 from database import TaskRegistryDB
 from models import TaskRegistryUpdate
 from services.task_registry_service import TaskRegistryService
@@ -84,6 +86,15 @@ class TestTaskRegistryResponseContext(DatabaseTestCase):
             self.assertEqual(event.runbook_url, "https://docs.example.com/runbooks/alerting-sync")
             self.assertEqual(event.severity_default, "critical")
             self.assertEqual(event.response_notes, "Check the upstream queue before retrying.")
+
+    def test_update_task_rejects_non_http_runbook_urls(self):
+        self.registry_service.ensure_task_registered("tasks.alerting.sync")
+
+        with self.assertRaises(ValidationError):
+            TaskRegistryUpdate(runbook_url="javascript:alert('xss')")
+
+        with self.assertRaises(ValidationError):
+            TaskRegistryUpdate(runbook_url="/relative/runbook")
 
     def test_recent_failed_tasks_attach_response_context(self):
         registry = TaskRegistryDB(

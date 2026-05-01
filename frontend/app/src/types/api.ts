@@ -2617,10 +2617,9 @@ export class Api<
      * @request GET:/metrics
      */
     metricsMetricsGet: (params: RequestParams = {}) =>
-      this.request<any, any>({
+      this.request<string, any>({
         path: `/metrics`,
         method: "GET",
-        format: "json",
         ...params,
       }),
   };

@@ -1,6 +1,7 @@
 from typing import Any, Dict, Optional, List, Union, Literal
 from datetime import datetime, timezone, date
 from enum import Enum
+from urllib.parse import urlparse
 import ast
 from pydantic import BaseModel, Field, field_validator
 
@@ -333,6 +334,16 @@ class TaskRegistryUpdate(BaseModel):
         if isinstance(value, str):
             stripped = value.strip()
             return stripped or None
+        return value
+
+    @field_validator("runbook_url")
+    @classmethod
+    def validate_runbook_url(cls, value):
+        if value is None:
+            return None
+        parsed = urlparse(value)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("runbook_url must be an absolute http or https URL")
         return value
 
 
