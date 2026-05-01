@@ -31,6 +31,16 @@ class SuppressionService:
         now = datetime.now(timezone.utc)
         return [rule for rule in rules if not rule.expires_at or rule.expires_at > now]
 
+    @staticmethod
+    def _match_rule_from_rules(rules: List[TaskSuppressionRule], event: TaskEvent) -> Optional[TaskSuppressionRule]:
+        for rule in rules:
+            if rule.task_name != event.task_name:
+                continue
+            if rule.exception_contains and rule.exception_contains not in (event.exception or ""):
+                continue
+            return rule
+        return None
+
     def create_rule(self, payload: TaskSuppressionRuleCreate) -> TaskSuppressionRule:
         rules = self._raw_rules()
         rule = TaskSuppressionRule(
@@ -53,20 +63,15 @@ class SuppressionService:
         self._save_rules(filtered)
         return True
 
-    def match_rule(self, event: TaskEvent) -> Optional[TaskSuppressionRule]:
-        for rule in self.list_rules():
-            if rule.task_name != event.task_name:
-                continue
-            if rule.exception_contains and rule.exception_contains not in (event.exception or ""):
-                continue
-            return rule
-        return None
+    def match_rule(self, event: TaskEvent, rules: Optional[List[TaskSuppressionRule]] = None) -> Optional[TaskSuppressionRule]:
+        return self._match_rule_from_rules(rules or self.list_rules(), event)
 
     def annotate_events(self, events: List[TaskEvent]) -> TaskSuppressionMetrics:
         active = 0
         suppressed = 0
+        rules = self.list_rules()
         for event in events:
-            rule = self.match_rule(event)
+            rule = self.match_rule(event, rules=rules)
             if rule:
                 event.suppressed = True
                 event.suppression_rule_id = rule.id

@@ -183,14 +183,14 @@ def create_router(app_state) -> APIRouter:
         return SuppressionService(session).list_rules(include_expired=include_expired)
 
     @router.post("/task-suppressions", response_model=TaskSuppressionRule)
-    async def create_task_suppression(
+    def create_task_suppression(
         payload: TaskSuppressionRuleCreate,
         session: Session = Depends(get_db),
     ):
         return SuppressionService(session).create_rule(payload)
 
     @router.delete("/task-suppressions/{rule_id}", status_code=204)
-    async def delete_task_suppression(rule_id: str, session: Session = Depends(get_db)):
+    def delete_task_suppression(rule_id: str, session: Session = Depends(get_db)):
         deleted = SuppressionService(session).delete_rule(rule_id)
         if not deleted:
             raise HTTPException(status_code=404, detail="Suppression rule not found")
@@ -205,7 +205,7 @@ def create_router(app_state) -> APIRouter:
         task_service = TaskService(session, active_env=active_env)
         config_service = AppConfigService(session)
         lookback_hours = hours if hours is not None else config_service.get_task_issue_lookback_hours()
-        failed_tasks = task_service.get_recent_failed_tasks(hours=lookback_hours, limit=500, exclude_retried=True)
+        failed_tasks = task_service.get_recent_failed_tasks(hours=lookback_hours, exclude_retried=True)
         return SuppressionService(session).annotate_events(failed_tasks)
 
 

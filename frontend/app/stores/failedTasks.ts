@@ -91,6 +91,43 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
     })
   }
 
+  function matchesSuppressionRule(task: SuppressedTaskEvent, rule: TaskSuppressionRuleDTO): boolean {
+    if (rule.task_name !== task.task_name) {
+      return false
+    }
+    if (rule.expires_at) {
+      const expiresAt = parseTimestamp(rule.expires_at)
+      if (expiresAt !== null && expiresAt <= Date.now()) {
+        return false
+      }
+    }
+    if (rule.exception_contains) {
+      return (task.exception ?? '').includes(rule.exception_contains)
+    }
+    return true
+  }
+
+  function annotateSuppression(task: SuppressedTaskEvent): SuppressedTaskEvent {
+    const matchedRule = suppressionRules.value.find(rule => matchesSuppressionRule(task, rule))
+    if (!matchedRule) {
+      return {
+        ...task,
+        suppressed: false,
+        suppression_rule_id: null,
+        suppression_reason: null,
+        suppression_expires_at: null,
+      }
+    }
+
+    return {
+      ...task,
+      suppressed: true,
+      suppression_rule_id: matchedRule.id,
+      suppression_reason: matchedRule.reason,
+      suppression_expires_at: matchedRule.expires_at ?? null,
+    }
+  }
+
   function shouldExclude(task: TaskEventResponse): boolean {
     if (task.has_retries) {
       return true
@@ -123,7 +160,9 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
         include_retried: options?.includeRetried ?? false
       })
 
-      const filtered = response.filter(task => !shouldExclude(task)) as SuppressedTaskEvent[]
+      const filtered = response
+        .map(task => annotateSuppression(task as SuppressedTaskEvent))
+        .filter(task => !shouldExclude(task))
       setTasks(filtered)
       pruneExpired()
       lastFetchedAt.value = new Date()
@@ -173,12 +212,14 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
     const eventType = event.event_type
 
     if (eventType === 'task-failed') {
-      if (shouldExclude(event)) {
-        removeFailedTask(event.task_id)
+      const annotatedEvent = annotateSuppression(event)
+
+      if (shouldExclude(annotatedEvent)) {
+        removeFailedTask(annotatedEvent.task_id)
         return
       }
 
-      const timestamp = parseTimestamp(event.timestamp)
+      const timestamp = parseTimestamp(annotatedEvent.timestamp)
       if (timestamp === null) {
         return
       }
@@ -188,7 +229,7 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
         return
       }
 
-      upsertFailedTask(event)
+      upsertFailedTask(annotatedEvent)
       pruneExpired()
       return
     }
