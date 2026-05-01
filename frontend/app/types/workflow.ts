@@ -200,3 +200,32 @@ export interface WorkflowTestResponse {
   would_execute: boolean
   actions: string[]
 }
+
+export interface WorkflowSimulationActionPreview {
+  action_type: string
+  status: 'would_execute' | 'blocked'
+  summary: string
+  details: Record<string, any>
+  warnings: string[]
+}
+
+export interface WorkflowSimulationRecord {
+  simulated_at: string
+  workflow_name: string
+  trigger_type: string
+  conditions_met: boolean
+  would_execute: boolean
+  warnings: string[]
+  action_previews: WorkflowSimulationActionPreview[]
+}
+
+export interface WorkflowSimulationResponse {
+  workflow_name: string
+  trigger_type: string
+  test_context: Record<string, any>
+  conditions_met: boolean
+  would_execute: boolean
+  warnings: string[]
+  action_previews: WorkflowSimulationActionPreview[]
+  simulation_history: WorkflowSimulationRecord[]
+}

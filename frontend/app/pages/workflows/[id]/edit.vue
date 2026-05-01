@@ -19,9 +19,9 @@
         <NuxtLink :to="`/workflows/${route.params.id}`">
           <Button variant="ghost" size="sm">Cancel</Button>
         </NuxtLink>
-        <Button variant="outline" size="sm" @click="showTestDialog = true">
+        <Button variant="outline" size="sm" @click="showSimulationDialog = true">
           <FlaskConical class="h-3.5 w-3.5 mr-1.5" />
-          Test
+          Simulate
         </Button>
         <Button @click="saveWorkflow" :disabled="!canSave || saving" size="sm">
           <Save class="h-3.5 w-3.5 mr-1.5" />
@@ -104,6 +104,14 @@
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <WorkflowSimulationDialog
+        v-if="workflow"
+        :open="showSimulationDialog"
+        :workflow="workflow as any"
+        :default-context="testContext"
+        @close="showSimulationDialog = false"
+      />
 
       <!-- Workflow Builder -->
       <div class="border border-border-subtle rounded-md p-5">
@@ -282,12 +290,14 @@ import WorkflowTriggerSelector from '~/components/workflows/WorkflowTriggerSelec
 import WorkflowConditionBuilder from '~/components/workflows/WorkflowConditionBuilder.vue'
 import WorkflowActionsList from '~/components/workflows/WorkflowActionsList.vue'
 import WorkflowCircuitBreakerConfig from '~/components/workflows/WorkflowCircuitBreakerConfig.vue'
+import WorkflowSimulationDialog from '~/components/workflows/WorkflowSimulationDialog.vue'
 import type { WorkflowUpdateRequest } from '~/types/workflow'
 
 const route = useRoute()
 const workflowStore = useWorkflowsStore()
 const saving = ref(false)
 const showTestDialog = ref(false)
+const showSimulationDialog = ref(false)
 const testing = ref(false)
 const testContext = ref('{\n  "task_id": "example-task",\n  "task_name": "process_payment",\n  "event_type": "task.failed",\n  "retry_count": 0,\n  "queue": "default"\n}')
 const testResult = ref<any | null>(null)

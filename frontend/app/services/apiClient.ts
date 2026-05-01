@@ -700,6 +700,18 @@ class ApiService {
     return response.data
   }
 
+  async simulateWorkflow(workflow: any, testContext: any): Promise<any> {
+    const response = await this.api.request({
+      path: '/api/workflows/simulate',
+      method: 'POST',
+      body: {
+        workflow,
+        test_context: testContext
+      }
+    })
+    return response.data
+  }
+
   async getActionConfigs(params?: {
     action_type?: string
     limit?: number

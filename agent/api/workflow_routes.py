@@ -8,11 +8,14 @@ from models import (
     WorkflowDefinition,
     WorkflowCreateRequest,
     WorkflowUpdateRequest,
-    WorkflowExecutionRecord
+    WorkflowExecutionRecord,
+    WorkflowSimulationRequest,
+    WorkflowSimulationResponse,
 )
 from services.workflow_service import WorkflowService
 from services.action_executor import ActionExecutor
 from services.workflow_catalog import TRIGGER_METADATA
+from services.workflow_simulation_service import WorkflowSimulationService
 from config import Config
 from security.dependencies import get_auth_dependency
 
@@ -74,6 +77,22 @@ def create_router(app_state) -> APIRouter:
             offset=offset
         )
         return workflows
+
+    @router.post("/simulate", response_model=WorkflowSimulationResponse)
+    async def simulate_workflow(
+        request: WorkflowSimulationRequest,
+        session: Session = Depends(get_db)
+    ):
+        """Dry-run a workflow definition without executing external actions."""
+        simulation_service = WorkflowSimulationService(
+            session=session,
+            db_manager=app_state.db_manager,
+            monitor_instance=app_state.monitor_instance,
+        )
+        try:
+            return simulation_service.simulate(request.workflow, request.test_context)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
     @router.get("/{workflow_id}", response_model=WorkflowDefinition)
     async def get_workflow(

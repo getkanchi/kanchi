@@ -15,9 +15,9 @@
         <h1 class="text-xl font-semibold text-text-primary">New Workflow</h1>
       </div>
       <div class="flex items-center gap-2">
-        <Button variant="outline" size="sm" disabled title="Save the workflow to run a test">
+        <Button variant="outline" size="sm" @click="showSimulationDialog = true" :disabled="!canSave">
           <FlaskConical class="h-3.5 w-3.5 mr-1.5" />
-          Test
+          Simulate
         </Button>
         <Button @click="saveWorkflow" :disabled="!canSave || saving" size="sm">
           <Save class="h-3.5 w-3.5 mr-1.5" />
@@ -202,6 +202,13 @@
     <div v-if="workflowStore.error" class="mt-4 p-4 bg-status-error-bg border border-status-error-border rounded-lg">
       <p class="text-sm text-status-error">{{ workflowStore.error }}</p>
     </div>
+
+    <WorkflowSimulationDialog
+      :open="showSimulationDialog"
+      :workflow="workflow"
+      :default-context="simulationContext"
+      @close="showSimulationDialog = false"
+    />
   </div>
 </template>
 
@@ -216,10 +223,12 @@ import WorkflowTriggerSelector from '~/components/workflows/WorkflowTriggerSelec
 import WorkflowConditionBuilder from '~/components/workflows/WorkflowConditionBuilder.vue'
 import WorkflowActionsList from '~/components/workflows/WorkflowActionsList.vue'
 import WorkflowCircuitBreakerConfig from '~/components/workflows/WorkflowCircuitBreakerConfig.vue'
+import WorkflowSimulationDialog from '~/components/workflows/WorkflowSimulationDialog.vue'
 import type { WorkflowCreateRequest } from '~/types/workflow'
 
 const workflowStore = useWorkflowsStore()
 const saving = ref(false)
+const showSimulationDialog = ref(false)
 
 // Form State
 const workflow = ref<WorkflowCreateRequest>({
@@ -242,6 +251,15 @@ const canSave = computed(() => {
          workflow.value.trigger?.type.length > 0 &&
          workflow.value.actions.length > 0
 })
+
+const simulationContext = computed(() => JSON.stringify({
+  task_id: 'example-task',
+  task_name: 'process_payment',
+  event_type: workflow.value.trigger?.type || 'task.failed',
+  queue: 'default',
+  retry_count: 0,
+  exception: 'ExampleError'
+}, null, 2))
 
 function updateCircuitBreaker(config: any) {
   console.log('[New] updateCircuitBreaker called with:', config)

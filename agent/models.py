@@ -751,6 +751,44 @@ class WorkflowUpdateRequest(BaseModel):
     circuit_breaker: Optional[CircuitBreakerConfig] = None
 
 
+class WorkflowSimulationRequest(BaseModel):
+    """Request model for workflow dry-run simulation."""
+    workflow: WorkflowCreateRequest
+    test_context: Dict[str, Any] = Field(default_factory=dict)
+
+
+class WorkflowSimulationActionPreview(BaseModel):
+    """Dry-run preview for an individual workflow action."""
+    action_type: str
+    status: Literal["would_execute", "blocked"]
+    summary: str
+    details: Dict[str, Any] = Field(default_factory=dict)
+    warnings: List[str] = Field(default_factory=list)
+
+
+class WorkflowSimulationRecord(BaseModel):
+    """Stored workflow simulation result summary."""
+    simulated_at: datetime
+    workflow_name: str
+    trigger_type: str
+    conditions_met: bool
+    would_execute: bool
+    warnings: List[str] = Field(default_factory=list)
+    action_previews: List[WorkflowSimulationActionPreview] = Field(default_factory=list)
+
+
+class WorkflowSimulationResponse(BaseModel):
+    """Workflow dry-run simulation result."""
+    workflow_name: str
+    trigger_type: str
+    test_context: Dict[str, Any] = Field(default_factory=dict)
+    conditions_met: bool
+    would_execute: bool
+    warnings: List[str] = Field(default_factory=list)
+    action_previews: List[WorkflowSimulationActionPreview] = Field(default_factory=list)
+    simulation_history: List[WorkflowSimulationRecord] = Field(default_factory=list)
+
+
 class WorkflowExecutionRecord(BaseModel):
     """Execution history record."""
     id: int
