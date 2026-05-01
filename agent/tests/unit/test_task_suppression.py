@@ -37,6 +37,21 @@ class TestTaskSuppression(DatabaseTestCase):
 
         self.assertIsNone(self.service.match_rule(self._failed_event(exception="anything")))
 
+    def test_list_rules_normalizes_naive_expiry_strings(self):
+        self.service._save_rules([{
+            "id": "rule-1",
+            "task_name": "tasks.noisy",
+            "reason": "naive expiry",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "expires_at": "2099-01-01T12:00:00",
+        }])
+
+        rules = self.service.list_rules()
+
+        self.assertEqual(len(rules), 1)
+        self.assertIsNotNone(rules[0].expires_at)
+        self.assertEqual(rules[0].expires_at.tzinfo, timezone.utc)
+
     def test_annotate_events_counts_suppressed(self):
         self.service.create_rule(TaskSuppressionRuleCreate(task_name="tasks.noisy", reason="Known noisy"))
         events = [self._failed_event(), self._failed_event(task_name="tasks.real")]

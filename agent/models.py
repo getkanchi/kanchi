@@ -469,6 +469,18 @@ class TaskSuppressionRuleCreate(BaseModel):
     exception_contains: Optional[str] = None
     expires_at: Optional[datetime] = None
 
+    @field_validator('expires_at', mode='before')
+    @classmethod
+    def validate_expires_at(cls, value):
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        if isinstance(value, str):
+            parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+        return value
+
 
 class TaskSuppressionRule(TaskSuppressionRuleCreate):
     id: str

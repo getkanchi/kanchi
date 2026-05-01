@@ -5,6 +5,8 @@ import { Api } from '../src/types/api'
 import type {
   TaskStats,
   TaskEventResponse,
+  TaskSuppressionRule,
+  TaskSuppressionRuleCreate,
   WorkerInfo
 } from '../src/types/api'
 
@@ -65,21 +67,8 @@ export interface TaskIssueConfigDTO {
   lookback_hours: number
 }
 
-export interface TaskSuppressionRuleDTO {
-  id: string
-  task_name: string
-  reason: string
-  exception_contains?: string | null
-  expires_at?: string | null
-  created_at: string
-}
-
-export interface TaskSuppressionRuleInput {
-  task_name: string
-  reason: string
-  exception_contains?: string | null
-  expires_at?: string | null
-}
+export type TaskSuppressionRuleDTO = TaskSuppressionRule
+export type TaskSuppressionRuleInput = TaskSuppressionRuleCreate
 
 export interface DataRetentionConfigDTO {
   task_successful_days: number
@@ -395,17 +384,17 @@ class ApiService {
   }
 
   async listTaskSuppressions(includeExpired = false): Promise<TaskSuppressionRuleDTO[]> {
-    const response = await this.api.request({ path: '/api/task-suppressions', method: 'GET', query: { include_expired: includeExpired } })
+    const response = await this.api.api.listTaskSuppressionsApiTaskSuppressionsGet({ includeExpired })
     return response.data
   }
 
   async createTaskSuppression(payload: TaskSuppressionRuleInput): Promise<TaskSuppressionRuleDTO> {
-    const response = await this.api.request({ path: '/api/task-suppressions', method: 'POST', body: payload })
+    const response = await this.api.api.createTaskSuppressionApiTaskSuppressionsPost(payload)
     return response.data
   }
 
   async deleteTaskSuppression(ruleId: string): Promise<void> {
-    await this.api.request({ path: `/api/task-suppressions/${encodeURIComponent(ruleId)}`, method: 'DELETE' })
+    await this.api.api.deleteTaskSuppressionApiTaskSuppressionsRuleIdDelete(ruleId)
   }
 
   // Worker-related endpoints
