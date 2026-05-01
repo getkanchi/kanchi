@@ -84,13 +84,8 @@
       >
         <div class="text-sm text-text-secondary">
           <span class="font-mono text-text-primary">{{ selectedCount }}</span> selected
-          <span v-if="bulkResult" class="ml-2" :class="bulkResult.dry_run ? 'text-text-muted' : 'text-status-success'">
-            <template v-if="bulkResult.dry_run">
-              Preview: {{ bulkResult.executable_count }} ready, {{ bulkResult.skipped_count }} skipped, {{ bulkResult.failure_count }} failed
-            </template>
-            <template v-else>
-              Completed: {{ bulkResult.success_count }} succeeded, {{ bulkResult.skipped_count }} skipped, {{ bulkResult.failure_count }} failed
-            </template>
+          <span v-if="bulkPreview" class="ml-2 text-text-muted">
+            Preview: {{ bulkPreview.executable_count }} ready, {{ bulkPreview.skipped_count }} skipped, {{ bulkPreview.failure_count }} failed
           </span>
         </div>
         <div class="flex flex-wrap items-center gap-2">
@@ -109,29 +104,77 @@
           <Button variant="outline" size="xs" :disabled="isBulkBusy" @click="previewBulkAction">
             Preview
           </Button>
-          <Button variant="default" size="xs" :disabled="isBulkBusy || !bulkResult || bulkResult.executable_count === 0" @click="executeBulkAction">
-            Confirm
+          <Button variant="default" size="xs" :disabled="isBulkBusy || !bulkPreview || bulkPreview.executable_count === 0" @click="openBulkConfirmDialog">
+            Review & confirm
           </Button>
           <Button variant="ghost" size="xs" :disabled="isBulkBusy" @click="clearSelection">
             Clear
           </Button>
         </div>
       </div>
-      <div v-if="bulkResult?.warnings?.length" class="space-y-1 text-xs text-status-warning">
-        <p v-for="warning in bulkResult.warnings" :key="warning">{{ warning }}</p>
-      </div>
-      <div
-        v-if="bulkResult && !bulkResult.dry_run"
-        class="rounded-md border border-status-success/40 bg-status-success-bg/30 px-3 py-2 text-xs text-text-secondary"
-      >
-        <p class="font-medium text-status-success">Bulk {{ bulkResult.action }} completed</p>
-        <ul class="mt-1 space-y-1">
-          <li v-for="item in bulkResult.results.slice(0, 5)" :key="item.task_id" class="font-mono">
-            {{ item.task_id }} — {{ item.status }}<span v-if="item.new_task_id"> → {{ item.new_task_id }}</span>
-          </li>
-        </ul>
+      <div v-if="bulkPreview?.warnings?.length" class="space-y-1 text-xs text-status-warning">
+        <p v-for="warning in bulkPreview.warnings" :key="warning">{{ warning }}</p>
       </div>
     </div>
+
+    <Dialog v-model:open="bulkDialogOpen">
+      <DialogContent class="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{{ bulkResult ? bulkCompletedTitle : bulkDialogTitle }}</DialogTitle>
+          <DialogDescription class="text-left">
+            {{ bulkResult ? 'Review the per-task outcome before closing.' : 'Review the selected tasks and impact before executing this bulk action.' }}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div class="space-y-4 py-2">
+          <div class="grid grid-cols-3 gap-3">
+            <div class="rounded-md border border-border-subtle bg-background-raised p-3">
+              <p class="text-xs text-text-muted">Selected</p>
+              <p class="mt-1 text-xl font-semibold font-mono text-text-primary">{{ activeBulkResult?.requested_count ?? selectedCount }}</p>
+            </div>
+            <div class="rounded-md border border-border-subtle bg-background-raised p-3">
+              <p class="text-xs text-text-muted">Ready</p>
+              <p class="mt-1 text-xl font-semibold font-mono text-status-success">{{ activeBulkResult?.executable_count ?? 0 }}</p>
+            </div>
+            <div class="rounded-md border border-border-subtle bg-background-raised p-3">
+              <p class="text-xs text-text-muted">Skipped / failed</p>
+              <p class="mt-1 text-xl font-semibold font-mono text-status-warning">{{ (activeBulkResult?.skipped_count ?? 0) + (activeBulkResult?.failure_count ?? 0) }}</p>
+            </div>
+          </div>
+
+          <div v-if="bulkResult" class="rounded-md border border-status-success/40 bg-status-success-bg/30 px-3 py-2 text-sm text-status-success">
+            {{ bulkResult.success_count }} task{{ bulkResult.success_count === 1 ? '' : 's' }} completed successfully.
+          </div>
+
+          <div class="max-h-72 overflow-auto rounded-md border border-border-subtle divide-y divide-border-subtle">
+            <div
+              v-for="item in activeBulkResult?.results ?? []"
+              :key="item.task_id"
+              class="flex items-start justify-between gap-4 px-3 py-2 text-sm"
+            >
+              <div class="min-w-0">
+                <p class="font-mono text-xs text-text-primary truncate">{{ item.task_id }}</p>
+                <p class="text-xs text-text-muted">{{ item.message }}</p>
+                <p v-if="item.new_task_id" class="mt-1 text-xs font-mono text-status-success">Retry queued: {{ item.new_task_id }}</p>
+              </div>
+              <Badge :variant="item.status === 'success' ? 'success' : item.status === 'failed' ? 'destructive' : item.status === 'skipped' ? 'pending' : 'outline'" class="shrink-0 text-xs">
+                {{ item.status }}
+              </Badge>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter class="flex-col-reverse sm:flex-row sm:justify-end sm:gap-2">
+          <Button variant="outline" :disabled="isBulkBusy" @click="closeBulkDialog">
+            {{ bulkResult ? 'Close' : 'Cancel' }}
+          </Button>
+          <Button v-if="!bulkResult" variant="default" :disabled="isBulkBusy || !bulkPreview || bulkPreview.executable_count === 0" class="gap-2" @click="executeBulkAction">
+            <Loader2 v-if="isBulkBusy" class="h-4 w-4 animate-spin" />
+            Confirm {{ bulkAction }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <div v-if="!isCollapsed">
       <Table>
@@ -399,6 +442,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import SearchInput from '~/components/SearchInput.vue'
 import PythonValueViewer from '~/components/PythonValueViewer.vue'
 import { IconButton, Select } from '~/components/common'
@@ -464,7 +515,9 @@ const expandedTaskIds = ref(new Set<string>())
 const selectedTaskIds = ref(new Set<string>())
 const bulkAction = ref<'retry' | 'resolve' | 'unresolve' | 'annotate'>('resolve')
 const bulkComment = ref('')
+const bulkPreview = ref<any | null>(null)
 const bulkResult = ref<any | null>(null)
+const bulkDialogOpen = ref(false)
 const isBulkBusy = ref(false)
 const searchQuery = ref('')
 const activeFilters = ref<ParsedFilter[]>([])
@@ -607,6 +660,9 @@ const selectedCount = computed(() => selectedTaskIds.value.size)
 const displayedTaskIds = computed(() => displayedTasks.value.map(task => task.task_id))
 const allDisplayedSelected = computed(() => displayedTaskIds.value.length > 0 && displayedTaskIds.value.every(id => selectedTaskIds.value.has(id)))
 const someDisplayedSelected = computed(() => displayedTaskIds.value.some(id => selectedTaskIds.value.has(id)) && !allDisplayedSelected.value)
+const activeBulkResult = computed(() => bulkResult.value ?? bulkPreview.value)
+const bulkDialogTitle = computed(() => `Confirm bulk ${bulkAction.value}`)
+const bulkCompletedTitle = computed(() => `Bulk ${bulkResult.value?.action ?? bulkAction.value} completed`)
 
 const recentCount = computed(() => {
   if (!props.recentField || props.recentWindowMinutes === undefined) return 0
@@ -700,6 +756,7 @@ watch(filteredTasks, () => {
 })
 
 watch([bulkAction, bulkComment], () => {
+  bulkPreview.value = null
   bulkResult.value = null
 })
 
@@ -711,6 +768,7 @@ const toggleTaskSelection = (taskId: string) => {
     next.add(taskId)
   }
   selectedTaskIds.value = next
+  bulkPreview.value = null
   bulkResult.value = null
 }
 
@@ -722,11 +780,13 @@ const toggleDisplayedSelection = () => {
     displayedTaskIds.value.forEach(id => next.add(id))
   }
   selectedTaskIds.value = next
+  bulkPreview.value = null
   bulkResult.value = null
 }
 
 const clearSelection = () => {
   selectedTaskIds.value = new Set()
+  bulkPreview.value = null
   bulkResult.value = null
 }
 
@@ -742,9 +802,21 @@ const previewBulkAction = async () => {
   isBulkBusy.value = true
   try {
     bulkResult.value = await apiService.bulkTaskAction(bulkPayload(true))
+    bulkPreview.value = bulkResult.value
+    bulkResult.value = null
   } finally {
     isBulkBusy.value = false
   }
+}
+
+const openBulkConfirmDialog = () => {
+  if (!bulkPreview.value) return
+  bulkResult.value = null
+  bulkDialogOpen.value = true
+}
+
+const closeBulkDialog = () => {
+  bulkDialogOpen.value = false
 }
 
 const executeBulkAction = async () => {
@@ -752,6 +824,7 @@ const executeBulkAction = async () => {
   isBulkBusy.value = true
   try {
     bulkResult.value = await apiService.bulkTaskAction(bulkPayload(false))
+    bulkPreview.value = null
   } finally {
     isBulkBusy.value = false
   }
