@@ -3,6 +3,7 @@
  */
 import { Api } from '../src/types/api'
 import type {
+  RuntimeAnomaly,
   TaskStats,
   TaskEventResponse,
   WorkerInfo
@@ -134,16 +135,7 @@ export interface RuntimeAnomaliesQuery {
   stalled_progress_seconds?: number
 }
 
-export interface RuntimeAnomalyResponse {
-  task: TaskEventResponse
-  anomaly_type: 'long_running' | 'stalled_progress'
-  runtime_seconds: number
-  baseline_runtime_seconds?: number | null
-  progress_age_seconds?: number | null
-  worker_active_task_count: number
-  threshold_seconds: number
-  detail: string
-}
+export type RuntimeAnomalyResponse = RuntimeAnomaly
 
 class ApiService {
   private api: Api<unknown>
@@ -362,11 +354,7 @@ class ApiService {
   }
 
   async getRuntimeAnomalies(query?: RuntimeAnomaliesQuery): Promise<RuntimeAnomalyResponse[]> {
-    const response = await this.api.request({
-      path: '/api/tasks/runtime-anomalies',
-      method: 'GET',
-      query,
-    })
+    const response = await this.api.api.getRuntimeAnomaliesApiTasksRuntimeAnomaliesGet(query)
     return response.data
   }
 
