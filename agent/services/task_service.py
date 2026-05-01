@@ -357,9 +357,12 @@ class TaskService:
                 or_(TaskEventDB.has_retries.is_(False), TaskEventDB.has_retries.is_(None))
             )
 
+        normalized_novelty = (novelty_status or "").strip().lower() or None
+        needs_novelty_post_processing = normalized_novelty is not None or sort_by == "novelty"
+
         query = query.order_by(TaskEventDB.timestamp.desc())
 
-        if limit and limit > 0:
+        if limit and limit > 0 and not needs_novelty_post_processing:
             query = query.limit(limit)
 
         events_db = query.all()
@@ -369,7 +372,6 @@ class TaskService:
         self._attach_resolution_info(events)
         self._attach_failure_novelty_info(events, lookback_hours=novelty_lookback_hours)
 
-        normalized_novelty = (novelty_status or "").strip().lower() or None
         if normalized_novelty:
             events = [event for event in events if event.failure_novelty_status == normalized_novelty]
 
@@ -390,6 +392,9 @@ class TaskService:
                         -((_ensure_utc(event.timestamp) or datetime(1970, 1, 1, tzinfo=timezone.utc)).timestamp()),
                     ),
                 )
+
+        if limit and limit > 0 and needs_novelty_post_processing:
+            events = events[:limit]
 
         return events
 
@@ -443,9 +448,10 @@ class TaskService:
             fingerprint = event.failure_fingerprint
             related = by_fingerprint.get(fingerprint or "", [])
             prior = [item for item in related if item.task_id != event.task_id and (_ensure_utc(item.timestamp) or datetime.min.replace(tzinfo=timezone.utc)) < (_ensure_utc(event.timestamp) or datetime.min.replace(tzinfo=timezone.utc))]
+            latest_prior = prior[-1] if prior else None
             if not prior:
                 event.failure_novelty_status = "new"
-            elif any(item.resolved for item in prior):
+            elif latest_prior and latest_prior.resolved:
                 event.failure_novelty_status = "regressed"
             else:
                 event.failure_novelty_status = "recurring"

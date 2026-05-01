@@ -3,7 +3,7 @@
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Header, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -160,7 +160,7 @@ def create_router(app_state) -> APIRouter:
         ),
         limit: int = 50,
         include_retried: bool = False,
-        novelty_status: Optional[str] = Query(
+        novelty_status: Optional[Literal["new", "recurring", "regressed"]] = Query(
             default=None,
             description="Optional novelty filter: new, recurring, or regressed"
         ),
@@ -170,7 +170,7 @@ def create_router(app_state) -> APIRouter:
             le=720,
             description="How far back to inspect matching failure fingerprints"
         ),
-        sort_by: Optional[str] = Query(
+        sort_by: Optional[Literal["novelty"]] = Query(
             default=None,
             description="Optional sort field. Use novelty to prioritize new and regressed failures."
         ),

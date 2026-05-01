@@ -179,6 +179,14 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
     }
   }
 
+  async function refreshFailedTasksFromLiveUpdate() {
+    try {
+      await fetchFailedTasks({ hours: lookbackHours.value })
+    } catch {
+      // keep the live event visible even if the background refresh fails
+    }
+  }
+
   function updateFromLiveEvent(event: TaskFailureNoveltyResponse) {
     const environmentStore = useEnvironmentStore()
     const { matchesEnvironment } = useEnvironmentMatcher()
@@ -207,6 +215,7 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
 
       upsertFailedTask(event)
       pruneExpired()
+      void refreshFailedTasksFromLiveUpdate()
       return
     }
 

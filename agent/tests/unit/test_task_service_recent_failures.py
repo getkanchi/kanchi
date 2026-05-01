@@ -169,6 +169,67 @@ class TestTaskServiceRecentFailedTasks(DatabaseTestCase):
 
         self.assertEqual([task.task_id for task in results], ["current-new"])
 
+    def test_novelty_sorting_applies_before_limit(self):
+        self.create_task_event_db(
+            task_id="recent-recurring-prior",
+            task_name="tasks.example",
+            event_type="task-failed",
+            timestamp=self.now - timedelta(hours=30),
+            exception="RuntimeError: repeated",
+        )
+        self.create_task_event_db(
+            task_id="recent-recurring-current",
+            task_name="tasks.example",
+            event_type="task-failed",
+            timestamp=self.now - timedelta(minutes=3),
+            exception="RuntimeError: repeated",
+        )
+        self.create_task_event_db(
+            task_id="slightly-older-new",
+            task_name="tasks.unique",
+            event_type="task-failed",
+            timestamp=self.now - timedelta(minutes=6),
+            exception="LookupError: fresh",
+        )
+
+        results = self.service.get_recent_failed_tasks(
+            hours=24,
+            limit=1,
+            novelty_lookback_hours=168,
+            sort_by="novelty",
+        )
+
+        self.assertEqual([task.task_id for task in results], ["slightly-older-new"])
+
+    def test_regressed_only_when_latest_prior_occurrence_was_resolved(self):
+        self.create_task_event_db(
+            task_id="prior-resolved",
+            task_name="tasks.example",
+            event_type="task-failed",
+            timestamp=self.now - timedelta(hours=10),
+            exception="RuntimeError: repeated",
+        )
+        self.service.set_task_resolution("prior-resolved", resolved_by="tester")
+        self.create_task_event_db(
+            task_id="prior-unresolved",
+            task_name="tasks.example",
+            event_type="task-failed",
+            timestamp=self.now - timedelta(hours=2),
+            exception="RuntimeError: repeated",
+        )
+        self.create_task_event_db(
+            task_id="current-failure",
+            task_name="tasks.example",
+            event_type="task-failed",
+            timestamp=self.now - timedelta(minutes=5),
+            exception="RuntimeError: repeated",
+        )
+
+        results = self.service.get_recent_failed_tasks(hours=24, novelty_lookback_hours=168)
+        by_id = {task.task_id: task for task in results}
+
+        self.assertEqual(by_id["current-failure"].failure_novelty_status, "recurring")
+
 
 if __name__ == "__main__":
     unittest.main()
