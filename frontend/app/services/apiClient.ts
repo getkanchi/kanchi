@@ -3,6 +3,7 @@
  */
 import { Api } from '../src/types/api'
 import type {
+  IncidentSummary,
   TaskStats,
   TaskEventResponse,
   WorkerInfo
@@ -101,25 +102,6 @@ export interface TaskProgressSnapshotResponse {
   latest?: TaskProgressEventResponse | null
   steps: TaskStepDefinition[]
   history: TaskProgressEventResponse[]
-}
-
-export interface IncidentSummaryDTO {
-  incident_key: string
-  task_name: string
-  failure_count: number
-  unresolved_count: number
-  retried_task_count: number
-  retry_attempt_count: number
-  affected_workers: string[]
-  worker_count: number
-  first_seen: string
-  last_seen: string
-  latest_task_id: string
-  latest_exception?: string | null
-  latest_status: 'active' | 'recovering'
-  severity: 'low' | 'medium' | 'high' | 'critical'
-  urgency_score: number
-  recent_failure_count: number
 }
 
 class ApiService {
@@ -358,12 +340,8 @@ class ApiService {
     return response.data
   }
 
-  async getIncidentSummaries(params?: { hours?: number; limit?: number }): Promise<IncidentSummaryDTO[]> {
-    const response = await this.api.request({
-      path: '/api/incidents/summaries',
-      method: 'GET',
-      query: params
-    })
+  async getIncidentSummaries(params?: { hours?: number; limit?: number }): Promise<IncidentSummary[]> {
+    const response = await this.api.api.getIncidentSummariesApiIncidentsSummariesGet(params)
     return response.data
   }
 
