@@ -251,7 +251,6 @@ def create_router(app_state) -> APIRouter:
                 task_events = task_service.get_task_events(item.task_id)
                 original_task = task_events[-1]
                 new_task_id = str(uuid.uuid4())
-                task_service.create_retry_relationship(item.task_id, new_task_id)
                 result = app_state.monitor_instance.app.send_task(
                     original_task.task_name,
                     args=tuple(original_task.args) if original_task.args else (),
@@ -259,11 +258,13 @@ def create_router(app_state) -> APIRouter:
                     queue=original_task.queue if original_task.queue else 'default',
                     task_id=new_task_id,
                 )
+                queued_task_id = result.id or new_task_id
+                task_service.create_retry_relationship(item.task_id, queued_task_id)
                 results.append(BulkTaskActionItemResult(
                     task_id=item.task_id,
                     status="success",
                     message="Task retry queued.",
-                    new_task_id=result.id or new_task_id,
+                    new_task_id=queued_task_id,
                 ))
             except Exception as exc:
                 results.append(BulkTaskActionItemResult(task_id=item.task_id, status="failed", message=str(exc)))

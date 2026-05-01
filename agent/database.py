@@ -321,6 +321,21 @@ class RetryRelationshipDB(Base):
     )
 
 
+class TaskAnnotationDB(Base):
+    """Operator annotation attached to a task during incident response."""
+    __tablename__ = 'task_annotations'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    task_id = Column(String(255), nullable=False, index=True)
+    comment = Column(Text, nullable=False)
+    operator = Column(String(255), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    __table_args__ = (
+        Index('idx_task_annotations_task_created', 'task_id', 'created_at'),
+    )
+
+
 class TaskRegistryDB(Base):
     """SQLAlchemy model for task registry."""
     __tablename__ = 'task_registry'

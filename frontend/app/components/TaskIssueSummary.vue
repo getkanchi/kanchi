@@ -142,7 +142,7 @@
             </div>
           </div>
 
-          <div v-if="bulkResult" class="rounded-md border border-status-success/40 bg-status-success-bg/30 px-3 py-2 text-sm text-status-success">
+          <div v-if="bulkResult" class="rounded-md border border-status-success-border bg-status-success-bg px-3 py-2 text-sm text-status-success">
             {{ bulkResult.success_count }} task{{ bulkResult.success_count === 1 ? '' : 's' }} completed successfully.
           </div>
 
@@ -231,7 +231,7 @@
                     <Badge
                       v-if="resolutionState(task).resolved"
                       variant="outline"
-                      class="text-[11px] px-2 py-0.5 border-status-success text-status-success bg-status-success-bg/50"
+                      class="text-[11px] px-2 py-0.5 border-status-success-border text-status-success bg-status-success-bg"
                     >
                       Resolved
                     </Badge>
@@ -338,7 +338,7 @@
             <TableRow class="border-border-subtle">
               <TableCell :colspan="summaryColumnCount + 2" class="p-8">
                 <div class="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border-subtle px-6 py-8 text-center">
-                  <svg class="h-10 w-10 text-text-muted/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg class="h-10 w-10 text-text-muted opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 3a9 9 0 100 18 9 9 0 000-18z" />
                   </svg>
                   <p class="text-sm font-medium text-text-secondary">{{ emptyStateTitle }}</p>
@@ -456,7 +456,7 @@ import { IconButton, Select } from '~/components/common'
 import TaskDetailsSection from '~/components/common/TaskDetailsSection.vue'
 import { ChevronDown, ChevronRight, Loader2, AlertTriangle, ChevronsLeft, ChevronLeft, ChevronsRight, CheckCircle2 } from 'lucide-vue-next'
 import type { TaskEventResponse } from '~/services/apiClient'
-import { useApiService } from '~/services/apiClient'
+import { useBulkTaskActionsStore } from '~/stores/bulkTaskActions'
 import { useTaskStatus } from '~/composables/useTaskStatus'
 import type { ParsedFilter } from '~/composables/useFilterParser'
 
@@ -509,16 +509,13 @@ const emit = defineEmits<{
 
 const { eventTypeToStatus, getStatusVariant, formatStatus } = useTaskStatus()
 const configStore = useConfigStore()
-const apiService = useApiService()
+const bulkTaskActionsStore = useBulkTaskActionsStore()
 
 const expandedTaskIds = ref(new Set<string>())
 const selectedTaskIds = ref(new Set<string>())
 const bulkAction = ref<'retry' | 'resolve' | 'unresolve' | 'annotate'>('resolve')
 const bulkComment = ref('')
-const bulkPreview = ref<any | null>(null)
-const bulkResult = ref<any | null>(null)
 const bulkDialogOpen = ref(false)
-const isBulkBusy = ref(false)
 const searchQuery = ref('')
 const activeFilters = ref<ParsedFilter[]>([])
 const pageSize = ref(props.limit)
@@ -660,7 +657,10 @@ const selectedCount = computed(() => selectedTaskIds.value.size)
 const displayedTaskIds = computed(() => displayedTasks.value.map(task => task.task_id))
 const allDisplayedSelected = computed(() => displayedTaskIds.value.length > 0 && displayedTaskIds.value.every(id => selectedTaskIds.value.has(id)))
 const someDisplayedSelected = computed(() => displayedTaskIds.value.some(id => selectedTaskIds.value.has(id)) && !allDisplayedSelected.value)
-const activeBulkResult = computed(() => bulkResult.value ?? bulkPreview.value)
+const bulkPreview = computed(() => bulkTaskActionsStore.preview)
+const bulkResult = computed(() => bulkTaskActionsStore.result)
+const isBulkBusy = computed(() => bulkTaskActionsStore.isLoading)
+const activeBulkResult = computed(() => bulkTaskActionsStore.activeResult)
 const bulkDialogTitle = computed(() => `Confirm bulk ${bulkAction.value}`)
 const bulkCompletedTitle = computed(() => `Bulk ${bulkResult.value?.action ?? bulkAction.value} completed`)
 
@@ -756,8 +756,7 @@ watch(filteredTasks, () => {
 })
 
 watch([bulkAction, bulkComment], () => {
-  bulkPreview.value = null
-  bulkResult.value = null
+  bulkTaskActionsStore.reset()
 })
 
 const toggleTaskSelection = (taskId: string) => {
@@ -768,8 +767,7 @@ const toggleTaskSelection = (taskId: string) => {
     next.add(taskId)
   }
   selectedTaskIds.value = next
-  bulkPreview.value = null
-  bulkResult.value = null
+  bulkTaskActionsStore.reset()
 }
 
 const toggleDisplayedSelection = () => {
@@ -780,14 +778,12 @@ const toggleDisplayedSelection = () => {
     displayedTaskIds.value.forEach(id => next.add(id))
   }
   selectedTaskIds.value = next
-  bulkPreview.value = null
-  bulkResult.value = null
+  bulkTaskActionsStore.reset()
 }
 
 const clearSelection = () => {
   selectedTaskIds.value = new Set()
-  bulkPreview.value = null
-  bulkResult.value = null
+  bulkTaskActionsStore.reset()
 }
 
 const bulkPayload = (dryRun: boolean) => ({
@@ -799,19 +795,11 @@ const bulkPayload = (dryRun: boolean) => ({
 
 const previewBulkAction = async () => {
   if (selectedTaskIds.value.size === 0) return
-  isBulkBusy.value = true
-  try {
-    bulkResult.value = await apiService.bulkTaskAction(bulkPayload(true))
-    bulkPreview.value = bulkResult.value
-    bulkResult.value = null
-  } finally {
-    isBulkBusy.value = false
-  }
+  await bulkTaskActionsStore.previewAction(bulkPayload(true))
 }
 
 const openBulkConfirmDialog = () => {
   if (!bulkPreview.value) return
-  bulkResult.value = null
   bulkDialogOpen.value = true
 }
 
@@ -821,13 +809,7 @@ const closeBulkDialog = () => {
 
 const executeBulkAction = async () => {
   if (selectedTaskIds.value.size === 0) return
-  isBulkBusy.value = true
-  try {
-    bulkResult.value = await apiService.bulkTaskAction(bulkPayload(false))
-    bulkPreview.value = null
-  } finally {
-    isBulkBusy.value = false
-  }
+  await bulkTaskActionsStore.executeAction(bulkPayload(false))
 }
 
 const toggleTaskExpansion = (taskId: string) => {
