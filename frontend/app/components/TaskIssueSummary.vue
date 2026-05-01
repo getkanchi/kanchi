@@ -84,8 +84,13 @@
       >
         <div class="text-sm text-text-secondary">
           <span class="font-mono text-text-primary">{{ selectedCount }}</span> selected
-          <span v-if="bulkResult" class="ml-2 text-text-muted">
-            Preview: {{ bulkResult.executable_count }} ready, {{ bulkResult.skipped_count }} skipped, {{ bulkResult.failure_count }} failed
+          <span v-if="bulkResult" class="ml-2" :class="bulkResult.dry_run ? 'text-text-muted' : 'text-status-success'">
+            <template v-if="bulkResult.dry_run">
+              Preview: {{ bulkResult.executable_count }} ready, {{ bulkResult.skipped_count }} skipped, {{ bulkResult.failure_count }} failed
+            </template>
+            <template v-else>
+              Completed: {{ bulkResult.success_count }} succeeded, {{ bulkResult.skipped_count }} skipped, {{ bulkResult.failure_count }} failed
+            </template>
           </span>
         </div>
         <div class="flex flex-wrap items-center gap-2">
@@ -114,6 +119,17 @@
       </div>
       <div v-if="bulkResult?.warnings?.length" class="space-y-1 text-xs text-status-warning">
         <p v-for="warning in bulkResult.warnings" :key="warning">{{ warning }}</p>
+      </div>
+      <div
+        v-if="bulkResult && !bulkResult.dry_run"
+        class="rounded-md border border-status-success/40 bg-status-success-bg/30 px-3 py-2 text-xs text-text-secondary"
+      >
+        <p class="font-medium text-status-success">Bulk {{ bulkResult.action }} completed</p>
+        <ul class="mt-1 space-y-1">
+          <li v-for="item in bulkResult.results.slice(0, 5)" :key="item.task_id" class="font-mono">
+            {{ item.task_id }} — {{ item.status }}<span v-if="item.new_task_id"> → {{ item.new_task_id }}</span>
+          </li>
+        </ul>
       </div>
     </div>
 
