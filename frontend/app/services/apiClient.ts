@@ -65,6 +65,22 @@ export interface TaskIssueConfigDTO {
   lookback_hours: number
 }
 
+export interface TaskSuppressionRuleDTO {
+  id: string
+  task_name: string
+  reason: string
+  exception_contains?: string | null
+  expires_at?: string | null
+  created_at: string
+}
+
+export interface TaskSuppressionRuleInput {
+  task_name: string
+  reason: string
+  exception_contains?: string | null
+  expires_at?: string | null
+}
+
 export interface DataRetentionConfigDTO {
   task_successful_days: number
   task_unsuccessful_days: number
@@ -376,6 +392,20 @@ class ApiService {
       query: params
     })
     return response.data
+  }
+
+  async listTaskSuppressions(includeExpired = false): Promise<TaskSuppressionRuleDTO[]> {
+    const response = await this.api.request({ path: '/api/task-suppressions', method: 'GET', query: { include_expired: includeExpired } })
+    return response.data
+  }
+
+  async createTaskSuppression(payload: TaskSuppressionRuleInput): Promise<TaskSuppressionRuleDTO> {
+    const response = await this.api.request({ path: '/api/task-suppressions', method: 'POST', body: payload })
+    return response.data
+  }
+
+  async deleteTaskSuppression(ruleId: string): Promise<void> {
+    await this.api.request({ path: `/api/task-suppressions/${encodeURIComponent(ruleId)}`, method: 'DELETE' })
   }
 
   // Worker-related endpoints

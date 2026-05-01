@@ -39,6 +39,10 @@ class TaskEvent(BaseModel):
     resolved: bool = False
     resolved_by: Optional[str] = None
     resolved_at: Optional[datetime] = None
+    suppressed: bool = False
+    suppression_rule_id: Optional[str] = None
+    suppression_reason: Optional[str] = None
+    suppression_expires_at: Optional[datetime] = None
 
     model_config = {
         'from_attributes': True,
@@ -457,6 +461,23 @@ class AppSettingUpdate(BaseModel):
 class TaskIssueConfig(BaseModel):
     """Configuration for the task issue summary section."""
     lookback_hours: int = Field(default=24, ge=1, le=168)
+
+
+class TaskSuppressionRuleCreate(BaseModel):
+    task_name: str
+    reason: str
+    exception_contains: Optional[str] = None
+    expires_at: Optional[datetime] = None
+
+
+class TaskSuppressionRule(TaskSuppressionRuleCreate):
+    id: str
+    created_at: datetime
+
+
+class TaskSuppressionMetrics(BaseModel):
+    active_count: int = 0
+    suppressed_count: int = 0
 
 
 class DataRetentionConfig(BaseModel):

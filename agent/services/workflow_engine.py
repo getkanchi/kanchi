@@ -16,6 +16,7 @@ from models import (
 from services.workflow_service import WorkflowService
 from services.workflow_executor import WorkflowExecutor
 from services.workflow_catalog import EVENT_TRIGGER_MAP, TRIGGER_METADATA
+from services.suppression_service import SuppressionService
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,16 @@ class WorkflowEngine:
         """Evaluate and execute matching workflows (async)."""
         with self.db_manager.get_session() as session:
             workflow_service = WorkflowService(session)
+            if trigger_type == "task.failed":
+                suppression_service = SuppressionService(session)
+                if isinstance(event, TaskEvent):
+                    matched_rule = suppression_service.match_rule(event)
+                    if matched_rule:
+                        context["suppressed"] = True
+                        context["suppression_reason"] = matched_rule.reason
+                        context["suppression_rule_id"] = matched_rule.id
+                        logger.info("Skipping workflow execution for suppressed failed task %s", event.task_id)
+                        return
 
             workflows = workflow_service.get_active_workflows_for_trigger(trigger_type)
 

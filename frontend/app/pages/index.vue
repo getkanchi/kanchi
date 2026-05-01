@@ -17,7 +17,7 @@
       <!-- Failure & Orphaned Tasks Overview -->
       <div class="mb-6 flex flex-col gap-4 failure-insights-section">
         <TaskIssueSummary
-          :tasks="failedTasksStore.failedTasks"
+          :tasks="failedTasksStore.activeFailedTasks"
           :is-loading="failedTasksStore.isLoading"
           :status="failedCardStatus"
           :summary-variant="failedSummaryVariant"
@@ -32,7 +32,7 @@
           latest-label="Last failure"
           time-field="timestamp"
           badge-label="Failed"
-          :badge-variant="failedTasksStore.failedTasks.length > 0 ? 'destructive': 'success'"
+          :badge-variant="failedTasksStore.activeFailedTasks.length > 0 ? 'destructive': 'success'"
           :show-retry-badge="true"
           :show-exception="true"
           :empty-state-title="failedTasksEmptyTitle"
@@ -76,6 +76,14 @@
               variant="outline"
               size="xs"
               class="gap-1"
+              @click.stop="handleSuppressAction(task)"
+            >
+              Mute
+            </Button>
+            <Button
+              variant="outline"
+              size="xs"
+              class="gap-1"
               :disabled="retryLoadingIds.includes(task.task_id)"
               @click.stop="handleFailedRetryAction(task)"
             >
@@ -87,6 +95,37 @@
               Retry
             </Button>
             </div>
+          </template>
+        </TaskIssueSummary>
+
+        <TaskIssueSummary
+          :tasks="failedTasksStore.suppressedFailedTasks"
+          :is-loading="failedTasksStore.isLoading"
+          status="neutral"
+          summary-variant="default"
+          :hide-when-empty="true"
+          title="Muted failed tasks"
+          primary-label="suppressed"
+          secondary-label="last hour"
+          recent-field="timestamp"
+          :recent-window-minutes="60"
+          latest-label="Last muted failure"
+          time-field="timestamp"
+          badge-label="Muted"
+          badge-variant="outline"
+          :show-retry-badge="true"
+          :show-exception="true"
+          empty-state-title="No muted failures"
+          empty-state-description="Suppressed noisy patterns land here instead of the active incident list."
+        >
+          <template #actions="{ task }">
+            <Button variant="outline" size="xs" class="gap-1" @click.stop="handleUnsuppressAction(task)">Unmute</Button>
+            <NuxtLink :to="`/tasks/${task.task_id}`">
+              <Button variant="outline" size="sm" class="gap-1.5">
+                <ChevronRight class="h-3.5 w-3.5" />
+                Open
+              </Button>
+            </NuxtLink>
           </template>
         </TaskIssueSummary>
 
@@ -290,8 +329,8 @@ const uniqueOrphanedTasks = computed<TaskEventResponse[]>(() => {
   return Array.from(taskMap.values())
 })
 
-const failedCardStatus = computed(() => failedTasksStore.failedTasks.length > 0 ? 'error' : 'success')
-const failedSummaryVariant = computed(() => failedTasksStore.failedTasks.length > 0 ? 'error' : 'success')
+const failedCardStatus = computed(() => failedTasksStore.activeFailedTasks.length > 0 ? 'error' : 'success')
+const failedSummaryVariant = computed(() => failedTasksStore.activeFailedTasks.length > 0 ? 'error' : 'success')
 const orphanCardStatus = computed(() => uniqueOrphanedTasks.value.length > 0 ? 'warning' : 'success')
 const orphanSummaryVariant = computed(() => uniqueOrphanedTasks.value.length > 0 ? 'warning' : 'success')
 const failedTasksLookbackHours = computed(() => failedTasksStore.lookbackHours)
@@ -319,6 +358,21 @@ const retryLoadingIds = computed(() => {
 })
 
 const resolutionLoadingIds = ref<string[]>([])
+
+const handleSuppressAction = async (task: TaskEventResponse & { exception?: string | null }) => {
+  const reason = window.prompt('Mute this noisy failure pattern. Reason?', 'Known noisy failure')
+  if (!reason) return
+  await failedTasksStore.createSuppressionRule({
+    task_name: task.task_name,
+    reason,
+    exception_contains: task.exception || undefined,
+  })
+}
+
+const handleUnsuppressAction = async (task: TaskEventResponse & { suppression_rule_id?: string | null }) => {
+  if (!task.suppression_rule_id) return
+  await failedTasksStore.deleteSuppressionRule(task.suppression_rule_id)
+}
 
 const isTaskResolved = (task: TaskEventResponse) => {
   return Boolean((task as TaskEventResponse & { resolved?: boolean }).resolved)
@@ -587,6 +641,7 @@ onMounted(async () => {
 
   await configStore.fetchConfig().catch(() => {})
   failedTasksStore.setLookbackHours(normalizeLookback(configStore.taskIssueLookbackHours))
+  failedTasksStore.fetchSuppressionRules().catch(() => {})
 
   // Initial data fetch
   await Promise.all([
