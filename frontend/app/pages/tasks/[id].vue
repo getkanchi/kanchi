@@ -503,11 +503,11 @@ const openRetryDialog = () => {
   retryDialogRef.value?.open()
 }
 
-const handleRetryConfirm = async () => {
+const handleRetryConfirm = async (policy?: Record<string, unknown>) => {
   if (!task.value?.task_id) return
 
   try {
-    await tasksStore.retryTask(task.value.task_id)
+    await tasksStore.retryTask(task.value.task_id, policy)
     await fetchTaskData()
   } catch (error) {
     console.error('Failed to rerun task:', error)

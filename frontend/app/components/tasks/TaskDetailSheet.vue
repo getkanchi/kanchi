@@ -444,11 +444,11 @@ function handleRetryFailure(taskId: string) {
   retryDialogRef.value?.open()
 }
 
-async function handleRetryConfirm() {
+async function handleRetryConfirm(policy?: Record<string, unknown>) {
   if (!currentRetryTaskId.value) return
 
   try {
-    await tasksStore.retryTask(currentRetryTaskId.value)
+    await tasksStore.retryTask(currentRetryTaskId.value, policy)
     currentRetryTaskId.value = null
   } catch (error) {
     console.error('Failed to retry task:', error)

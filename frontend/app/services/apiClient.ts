@@ -342,8 +342,21 @@ class ApiService {
     return response.data
   }
 
-  async retryTask(taskId: string): Promise<any> {
-    const response = await this.api.api.retryTaskApiTasksTaskIdRetryPost(taskId)
+  async getRetryPreview(taskId: string, maxAttempts = 3): Promise<any> {
+    const response = await this.api.request({
+      path: `/api/tasks/${encodeURIComponent(taskId)}/retry/preview`,
+      method: 'GET',
+      query: { max_attempts: maxAttempts }
+    })
+    return response.data
+  }
+
+  async retryTask(taskId: string, policy?: Record<string, unknown>): Promise<any> {
+    const response = await this.api.request({
+      path: `/api/tasks/${encodeURIComponent(taskId)}/retry`,
+      method: 'POST',
+      body: policy
+    })
     return response.data
   }
 

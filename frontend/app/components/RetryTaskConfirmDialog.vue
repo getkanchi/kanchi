@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import ConfirmationDialog from '~/components/ConfirmationDialog.vue'
 import TaskName from '~/components/TaskName.vue'
 import CopyButton from '~/components/CopyButton.vue'
@@ -21,18 +21,43 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<{
-  confirm: []
+  confirm: [policy: Record<string, unknown>]
   cancel: []
 }>()
 
 const confirmationDialogRef = ref<InstanceType<typeof ConfirmationDialog> | null>(null)
+const tasksStore = useTasksStore()
+const mode = ref<'immediate' | 'delayed'>('immediate')
+const delaySeconds = ref(300)
+const maxAttempts = ref(3)
+const operatorComment = ref('')
+const preview = ref<any>(null)
+const isPreviewLoading = ref(false)
 
-const open = () => {
+const retryPolicy = computed(() => ({
+  mode: mode.value,
+  delay_seconds: mode.value === 'delayed' ? delaySeconds.value : 0,
+  max_attempts: maxAttempts.value,
+  operator_comment: operatorComment.value || null,
+}))
+
+const loadPreview = async () => {
+  if (!props.task?.task_id) return
+  isPreviewLoading.value = true
+  try {
+    preview.value = await tasksStore.getRetryPreview(props.task.task_id, maxAttempts.value)
+  } finally {
+    isPreviewLoading.value = false
+  }
+}
+
+const open = async () => {
+  await loadPreview()
   confirmationDialogRef.value?.open()
 }
 
 const handleConfirm = () => {
-  emit('confirm')
+  emit('confirm', retryPolicy.value)
 }
 
 const handleCancel = () => {
@@ -114,6 +139,45 @@ defineExpose({ open })
         <Alert variant="warning" title="This will create a new task instance">
           The task will be re-queued and executed again by an available worker.
         </Alert>
+
+        <div class="rounded-lg border border-border bg-background-muted/30 p-4 space-y-3 text-sm">
+          <div class="flex items-center justify-between gap-3">
+            <label class="text-text-secondary">Retry mode</label>
+            <select v-model="mode" class="rounded-md border border-border bg-background-base px-3 py-2 text-text-primary">
+              <option value="immediate">Immediate</option>
+              <option value="delayed">Delayed</option>
+            </select>
+          </div>
+
+          <div v-if="mode === 'delayed'" class="flex items-center justify-between gap-3">
+            <label class="text-text-secondary">Delay seconds</label>
+            <input v-model.number="delaySeconds" type="number" min="1" max="86400" class="w-32 rounded-md border border-border bg-background-base px-3 py-2 text-right text-text-primary" />
+          </div>
+
+          <div class="flex items-center justify-between gap-3">
+            <label class="text-text-secondary">Cap attempts</label>
+            <input v-model.number="maxAttempts" type="number" min="1" max="25" @change="loadPreview" class="w-24 rounded-md border border-border bg-background-base px-3 py-2 text-right text-text-primary" />
+          </div>
+
+          <textarea v-model="operatorComment" rows="2" maxlength="500" placeholder="Operator comment (optional)" class="w-full rounded-md border border-border bg-background-base px-3 py-2 text-text-primary placeholder:text-text-muted" />
+        </div>
+
+        <div v-if="preview" class="rounded-lg border border-border p-4 space-y-2 text-sm">
+          <div class="font-medium text-text-primary">Retry-chain impact</div>
+          <p class="text-text-secondary">
+            {{ preview.retry_count }} existing retry attempt(s), {{ preview.remaining_attempts }} remaining under cap {{ preview.max_attempts }}.
+          </p>
+          <Alert
+            v-for="warning in preview.warnings"
+            :key="warning.code"
+            :variant="warning.severity === 'critical' ? 'error' : 'warning'"
+            :title="warning.code.replaceAll('_', ' ')"
+          >
+            {{ warning.message }}
+          </Alert>
+        </div>
+
+        <p v-else-if="isPreviewLoading" class="text-sm text-text-muted">Loading retry impact preview…</p>
       </div>
     </template>
   </ConfirmationDialog>

@@ -428,15 +428,15 @@ function handleOrphanRetryAction(task: TaskEventResponse) {
   openRetryDialog(task, 'orphan')
 }
 
-async function confirmRetry() {
+async function confirmRetry(policy?: Record<string, unknown>) {
   if (!retryDialogState.value) return
   isRetryingTask.value = true
   const { task, type } = retryDialogState.value
   try {
     if (type === 'orphan') {
-      await orphanTasksStore.retryOrphanedTask(task.task_id)
+      await orphanTasksStore.retryOrphanedTask(task.task_id, policy)
     } else {
-      await tasksStore.retryTask(task.task_id)
+      await tasksStore.retryTask(task.task_id, policy)
     }
     retryDialogState.value = null
   } catch (error) {

@@ -12,7 +12,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 
 from database import TaskEventDB, RetryRelationshipDB, TaskLatestDB, TaskResolutionDB
-from models import TaskEvent
+from models import TaskEvent, RetryImpactPreview, RetryWarning
 from constants import TaskState, EventType, STATE_TO_EVENT_MAP, ACTIVE_EVENT_TYPES
 from services.utils import EnvironmentFilter, GenericFilter, parse_filter_string
 from utils.payload_sanitizer import find_placeholder_paths
@@ -427,6 +427,68 @@ class TaskService:
             self.session.rollback()
             logger.error(f"Failed to create retry relationship: {e}")
             raise
+
+    def get_retry_impact_preview(self, task_id: str, max_attempts: int = 3) -> RetryImpactPreview:
+        """Preview retry-chain impact and unsafe retry conditions before requeueing."""
+        events = self.get_task_events(task_id)
+        if not events:
+            raise ValueError("Task not found")
+
+        task = events[-1]
+        retry_rel = (
+            self.session.query(RetryRelationshipDB)
+            .filter_by(task_id=task_id)
+            .first()
+        )
+        retry_chain = list(retry_rel.retry_chain or []) if retry_rel else []
+        retry_count = retry_rel.total_retries if retry_rel else task.retry_count or len(retry_chain)
+        remaining_attempts = max(max_attempts - retry_count, 0)
+        warnings: List[RetryWarning] = []
+
+        if retry_count >= max_attempts:
+            warnings.append(RetryWarning(
+                code="max_attempts_reached",
+                severity="critical",
+                message=f"This retry chain already reached the configured cap of {max_attempts} attempt(s).",
+            ))
+        elif retry_count >= max_attempts - 1:
+            warnings.append(RetryWarning(
+                code="last_attempt",
+                severity="warning",
+                message="This retry will consume the final configured retry attempt for this chain.",
+            ))
+
+        same_name_failures = (
+            self.session.query(TaskEventDB)
+            .filter(TaskEventDB.task_name == task.task_name)
+            .filter(TaskEventDB.event_type == EventType.TASK_FAILED.value)
+            .count()
+        )
+        if same_name_failures >= 3:
+            warnings.append(RetryWarning(
+                code="repeating_failure_family",
+                severity="warning",
+                message=f"{same_name_failures} failures share this task name; inspect the common cause before retrying blindly.",
+            ))
+
+        if task.is_orphan:
+            warnings.append(RetryWarning(
+                code="orphaned_worker",
+                severity="warning",
+                message="This task was orphaned by an offline worker; confirm the worker is healthy or route the retry elsewhere.",
+            ))
+
+        return RetryImpactPreview(
+            task_id=task.task_id,
+            task_name=task.task_name,
+            queue=task.queue,
+            retry_count=retry_count,
+            retry_chain=retry_chain,
+            max_attempts=max_attempts,
+            remaining_attempts=remaining_attempts,
+            warnings=warnings,
+            allowed=not any(warning.code == "max_attempts_reached" for warning in warnings),
+        )
 
     def mark_new_task_as_retry(self, new_task_id: str, original_task_id: str):
         """

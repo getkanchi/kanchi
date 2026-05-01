@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from services import TaskService, EnvironmentService, SessionService, AppConfigService, ProgressService
 from database import TaskEventDB
-from models import TaskEvent, TaskProgressSnapshot
+from models import TaskEvent, TaskProgressSnapshot, RetryImpactPreview, RetryTaskRequest
 from database import ensure_utc_isoformat
 from config import Config
 from security.auth import AuthenticatedUser
@@ -221,13 +221,38 @@ def create_router(app_state) -> APIRouter:
         }
 
 
+    @router.get("/tasks/{task_id}/retry/preview", response_model=RetryImpactPreview)
+    async def get_retry_preview(
+        task_id: str,
+        max_attempts: int = Query(default=3, ge=1, le=25),
+        session: Session = Depends(get_db),
+    ):
+        """Preview retry-chain impact and guardrails before requeueing."""
+        task_service = TaskService(session)
+        try:
+            return task_service.get_retry_impact_preview(task_id, max_attempts=max_attempts)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
     @router.post("/tasks/{task_id}/retry")
-    async def retry_task(task_id: str, session: Session = Depends(get_db)):
+    async def retry_task(
+        task_id: str,
+        payload: Optional[RetryTaskRequest] = None,
+        session: Session = Depends(get_db),
+    ):
         """Retry a failed task by creating a new task with the same parameters."""
         if not app_state.monitor_instance:
             raise HTTPException(status_code=500, detail="Monitor not initialized")
 
         task_service = TaskService(session)
+
+        retry_policy = payload or RetryTaskRequest()
+        preview = task_service.get_retry_impact_preview(task_id, max_attempts=retry_policy.max_attempts)
+        if not preview.allowed:
+            raise HTTPException(status_code=409, detail={
+                "message": "Retry blocked by configured safety policy",
+                "preview": preview.model_dump(mode="json"),
+            })
 
         # Find the original task
         task_events = task_service.get_task_events(task_id)
@@ -243,6 +268,8 @@ def create_router(app_state) -> APIRouter:
 
         args = tuple(original_task.args) if original_task.args else ()
         kwargs = original_task.kwargs if original_task.kwargs else {}
+        if retry_policy.override_kwargs:
+            kwargs = {**kwargs, **retry_policy.override_kwargs}
 
         queue_name = original_task.queue if original_task.queue else 'default'
 
@@ -251,12 +278,18 @@ def create_router(app_state) -> APIRouter:
         task_service.create_retry_relationship(task_id, new_task_id)
         session.commit()
 
+        send_task_kwargs = {
+            "queue": queue_name,
+            "task_id": new_task_id,
+        }
+        if retry_policy.mode == "delayed" and retry_policy.delay_seconds > 0:
+            send_task_kwargs["countdown"] = retry_policy.delay_seconds
+
         result = app_state.monitor_instance.app.send_task(
             original_task.task_name,
             args=args,
             kwargs=kwargs,
-            queue=queue_name,
-            task_id=new_task_id  # Use our pre-generated ID
+            **send_task_kwargs,
         )
         
         return {
@@ -265,6 +298,11 @@ def create_router(app_state) -> APIRouter:
             "original_task_id": task_id,
             "new_task_id": new_task_id,
             "task_name": original_task.task_name,
+            "retry_mode": retry_policy.mode,
+            "delay_seconds": retry_policy.delay_seconds,
+            "max_attempts": retry_policy.max_attempts,
+            "operator_comment": retry_policy.operator_comment,
+            "warnings": [warning.model_dump(mode="json") for warning in preview.warnings],
             "was_orphaned": orphaned_task is not None,
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
