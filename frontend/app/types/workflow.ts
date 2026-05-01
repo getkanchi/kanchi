@@ -138,6 +138,34 @@ export interface WorkflowExecutionRecord {
   workflow_snapshot?: Record<string, any>
 }
 
+export interface WorkflowReplayRequest {
+  start_time?: string
+  end_time?: string
+  limit: number
+  dry_run: boolean
+}
+
+export interface WorkflowReplayMatch {
+  event_type: string
+  timestamp: string
+  task_id?: string
+  task_name?: string
+  hostname?: string
+  summary: string
+  context: Record<string, any>
+}
+
+export interface WorkflowReplayResponse {
+  workflow_id: string
+  workflow_name: string
+  dry_run: boolean
+  scanned_count: number
+  matched_count: number
+  executed_count: number
+  truncated: boolean
+  matches: WorkflowReplayMatch[]
+}
+
 // ==================== Action Config Types ====================
 
 export interface ActionConfigDefinition {

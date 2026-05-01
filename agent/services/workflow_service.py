@@ -6,10 +6,10 @@ from datetime import date, datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional, Set
 from enum import Enum
 
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, func
 from sqlalchemy.orm import Session
 
-from database import WorkflowDB, WorkflowExecutionDB, ensure_utc_isoformat, utc_now
+from database import WorkflowDB, WorkflowExecutionDB, TaskEventDB, WorkerEventDB, ensure_utc_isoformat, utc_now
 from models import (
     WorkflowDefinition,
     WorkflowCreateRequest,
@@ -19,13 +19,34 @@ from models import (
     ConditionGroup,
     ActionConfig,
     CircuitBreakerConfig,
-    CircuitBreakerState
+    CircuitBreakerState,
+    WorkflowReplayRequest,
+    WorkflowReplayMatch,
+    WorkflowReplayResponse,
+    TaskEvent,
+    WorkerEvent,
 )
 from services.action_executor import ActionExecutor
 from services.action_config_service import ActionConfigService
 from services.workflow_catalog import TRIGGER_METADATA
 
 logger = logging.getLogger(__name__)
+
+TRIGGER_TO_EVENT_TYPE = {
+    trigger: event_type for event_type, trigger in {
+        "task-sent": "task.sent",
+        "task-received": "task.received",
+        "task-started": "task.started",
+        "task-succeeded": "task.succeeded",
+        "task-failed": "task.failed",
+        "task-retried": "task.retried",
+        "task-revoked": "task.revoked",
+        "task-orphaned": "task.orphaned",
+        "worker-online": "worker.online",
+        "worker-offline": "worker.offline",
+        "worker-heartbeat": "worker.heartbeat",
+    }.items()
+}
 
 
 class WorkflowService:
@@ -506,6 +527,54 @@ class WorkflowService:
         executions_db = query.all()
         return [self._db_to_execution(e) for e in executions_db]
 
+    def replay_workflow(
+        self,
+        workflow: WorkflowDefinition,
+        replay_request: WorkflowReplayRequest,
+    ) -> WorkflowReplayResponse:
+        """Evaluate a workflow against historical events and return matching candidates."""
+        from services.workflow_engine import WorkflowEngine
+
+        trigger_event_type = TRIGGER_TO_EVENT_TYPE.get(workflow.trigger.type)
+        if not trigger_event_type:
+            raise ValueError(f"Unsupported workflow trigger for replay: {workflow.trigger.type}")
+
+        end_time = self._ensure_aware_utc(replay_request.end_time) or datetime.now(timezone.utc)
+        start_time = self._ensure_aware_utc(replay_request.start_time) or (end_time - timedelta(hours=24))
+        if start_time > end_time:
+            raise ValueError("start_time must be before end_time")
+
+        if workflow.trigger.type.startswith("task."):
+            model = TaskEventDB
+            query = self.session.query(TaskEventDB).filter(TaskEventDB.event_type == trigger_event_type)
+        else:
+            model = WorkerEventDB
+            query = self.session.query(WorkerEventDB).filter(WorkerEventDB.event_type == trigger_event_type)
+
+        query = query.filter(model.timestamp >= start_time, model.timestamp <= end_time)
+        scanned_count = query.with_entities(func.count()).scalar() or 0
+        events_db = query.order_by(model.timestamp.desc()).limit(replay_request.limit).all()
+
+        engine = WorkflowEngine(db_manager=None)
+        matches: List[WorkflowReplayMatch] = []
+        for event_db in events_db:
+            event = self._db_to_replay_event(event_db)
+            context = event.model_dump()
+            if not engine._evaluate_conditions(workflow, context):
+                continue
+            matches.append(self._event_to_replay_match(event, context))
+
+        return WorkflowReplayResponse(
+            workflow_id=workflow.id or "",
+            workflow_name=workflow.name,
+            dry_run=replay_request.dry_run,
+            scanned_count=scanned_count,
+            matched_count=len(matches),
+            executed_count=0,
+            truncated=scanned_count > replay_request.limit,
+            matches=matches,
+        )
+
     # ==================== Helper Methods ====================
 
     def _db_to_workflow(self, workflow_db: WorkflowDB) -> WorkflowDefinition:
@@ -563,4 +632,61 @@ class WorkflowService:
             duration_ms=execution_db.duration_ms,
             workflow_snapshot=execution_db.workflow_snapshot,
             circuit_breaker_key=execution_db.circuit_breaker_key
+        )
+
+    def _db_to_replay_event(self, event_db: TaskEventDB | WorkerEventDB) -> TaskEvent | WorkerEvent:
+        if isinstance(event_db, TaskEventDB):
+            return TaskEvent(
+                task_id=event_db.task_id,
+                task_name=event_db.task_name,
+                event_type=event_db.event_type,
+                timestamp=self._ensure_aware_utc(event_db.timestamp) or datetime.now(timezone.utc),
+                args=event_db.args or [],
+                kwargs=event_db.kwargs or {},
+                retries=event_db.retries or 0,
+                eta=event_db.eta,
+                expires=event_db.expires,
+                hostname=event_db.hostname,
+                worker_name=event_db.worker_name,
+                queue=event_db.queue,
+                exchange=event_db.exchange or "",
+                routing_key=event_db.routing_key or "default",
+                root_id=event_db.root_id,
+                parent_id=event_db.parent_id,
+                result=event_db.result,
+                runtime=event_db.runtime,
+                exception=event_db.exception,
+                traceback=event_db.traceback,
+                is_orphan=bool(event_db.is_orphan),
+                orphaned_at=self._ensure_aware_utc(event_db.orphaned_at),
+            )
+
+        return WorkerEvent(
+            hostname=event_db.hostname,
+            event_type=event_db.event_type,
+            timestamp=self._ensure_aware_utc(event_db.timestamp) or datetime.now(timezone.utc),
+            active=event_db.active_tasks if isinstance(event_db.active_tasks, int) else None,
+            processed=event_db.processed,
+        )
+
+    def _event_to_replay_match(self, event: TaskEvent | WorkerEvent, context: Dict[str, Any]) -> WorkflowReplayMatch:
+        if isinstance(event, TaskEvent):
+            summary = f"{event.task_name} on {event.hostname or 'unknown worker'}"
+            return WorkflowReplayMatch(
+                event_type=event.event_type,
+                timestamp=event.timestamp,
+                task_id=event.task_id,
+                task_name=event.task_name,
+                hostname=event.hostname,
+                summary=summary,
+                context=self._json_safe(context),
+            )
+
+        summary = f"{event.event_type} on {event.hostname}"
+        return WorkflowReplayMatch(
+            event_type=event.event_type,
+            timestamp=event.timestamp,
+            hostname=event.hostname,
+            summary=summary,
+            context=self._json_safe(context),
         )

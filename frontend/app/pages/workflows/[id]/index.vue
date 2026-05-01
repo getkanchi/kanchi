@@ -33,6 +33,13 @@
           <Button
             variant="outline"
             size="sm"
+            @click="showReplayDialog = true"
+          >
+            Replay History
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             @click="toggleEnabled"
             :disabled="toggling"
           >
@@ -236,6 +243,68 @@
       </Button>
     </NuxtLink>
   </div>
+
+  <Dialog :open="showReplayDialog" @update:open="(open) => { showReplayDialog = open; replayError = null }">
+    <DialogContent class="max-w-2xl">
+      <DialogHeader>
+        <DialogTitle>Replay historical events</DialogTitle>
+        <DialogDescription>
+          Check which past events would have matched this workflow, then optionally replay those actions.
+        </DialogDescription>
+      </DialogHeader>
+      <div class="space-y-4">
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label class="text-xs font-medium text-text-secondary mb-1.5 block">Look back (hours)</label>
+            <Input v-model="replayHours" type="number" min="1" max="168" />
+          </div>
+          <div>
+            <label class="text-xs font-medium text-text-secondary mb-1.5 block">Max events to scan</label>
+            <Input v-model="replayLimit" type="number" min="1" max="200" />
+          </div>
+        </div>
+        <div v-if="replayError" class="text-sm text-status-error bg-status-error-bg border border-status-error-border rounded px-3 py-2">
+          {{ replayError }}
+        </div>
+        <div v-if="workflowStore.replayResult" class="rounded border border-border-subtle bg-background-base p-3 space-y-3">
+          <div class="flex flex-wrap items-center gap-2 text-xs text-text-muted">
+            <Badge variant="outline">Scanned {{ workflowStore.replayResult.scanned_count }}</Badge>
+            <Badge :variant="workflowStore.replayResult.matched_count ? 'default' : 'outline'">
+              Matched {{ workflowStore.replayResult.matched_count }}
+            </Badge>
+            <Badge v-if="!workflowStore.replayResult.dry_run" variant="outline">
+              Replayed {{ workflowStore.replayResult.executed_count }}
+            </Badge>
+          </div>
+          <div class="max-h-72 overflow-y-auto space-y-2">
+            <div
+              v-for="(match, idx) in workflowStore.replayResult.matches"
+              :key="idx"
+              class="rounded border border-border-subtle px-3 py-2"
+            >
+              <div class="flex items-center justify-between gap-3 text-xs">
+                <span class="font-medium text-text-primary">{{ match.summary }}</span>
+                <span class="text-text-muted">{{ formatDateTime(match.timestamp) }}</span>
+              </div>
+              <div class="mt-1 text-[11px] text-text-muted font-mono">{{ match.event_type }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <DialogFooter>
+        <Button variant="ghost" @click="showReplayDialog = false">Close</Button>
+        <Button variant="outline" @click="runReplay(true)" :disabled="replaying">
+          {{ replaying ? 'Running...' : 'Preview Matches' }}
+        </Button>
+        <Button
+          @click="runReplay(false)"
+          :disabled="replaying || !workflowStore.replayResult?.matched_count"
+        >
+          Replay Matching Events
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </template>
 
 <script setup lang="ts">
@@ -244,12 +313,19 @@ import { ChevronLeft, Power, Pencil, AlertCircle, ShieldCheck } from 'lucide-vue
 import { Button } from '~/components/ui/button'
 import { Badge } from '~/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs'
+import { Input } from '~/components/ui/input'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '~/components/ui/dialog'
 import StatusDot from '~/components/StatusDot.vue'
 import WorkflowExecutionHistory from '~/components/workflows/WorkflowExecutionHistory.vue'
 
 const route = useRoute()
 const workflowStore = useWorkflowsStore()
 const toggling = ref(false)
+const showReplayDialog = ref(false)
+const replaying = ref(false)
+const replayError = ref<string | null>(null)
+const replayHours = ref('24')
+const replayLimit = ref('25')
 
 const successRate = computed(() => {
   const workflow = workflowStore.currentWorkflow
@@ -265,6 +341,28 @@ async function toggleEnabled() {
     await workflowStore.toggleWorkflow(workflowStore.currentWorkflow.id)
   } finally {
     toggling.value = false
+  }
+}
+
+async function runReplay(dryRun: boolean) {
+  if (!workflowStore.currentWorkflow?.id) return
+
+  replaying.value = true
+  replayError.value = null
+  try {
+    const hours = Math.max(1, Math.min(168, Number(replayHours.value || '24')))
+    const end = new Date()
+    const start = new Date(end.getTime() - hours * 60 * 60 * 1000)
+    await workflowStore.replayWorkflow(workflowStore.currentWorkflow.id, {
+      dry_run: dryRun,
+      limit: Math.max(1, Math.min(200, Number(replayLimit.value || '25'))),
+      start_time: start.toISOString(),
+      end_time: end.toISOString(),
+    })
+  } catch (err) {
+    replayError.value = err instanceof Error ? err.message : 'Replay failed'
+  } finally {
+    replaying.value = false
   }
 }
 

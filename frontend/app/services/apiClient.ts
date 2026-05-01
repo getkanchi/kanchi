@@ -700,6 +700,15 @@ class ApiService {
     return response.data
   }
 
+  async replayWorkflow(workflowId: string, data: any): Promise<any> {
+    const response = await this.api.request({
+      path: `/api/workflows/${workflowId}/replay`,
+      method: 'POST',
+      body: data
+    })
+    return response.data
+  }
+
   async getActionConfigs(params?: {
     action_type?: string
     limit?: number
