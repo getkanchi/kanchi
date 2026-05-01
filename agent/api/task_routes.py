@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from services import TaskService, EnvironmentService, SessionService, AppConfigService, ProgressService
 from database import TaskEventDB
-from models import TaskEvent, TaskProgressSnapshot
+from models import TaskEvent, TaskProgressSnapshot, BulkTaskActionRequest, BulkTaskActionResult, BulkTaskActionItemResult
 from database import ensure_utc_isoformat
 from config import Config
 from security.auth import AuthenticatedUser
@@ -219,6 +219,66 @@ def create_router(app_state) -> APIRouter:
             "resolved_by": None,
             "resolved_at": None,
         }
+
+
+    @router.post("/tasks/bulk-action", response_model=BulkTaskActionResult)
+    async def bulk_task_action(
+        payload: BulkTaskActionRequest,
+        session: Session = Depends(get_db),
+        current_user: Optional[AuthenticatedUser] = Depends(optional_user_dep)
+    ):
+        """Preview or execute a guarded bulk action across selected tasks."""
+        task_service = TaskService(session)
+        if config.auth_enabled and isinstance(current_user, AuthenticatedUser):
+            payload.operator = payload.operator or current_user.email or current_user.name
+
+        if payload.dry_run:
+            return task_service.preview_bulk_task_action(payload)
+
+        if payload.action != "retry":
+            return task_service.execute_bulk_task_action(payload)
+
+        if not app_state.monitor_instance:
+            raise HTTPException(status_code=500, detail="Monitor not initialized")
+
+        preview = task_service.preview_bulk_task_action(payload)
+        results: List[BulkTaskActionItemResult] = []
+        for item in preview.results:
+            if item.status != "pending":
+                results.append(item)
+                continue
+            try:
+                task_events = task_service.get_task_events(item.task_id)
+                original_task = task_events[-1]
+                new_task_id = str(uuid.uuid4())
+                task_service.create_retry_relationship(item.task_id, new_task_id)
+                result = app_state.monitor_instance.app.send_task(
+                    original_task.task_name,
+                    args=tuple(original_task.args) if original_task.args else (),
+                    kwargs=original_task.kwargs if original_task.kwargs else {},
+                    queue=original_task.queue if original_task.queue else 'default',
+                    task_id=new_task_id,
+                )
+                results.append(BulkTaskActionItemResult(
+                    task_id=item.task_id,
+                    status="success",
+                    message="Task retry queued.",
+                    new_task_id=result.id or new_task_id,
+                ))
+            except Exception as exc:
+                results.append(BulkTaskActionItemResult(task_id=item.task_id, status="failed", message=str(exc)))
+
+        return BulkTaskActionResult(
+            action=payload.action,
+            dry_run=False,
+            requested_count=preview.requested_count,
+            executable_count=preview.executable_count,
+            success_count=sum(1 for item in results if item.status == "success"),
+            failure_count=sum(1 for item in results if item.status == "failed"),
+            skipped_count=sum(1 for item in results if item.status == "skipped"),
+            warnings=preview.warnings,
+            results=results,
+        )
 
 
     @router.post("/tasks/{task_id}/retry")

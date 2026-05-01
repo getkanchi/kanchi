@@ -12,7 +12,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 
 from database import TaskEventDB, RetryRelationshipDB, TaskLatestDB, TaskResolutionDB
-from models import TaskEvent
+from models import TaskEvent, BulkTaskActionRequest, BulkTaskActionResult, BulkTaskActionItemResult
 from constants import TaskState, EventType, STATE_TO_EVENT_MAP, ACTIVE_EVENT_TYPES
 from services.utils import EnvironmentFilter, GenericFilter, parse_filter_string
 from utils.payload_sanitizer import find_placeholder_paths
@@ -836,6 +836,14 @@ class TaskService:
             logger.error("Failed to set resolution for task %s: %s", task_id, exc)
             raise
 
+    def get_task_resolution(self, task_id: str) -> Optional[TaskResolutionDB]:
+        """Get the manual resolution marker for a task, if one exists."""
+        return (
+            self.session.query(TaskResolutionDB)
+            .filter(TaskResolutionDB.task_id == task_id)
+            .one_or_none()
+        )
+
     def clear_task_resolution(self, task_id: str) -> None:
         """
         Remove manual resolution mark from a task.
@@ -852,6 +860,90 @@ class TaskService:
             self.session.rollback()
             logger.error("Failed to clear resolution for task %s: %s", task_id, exc)
             raise
+
+    def preview_bulk_task_action(self, request: BulkTaskActionRequest) -> BulkTaskActionResult:
+        """Return a safe per-task preview for a bulk incident action."""
+        unique_task_ids = list(dict.fromkeys(request.task_ids))
+        warnings: List[str] = []
+        if len(unique_task_ids) != len(request.task_ids):
+            warnings.append("Duplicate task IDs were collapsed before execution.")
+        if len(unique_task_ids) > 25:
+            warnings.append("Large bulk action: review the target set carefully before confirming.")
+
+        results: List[BulkTaskActionItemResult] = []
+        executable_count = 0
+        for task_id in unique_task_ids:
+            events = self.get_task_events(task_id)
+            if not events:
+                results.append(BulkTaskActionItemResult(task_id=task_id, status="failed", message="Task not found."))
+                continue
+
+            task = events[-1]
+            resolution = self.get_task_resolution(task_id)
+            if request.action == "retry" and task.event_type != EventType.TASK_FAILED.value and not task.is_orphan:
+                results.append(BulkTaskActionItemResult(task_id=task_id, status="skipped", message="Only failed or orphaned tasks can be retried in bulk."))
+                continue
+            if request.action == "resolve" and resolution and resolution.resolved:
+                results.append(BulkTaskActionItemResult(task_id=task_id, status="skipped", message="Task is already resolved."))
+                continue
+            if request.action == "unresolve" and not (resolution and resolution.resolved):
+                results.append(BulkTaskActionItemResult(task_id=task_id, status="skipped", message="Task is not currently resolved."))
+                continue
+            if request.action == "annotate" and not request.comment:
+                results.append(BulkTaskActionItemResult(task_id=task_id, status="skipped", message="Annotation requires an operator comment."))
+                continue
+
+            executable_count += 1
+            results.append(BulkTaskActionItemResult(task_id=task_id, status="pending", message=f"Ready to {request.action}."))
+
+        return BulkTaskActionResult(
+            action=request.action,
+            dry_run=request.dry_run,
+            requested_count=len(unique_task_ids),
+            executable_count=executable_count,
+            failure_count=sum(1 for item in results if item.status == "failed"),
+            skipped_count=sum(1 for item in results if item.status == "skipped"),
+            warnings=warnings,
+            results=results,
+        )
+
+    def execute_bulk_task_action(self, request: BulkTaskActionRequest) -> BulkTaskActionResult:
+        """Execute non-retry bulk incident actions with partial-success reporting."""
+        preview = self.preview_bulk_task_action(request)
+        if request.dry_run:
+            return preview
+
+        executed: List[BulkTaskActionItemResult] = []
+        for item in preview.results:
+            if item.status != "pending":
+                executed.append(item)
+                continue
+            try:
+                if request.action == "resolve":
+                    self.set_task_resolution(item.task_id, request.operator)
+                    message = "Task resolved."
+                elif request.action == "unresolve":
+                    self.clear_task_resolution(item.task_id)
+                    message = "Task resolution cleared."
+                elif request.action == "annotate":
+                    message = f"Annotation recorded for operator review: {request.comment}"
+                else:
+                    message = "Retry execution is handled by the API layer."
+                executed.append(BulkTaskActionItemResult(task_id=item.task_id, status="success", message=message))
+            except Exception as exc:
+                executed.append(BulkTaskActionItemResult(task_id=item.task_id, status="failed", message=str(exc)))
+
+        return BulkTaskActionResult(
+            action=request.action,
+            dry_run=False,
+            requested_count=preview.requested_count,
+            executable_count=preview.executable_count,
+            success_count=sum(1 for item in executed if item.status == "success"),
+            failure_count=sum(1 for item in executed if item.status == "failed"),
+            skipped_count=sum(1 for item in executed if item.status == "skipped"),
+            warnings=preview.warnings,
+            results=executed,
+        )
 
     def _update_task_latest_resolution(
         self,

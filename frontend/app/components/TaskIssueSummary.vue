@@ -78,12 +78,58 @@
         </div>
       </div>
       <p v-if="lookbackError" class="text-xs text-status-danger text-right">{{ lookbackError }}</p>
+      <div
+        v-if="selectedCount > 0"
+        class="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border-subtle bg-background-raised px-3 py-2"
+      >
+        <div class="text-sm text-text-secondary">
+          <span class="font-mono text-text-primary">{{ selectedCount }}</span> selected
+          <span v-if="bulkResult" class="ml-2 text-text-muted">
+            Preview: {{ bulkResult.executable_count }} ready, {{ bulkResult.skipped_count }} skipped, {{ bulkResult.failure_count }} failed
+          </span>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <Select v-model="bulkAction" size="sm">
+            <option value="resolve">Resolve</option>
+            <option value="unresolve">Unresolve</option>
+            <option value="retry">Retry</option>
+            <option value="annotate">Annotate</option>
+          </Select>
+          <input
+            v-if="bulkAction === 'annotate'"
+            v-model="bulkComment"
+            class="h-8 rounded-md border border-border bg-background-base px-2 text-sm text-text-primary placeholder:text-text-muted"
+            placeholder="Operator note"
+          />
+          <Button variant="outline" size="xs" :disabled="isBulkBusy" @click="previewBulkAction">
+            Preview
+          </Button>
+          <Button variant="default" size="xs" :disabled="isBulkBusy || !bulkResult || bulkResult.executable_count === 0" @click="executeBulkAction">
+            Confirm
+          </Button>
+          <Button variant="ghost" size="xs" :disabled="isBulkBusy" @click="clearSelection">
+            Clear
+          </Button>
+        </div>
+      </div>
+      <div v-if="bulkResult?.warnings?.length" class="space-y-1 text-xs text-status-warning">
+        <p v-for="warning in bulkResult.warnings" :key="warning">{{ warning }}</p>
+      </div>
     </div>
 
     <div v-if="!isCollapsed">
       <Table>
         <TableHeader>
           <TableRow class="border-border-subtle">
+            <TableHead class="w-12">
+              <input
+                type="checkbox"
+                :checked="allDisplayedSelected"
+                :indeterminate="someDisplayedSelected"
+                aria-label="Select displayed tasks"
+                @change="toggleDisplayedSelection"
+              />
+            </TableHead>
             <TableHead class="w-12" />
             <TableHead>Task Name</TableHead>
             <TableHead>Status</TableHead>
@@ -99,6 +145,14 @@
                 class="border-border-subtle cursor-pointer hover:bg-background-hover-subtle transition-colors duration-150"
                 @click="toggleTaskExpansion(task.task_id)"
               >
+                <TableCell class="w-12" @click.stop>
+                  <input
+                    type="checkbox"
+                    :checked="selectedTaskIds.has(task.task_id)"
+                    :aria-label="`Select ${task.task_name || task.task_id}`"
+                    @change="toggleTaskSelection(task.task_id)"
+                  />
+                </TableCell>
                 <TableCell class="w-12">
                   <ChevronRight
                     v-if="!expandedTaskIds.has(task.task_id)"
@@ -159,7 +213,7 @@
                 v-if="expandedTaskIds.has(task.task_id)"
                 class="bg-background-raised border-border-subtle cursor-default"
               >
-                <TableCell :colspan="summaryColumnCount + 1" class="p-0">
+                <TableCell :colspan="summaryColumnCount + 2" class="p-0">
                   <TaskDetailsSection
                     :task-name="task.task_name || 'Task'"
                     :status-label="statusLabel(task)"
@@ -223,7 +277,7 @@
           </template>
           <template v-else>
             <TableRow class="border-border-subtle">
-              <TableCell :colspan="summaryColumnCount + 1" class="p-8">
+              <TableCell :colspan="summaryColumnCount + 2" class="p-8">
                 <div class="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border-subtle px-6 py-8 text-center">
                   <svg class="h-10 w-10 text-text-muted/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 3a9 9 0 100 18 9 9 0 000-18z" />
@@ -335,6 +389,7 @@ import { IconButton, Select } from '~/components/common'
 import TaskDetailsSection from '~/components/common/TaskDetailsSection.vue'
 import { ChevronDown, ChevronRight, Loader2, AlertTriangle, ChevronsLeft, ChevronLeft, ChevronsRight, CheckCircle2 } from 'lucide-vue-next'
 import type { TaskEventResponse } from '~/services/apiClient'
+import { useApiService } from '~/services/apiClient'
 import { useTaskStatus } from '~/composables/useTaskStatus'
 import type { ParsedFilter } from '~/composables/useFilterParser'
 
@@ -387,8 +442,14 @@ const emit = defineEmits<{
 
 const { eventTypeToStatus, getStatusVariant, formatStatus } = useTaskStatus()
 const configStore = useConfigStore()
+const apiService = useApiService()
 
 const expandedTaskIds = ref(new Set<string>())
+const selectedTaskIds = ref(new Set<string>())
+const bulkAction = ref<'retry' | 'resolve' | 'unresolve' | 'annotate'>('resolve')
+const bulkComment = ref('')
+const bulkResult = ref<any | null>(null)
+const isBulkBusy = ref(false)
 const searchQuery = ref('')
 const activeFilters = ref<ParsedFilter[]>([])
 const pageSize = ref(props.limit)
@@ -526,6 +587,10 @@ const paginatedTasks = computed(() => {
 })
 
 const displayedTasks = computed(() => paginatedTasks.value)
+const selectedCount = computed(() => selectedTaskIds.value.size)
+const displayedTaskIds = computed(() => displayedTasks.value.map(task => task.task_id))
+const allDisplayedSelected = computed(() => displayedTaskIds.value.length > 0 && displayedTaskIds.value.every(id => selectedTaskIds.value.has(id)))
+const someDisplayedSelected = computed(() => displayedTaskIds.value.some(id => selectedTaskIds.value.has(id)) && !allDisplayedSelected.value)
 
 const recentCount = computed(() => {
   if (!props.recentField || props.recentWindowMinutes === undefined) return 0
@@ -617,6 +682,64 @@ watch(filteredTasks, () => {
     currentPage.value = maxPage
   }
 })
+
+watch([bulkAction, bulkComment], () => {
+  bulkResult.value = null
+})
+
+const toggleTaskSelection = (taskId: string) => {
+  const next = new Set(selectedTaskIds.value)
+  if (next.has(taskId)) {
+    next.delete(taskId)
+  } else {
+    next.add(taskId)
+  }
+  selectedTaskIds.value = next
+  bulkResult.value = null
+}
+
+const toggleDisplayedSelection = () => {
+  const next = new Set(selectedTaskIds.value)
+  if (allDisplayedSelected.value) {
+    displayedTaskIds.value.forEach(id => next.delete(id))
+  } else {
+    displayedTaskIds.value.forEach(id => next.add(id))
+  }
+  selectedTaskIds.value = next
+  bulkResult.value = null
+}
+
+const clearSelection = () => {
+  selectedTaskIds.value = new Set()
+  bulkResult.value = null
+}
+
+const bulkPayload = (dryRun: boolean) => ({
+  task_ids: Array.from(selectedTaskIds.value),
+  action: bulkAction.value,
+  dry_run: dryRun,
+  comment: bulkComment.value || null,
+})
+
+const previewBulkAction = async () => {
+  if (selectedTaskIds.value.size === 0) return
+  isBulkBusy.value = true
+  try {
+    bulkResult.value = await apiService.bulkTaskAction(bulkPayload(true))
+  } finally {
+    isBulkBusy.value = false
+  }
+}
+
+const executeBulkAction = async () => {
+  if (selectedTaskIds.value.size === 0) return
+  isBulkBusy.value = true
+  try {
+    bulkResult.value = await apiService.bulkTaskAction(bulkPayload(false))
+  } finally {
+    isBulkBusy.value = false
+  }
+}
 
 const toggleTaskExpansion = (taskId: string) => {
   if (expandedTaskIds.value.has(taskId)) {

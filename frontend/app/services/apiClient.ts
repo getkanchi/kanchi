@@ -347,6 +347,21 @@ class ApiService {
     return response.data
   }
 
+  async bulkTaskAction(payload: {
+    task_ids: string[]
+    action: 'retry' | 'resolve' | 'unresolve' | 'annotate'
+    dry_run: boolean
+    operator?: string | null
+    comment?: string | null
+  }): Promise<any> {
+    const response = await this.api.request({
+      path: '/api/tasks/bulk-action',
+      method: 'POST',
+      body: payload
+    })
+    return response.data
+  }
+
   async resolveTask(taskId: string, resolvedBy?: string | null): Promise<any> {
     const response = await this.api.request({
       path: `/api/tasks/${taskId}/resolve`,

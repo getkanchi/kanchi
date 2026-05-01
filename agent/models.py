@@ -133,6 +133,34 @@ class TaskEvent(BaseModel):
 TaskEvent.model_rebuild()
 
 
+class BulkTaskActionRequest(BaseModel):
+    """Dry-run or execute a guarded action across selected tasks."""
+    task_ids: List[str] = Field(default_factory=list, min_length=1, max_length=100)
+    action: Literal["retry", "resolve", "unresolve", "annotate"]
+    dry_run: bool = True
+    operator: Optional[str] = Field(default=None, max_length=120)
+    comment: Optional[str] = Field(default=None, max_length=500)
+
+
+class BulkTaskActionItemResult(BaseModel):
+    task_id: str
+    status: Literal["pending", "success", "failed", "skipped"]
+    message: str
+    new_task_id: Optional[str] = None
+
+
+class BulkTaskActionResult(BaseModel):
+    action: Literal["retry", "resolve", "unresolve", "annotate"]
+    dry_run: bool
+    requested_count: int
+    executable_count: int
+    success_count: int = 0
+    failure_count: int = 0
+    skipped_count: int = 0
+    warnings: List[str] = Field(default_factory=list)
+    results: List[BulkTaskActionItemResult] = Field(default_factory=list)
+
+
 class StepDefinition(BaseModel):
     """Single step definition for task progress."""
     key: str
