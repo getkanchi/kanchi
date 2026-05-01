@@ -5,6 +5,7 @@ from typing import Dict, Any, Type
 from sqlalchemy.orm import Session
 
 from services.actions.base import ActionHandler
+from services.actions.notification_policy import SEVERITY_ORDER
 from services.actions.slack_action import SlackActionHandler
 from services.actions.retry_action import RetryActionHandler
 from models import ActionResult
@@ -23,14 +24,18 @@ class ActionExecutor:
         "slack.notify": {
             "type": "slack.notify",
             "label": "Slack Notification",
-            "description": "Send a templated message to Slack",
+            "description": "Send a templated message to Slack with dedupe and escalation policy",
             "category": "notification",
+            "requiredParams": ["config_id", "template"],
+            "optionalParams": ["channel", "color", "notification_policy"],
         },
         "task.retry": {
             "type": "task.retry",
             "label": "Retry Task",
             "description": "Retry the Celery task with optional delay",
             "category": "task",
+            "requiredParams": [],
+            "optionalParams": ["delay_seconds"],
         },
     }
 
@@ -100,3 +105,30 @@ class ActionExecutor:
         """Register a new action handler (for extensibility)."""
         cls.ACTION_HANDLERS[action_type] = handler_class
         logger.info(f"Registered action handler: {action_type}")
+
+    def preview(self, action_type: str, context: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
+        handler_class = self.ACTION_HANDLERS.get(action_type)
+        if not handler_class:
+            return {
+                "supported": False,
+                "error": f"Unknown action type: {action_type}",
+            }
+
+        handler = handler_class(
+            session=self.session,
+            db_manager=self.db_manager,
+            monitor_instance=self.monitor_instance
+        )
+
+        if hasattr(handler, "preview"):
+            return {
+                "supported": True,
+                "action_type": action_type,
+                "severity_options": list(SEVERITY_ORDER.keys()),
+                **handler.preview(context, params)
+            }
+
+        return {
+            "supported": False,
+            "error": f"Preview not implemented for action type: {action_type}",
+        }

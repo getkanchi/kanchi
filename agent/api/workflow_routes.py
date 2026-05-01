@@ -200,4 +200,28 @@ def create_router(app_state) -> APIRouter:
             "actions": [action.type for action in workflow.actions]
         }
 
+    @router.post("/actions/preview")
+    async def preview_action(
+        payload: dict,
+        session: Session = Depends(get_db)
+    ):
+        """Preview an action payload after applying notification policy and templates."""
+        action_type = payload.get("action_type")
+        params = payload.get("params") or {}
+        context = payload.get("context") or {}
+
+        if not action_type:
+            raise HTTPException(status_code=400, detail="action_type is required")
+
+        preview = ActionExecutor(
+            session=session,
+            db_manager=app_state.db_manager,
+            monitor_instance=app_state.monitor_instance,
+        ).preview(action_type, context, params)
+
+        if not preview.get("supported"):
+            raise HTTPException(status_code=400, detail=preview.get("error", "Preview not supported"))
+
+        return preview
+
     return router

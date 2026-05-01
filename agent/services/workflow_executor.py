@@ -54,6 +54,13 @@ class WorkflowExecutor:
                 db_manager=self.db_manager,
                 monitor_instance=self.monitor_instance
             )
+            action_context = {
+                **context,
+                "_workflow": {
+                    "id": workflow.id,
+                    "name": workflow.name,
+                }
+            }
 
             for idx, action_config in enumerate(workflow.actions):
                 logger.info(
@@ -63,7 +70,7 @@ class WorkflowExecutor:
 
                 result = await action_executor.execute(
                     action_type=action_config.type,
-                    context=context,
+                    context=action_context,
                     params=action_config.params
                 )
 
