@@ -11,8 +11,8 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 
-from database import TaskEventDB, RetryRelationshipDB, TaskLatestDB, TaskResolutionDB
-from models import TaskEvent
+from database import TaskEventDB, RetryRelationshipDB, TaskLatestDB, TaskResolutionDB, TaskProgressLatestDB
+from models import TaskEvent, RuntimeAnomaly
 from constants import TaskState, EventType, STATE_TO_EVENT_MAP, ACTIVE_EVENT_TYPES
 from services.utils import EnvironmentFilter, GenericFilter, parse_filter_string
 from utils.payload_sanitizer import find_placeholder_paths
@@ -207,6 +207,112 @@ class TaskService:
         self._attach_resolution_info(events)
 
         return events
+
+    def get_runtime_anomalies(
+        self,
+        now: Optional[datetime] = None,
+        baseline_days: int = 14,
+        min_baseline_samples: int = 3,
+        runtime_multiplier: float = 2.5,
+        min_long_running_seconds: float = 300.0,
+        stalled_progress_seconds: float = 300.0,
+    ) -> List[RuntimeAnomaly]:
+        """Detect active tasks that look long-running or stalled.
+
+        The first slice intentionally stays conservative:
+        - long-running requires a completed-task baseline for the same task family
+        - stalled-progress requires a latest progress snapshot older than the threshold
+        """
+        current_time = _ensure_utc(now) or datetime.now(timezone.utc)
+        active_tasks = self.get_active_tasks()
+        if not active_tasks:
+            return []
+
+        active_task_ids = [task.task_id for task in active_tasks]
+        task_names = sorted({task.task_name for task in active_tasks if task.task_name})
+        hostnames = [task.hostname for task in active_tasks if task.hostname]
+
+        progress_rows = (
+            self.session.query(TaskProgressLatestDB)
+            .filter(TaskProgressLatestDB.task_id.in_(active_task_ids))
+            .all()
+        )
+        progress_map = {row.task_id: row for row in progress_rows}
+
+        hostname_counts: Dict[str, int] = {}
+        for hostname in hostnames:
+            hostname_counts[hostname] = hostname_counts.get(hostname, 0) + 1
+
+        since = current_time - timedelta(days=baseline_days)
+        baseline_rows = (
+            self.session.query(
+                TaskEventDB.task_name.label("task_name"),
+                func.avg(TaskEventDB.runtime).label("avg_runtime"),
+                func.count(TaskEventDB.id).label("sample_count"),
+            )
+            .filter(
+                TaskEventDB.task_name.in_(task_names),
+                TaskEventDB.event_type == EventType.TASK_SUCCEEDED.value,
+                TaskEventDB.runtime.isnot(None),
+                TaskEventDB.timestamp >= since,
+            )
+            .group_by(TaskEventDB.task_name)
+            .all()
+        )
+        baseline_map = {
+            row.task_name: {
+                "avg_runtime": float(row.avg_runtime),
+                "sample_count": int(row.sample_count),
+            }
+            for row in baseline_rows
+            if row.avg_runtime is not None
+        }
+
+        anomalies: List[RuntimeAnomaly] = []
+        for task in active_tasks:
+            started_at = _ensure_utc(task.timestamp)
+            if started_at is None:
+                continue
+
+            runtime_seconds = max(0.0, (current_time - started_at).total_seconds())
+            worker_active_count = hostname_counts.get(task.hostname, 1) if task.hostname else 1
+
+            baseline = baseline_map.get(task.task_name)
+            if baseline and baseline["sample_count"] >= min_baseline_samples:
+                baseline_runtime = baseline["avg_runtime"]
+                long_running_threshold = max(min_long_running_seconds, baseline_runtime * runtime_multiplier)
+                if runtime_seconds >= long_running_threshold:
+                    anomalies.append(RuntimeAnomaly(
+                        task=task,
+                        anomaly_type="long_running",
+                        runtime_seconds=runtime_seconds,
+                        baseline_runtime_seconds=baseline_runtime,
+                        worker_active_task_count=worker_active_count,
+                        threshold_seconds=long_running_threshold,
+                        detail=(
+                            f"Task has been active for {runtime_seconds:.0f}s against a "
+                            f"{baseline_runtime:.1f}s average baseline."
+                        ),
+                    ))
+
+            progress_row = progress_map.get(task.task_id)
+            progress_updated_at = _ensure_utc(progress_row.updated_at) if progress_row else None
+            if progress_updated_at is not None:
+                progress_age_seconds = max(0.0, (current_time - progress_updated_at).total_seconds())
+                if progress_age_seconds >= stalled_progress_seconds:
+                    anomalies.append(RuntimeAnomaly(
+                        task=task,
+                        anomaly_type="stalled_progress",
+                        runtime_seconds=runtime_seconds,
+                        baseline_runtime_seconds=baseline["avg_runtime"] if baseline else None,
+                        progress_age_seconds=progress_age_seconds,
+                        worker_active_task_count=worker_active_count,
+                        threshold_seconds=stalled_progress_seconds,
+                        detail=f"No progress update has arrived for {progress_age_seconds:.0f}s.",
+                    ))
+
+        anomalies.sort(key=lambda item: (item.anomaly_type, item.runtime_seconds), reverse=True)
+        return anomalies
 
     def get_unretried_orphaned_tasks(self) -> List[TaskEvent]:
         """Get orphaned tasks that have not been retried and have no final-state event."""

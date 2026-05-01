@@ -126,6 +126,17 @@ export interface TaskProgressSnapshotResponse {
   history: TaskProgressEventResponse[]
 }
 
+export interface RuntimeAnomalyResponse {
+  task: TaskEventResponse
+  anomaly_type: 'long_running' | 'stalled_progress'
+  runtime_seconds: number
+  baseline_runtime_seconds?: number | null
+  progress_age_seconds?: number | null
+  worker_active_task_count: number
+  threshold_seconds: number
+  detail: string
+}
+
 class ApiService {
   private api: Api<unknown>
 
@@ -339,6 +350,14 @@ class ApiService {
 
   async getActiveTasks(): Promise<TaskEventResponse[]> {
     const response = await this.api.api.getActiveTasksApiTasksActiveGet()
+    return response.data
+  }
+
+  async getRuntimeAnomalies(): Promise<RuntimeAnomalyResponse[]> {
+    const response = await this.api.request({
+      path: '/api/tasks/runtime-anomalies',
+      method: 'GET'
+    })
     return response.data
   }
 

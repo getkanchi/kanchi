@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from services import TaskService, EnvironmentService, SessionService, AppConfigService, ProgressService
 from database import TaskEventDB
-from models import TaskEvent, TaskProgressSnapshot
+from models import TaskEvent, TaskProgressSnapshot, RuntimeAnomaly
 from database import ensure_utc_isoformat
 from config import Config
 from security.auth import AuthenticatedUser
@@ -149,6 +149,26 @@ def create_router(app_state) -> APIRouter:
         """Get tasks that have been marked as orphaned and NOT yet retried."""
         task_service = TaskService(session, active_env=active_env)
         return task_service.get_unretried_orphaned_tasks()
+
+    @router.get("/tasks/runtime-anomalies", response_model=List[RuntimeAnomaly])
+    async def get_runtime_anomalies(
+        baseline_days: int = Query(14, ge=1, le=90, description="Days of successful task history used for runtime baselines"),
+        min_baseline_samples: int = Query(3, ge=1, le=100, description="Minimum completed samples required before baseline-backed detection"),
+        runtime_multiplier: float = Query(2.5, ge=1.0, le=20.0, description="Multiplier applied to the task-family runtime baseline"),
+        min_long_running_seconds: float = Query(300.0, ge=1.0, description="Minimum runtime before a task can be considered long-running"),
+        stalled_progress_seconds: float = Query(300.0, ge=1.0, description="Maximum age of the latest progress update before a task is considered stalled"),
+        session: Session = Depends(get_db),
+        active_env = Depends(get_active_env)
+    ):
+        """Get active tasks that look long-running or stalled."""
+        task_service = TaskService(session, active_env=active_env)
+        return task_service.get_runtime_anomalies(
+            baseline_days=baseline_days,
+            min_baseline_samples=min_baseline_samples,
+            runtime_multiplier=runtime_multiplier,
+            min_long_running_seconds=min_long_running_seconds,
+            stalled_progress_seconds=stalled_progress_seconds,
+        )
 
     @router.get("/tasks/failed/recent", response_model=List[TaskEvent])
     async def get_recent_failed_tasks(
