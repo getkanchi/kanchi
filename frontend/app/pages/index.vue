@@ -16,6 +16,11 @@
 
       <!-- Failure & Orphaned Tasks Overview -->
       <div class="mb-6 flex flex-col gap-4 failure-insights-section">
+        <TriageRecommendationSummary
+          :recommendations="triageRecommendationsStore.recommendations"
+          :status="triageRecommendationsStore.criticalCount > 0 ? 'error' : 'warning'"
+        />
+
         <TaskIssueSummary
           :tasks="runtimeAnomaliesStore.anomalies"
           :is-loading="runtimeAnomaliesStore.isLoading"
@@ -276,6 +281,7 @@ import DataTable from "~/components/data-table.vue"
 import WorkerStatusSummary from "~/components/WorkerStatusSummary.vue"
 import CommandPalette from "~/components/CommandPalette.vue"
 import TaskIssueSummary from "~/components/TaskIssueSummary.vue"
+import TriageRecommendationSummary from '~/components/TriageRecommendationSummary.vue'
 import RetryTaskConfirmDialog from "~/components/RetryTaskConfirmDialog.vue"
 import { Button } from '~/components/ui/button'
 import { Badge } from '~/components/ui/badge'
@@ -294,6 +300,7 @@ const workersStore = useWorkersStore()
 const orphanTasksStore = useOrphanTasksStore()
 const failedTasksStore = useFailedTasksStore()
 const runtimeAnomaliesStore = useRuntimeAnomaliesStore()
+const triageRecommendationsStore = useTriageRecommendationsStore()
 const configStore = useConfigStore()
 const wsStore = useWebSocketStore()
 const environmentStore = useEnvironmentStore()
@@ -645,7 +652,8 @@ watch(() => environmentStore.activeEnvironment, async () => {
     workersStore.fetchWorkers(),
     orphanTasksStore.fetchOrphanedTasks(),
     failedTasksStore.fetchFailedTasks({ hours: failedTasksStore.lookbackHours }),
-    runtimeAnomaliesStore.fetchRuntimeAnomalies().catch(() => {})
+    runtimeAnomaliesStore.fetchRuntimeAnomalies().catch(() => {}),
+    triageRecommendationsStore.fetchTriageRecommendations().catch(() => {})
   ])
 })
 
@@ -678,7 +686,8 @@ onMounted(async () => {
     workersStore.fetchWorkers(),
     orphanTasksStore.fetchOrphanedTasks(),
     failedTasksStore.fetchFailedTasks({ hours: failedTasksStore.lookbackHours }),
-    runtimeAnomaliesStore.fetchRuntimeAnomalies().catch(() => {})
+    runtimeAnomaliesStore.fetchRuntimeAnomalies().catch(() => {}),
+    triageRecommendationsStore.fetchTriageRecommendations().catch(() => {})
   ])
 
   tasksStore.setLiveMode(wsStore.clientMode === 'live')
@@ -696,6 +705,7 @@ onMounted(async () => {
 
   runtimeAnomaliesInterval = setInterval(() => {
     runtimeAnomaliesStore.fetchRuntimeAnomalies().catch(() => {})
+    triageRecommendationsStore.fetchTriageRecommendations().catch(() => {})
   }, 60000)
 
   workerInterval = setInterval(() => {

@@ -220,6 +220,25 @@ class RuntimeAnomaly(BaseModel):
     detail: str
 
 
+class TriageRecommendation(BaseModel):
+    """Suggested next action for incident triage."""
+    recommendation_id: str
+    recommendation_type: Literal[
+        "stalled_progress",
+        "orphaned_task",
+        "repeating_failures",
+        "long_running",
+    ]
+    severity: Literal["critical", "warning", "info"]
+    title: str
+    summary: str
+    detail: str
+    task_id: Optional[str] = None
+    task_name: Optional[str] = None
+    hostname: Optional[str] = None
+    supporting_task_ids: List[str] = Field(default_factory=list)
+
+
 class WorkerInfo(BaseModel):
     """Worker information model"""
     hostname: str

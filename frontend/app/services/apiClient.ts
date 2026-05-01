@@ -137,6 +137,19 @@ export interface RuntimeAnomaliesQuery {
 
 export type RuntimeAnomalyResponse = RuntimeAnomaly
 
+export interface TriageRecommendationResponse {
+  recommendation_id: string
+  recommendation_type: 'stalled_progress' | 'orphaned_task' | 'repeating_failures' | 'long_running'
+  severity: 'critical' | 'warning' | 'info'
+  title: string
+  summary: string
+  detail: string
+  task_id?: string | null
+  task_name?: string | null
+  hostname?: string | null
+  supporting_task_ids: string[]
+}
+
 class ApiService {
   private api: Api<unknown>
 
@@ -355,6 +368,14 @@ class ApiService {
 
   async getRuntimeAnomalies(query?: RuntimeAnomaliesQuery): Promise<RuntimeAnomalyResponse[]> {
     const response = await this.api.api.getRuntimeAnomaliesApiTasksRuntimeAnomaliesGet(query)
+    return response.data
+  }
+
+  async getTriageRecommendations(): Promise<TriageRecommendationResponse[]> {
+    const response = await this.api.request({
+      path: '/api/tasks/triage-recommendations',
+      method: 'GET'
+    })
     return response.data
   }
 

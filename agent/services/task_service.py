@@ -12,7 +12,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 
 from database import TaskEventDB, RetryRelationshipDB, TaskLatestDB, TaskResolutionDB, TaskProgressLatestDB
-from models import TaskEvent, RuntimeAnomaly
+from models import TaskEvent, RuntimeAnomaly, TriageRecommendation
 from constants import TaskState, EventType, STATE_TO_EVENT_MAP, ACTIVE_EVENT_TYPES
 from services.utils import EnvironmentFilter, GenericFilter, parse_filter_string
 from utils.payload_sanitizer import find_placeholder_paths
@@ -316,6 +316,100 @@ class TaskService:
         anomalies.sort(key=lambda item: (item.anomaly_type, item.runtime_seconds), reverse=True)
         return anomalies
 
+    def get_triage_recommendations(
+        self,
+        now: Optional[datetime] = None,
+        failed_hours: int = 24,
+        failed_limit: int = 100,
+    ) -> List[TriageRecommendation]:
+        """Suggest next actions for the current incident picture."""
+        current_time = _ensure_utc(now) or datetime.now(timezone.utc)
+        recommendations: List[TriageRecommendation] = []
+
+        runtime_anomalies = self.get_runtime_anomalies(now=current_time)
+        stalled = [item for item in runtime_anomalies if item.anomaly_type == "stalled_progress"]
+        long_running = [item for item in runtime_anomalies if item.anomaly_type == "long_running"]
+
+        orphaned_tasks = self.get_unretried_orphaned_tasks()
+        failed_tasks = self.get_recent_failed_tasks(hours=failed_hours, limit=failed_limit, exclude_retried=True, now=current_time)
+
+        if stalled:
+            oldest = max(stalled, key=lambda item: item.progress_age_seconds or 0)
+            recommendations.append(TriageRecommendation(
+                recommendation_id=f"stalled-progress:{oldest.task.task_id}",
+                recommendation_type="stalled_progress",
+                severity="critical",
+                title="Investigate stalled task progress",
+                summary=f"{len(stalled)} active task(s) have stopped reporting progress.",
+                detail=oldest.detail,
+                task_id=oldest.task.task_id,
+                task_name=oldest.task.task_name,
+                hostname=oldest.task.hostname,
+                supporting_task_ids=[item.task.task_id for item in stalled],
+            ))
+
+        if orphaned_tasks:
+            latest_orphan = max(orphaned_tasks, key=lambda task: _ensure_utc(task.orphaned_at) or current_time)
+            recommendations.append(TriageRecommendation(
+                recommendation_id=f"orphaned:{latest_orphan.task_id}",
+                recommendation_type="orphaned_task",
+                severity="critical",
+                title="Recover orphaned tasks",
+                summary=f"{len(orphaned_tasks)} orphaned task(s) are waiting on an offline worker.",
+                detail="Confirm the worker is healthy, then retry the orphaned tasks that are still needed.",
+                task_id=latest_orphan.task_id,
+                task_name=latest_orphan.task_name,
+                hostname=latest_orphan.hostname,
+                supporting_task_ids=[task.task_id for task in orphaned_tasks],
+            ))
+
+        failed_by_task: Dict[str, List[TaskEvent]] = {}
+        for task in failed_tasks:
+            failed_by_task.setdefault(task.task_name or "unknown", []).append(task)
+
+        repeating_group: Optional[Tuple[str, List[TaskEvent]]] = None
+        for task_name, grouped in failed_by_task.items():
+            if len(grouped) < 3:
+                continue
+            if repeating_group is None or len(grouped) > len(repeating_group[1]):
+                repeating_group = (task_name, grouped)
+
+        if repeating_group is not None:
+            task_name, grouped = repeating_group
+            latest_failure = max(grouped, key=lambda task: _ensure_utc(task.timestamp) or current_time)
+            recommendations.append(TriageRecommendation(
+                recommendation_id=f"repeating-failures:{task_name}",
+                recommendation_type="repeating_failures",
+                severity="warning",
+                title="Escalate repeating failures",
+                summary=f"{len(grouped)} recent failures share the same task family.",
+                detail="Treat this as a likely incident cluster: inspect the latest failure, check the runbook, and avoid blind retries until the common cause is clear.",
+                task_id=latest_failure.task_id,
+                task_name=task_name,
+                hostname=latest_failure.hostname,
+                supporting_task_ids=[task.task_id for task in grouped],
+            ))
+
+        if long_running:
+            longest = max(long_running, key=lambda item: item.runtime_seconds)
+            recommendations.append(TriageRecommendation(
+                recommendation_id=f"long-running:{longest.task.task_id}",
+                recommendation_type="long_running",
+                severity="info",
+                title="Review long-running tasks",
+                summary=f"{len(long_running)} task(s) are running well past their baseline.",
+                detail=longest.detail,
+                task_id=longest.task.task_id,
+                task_name=longest.task.task_name,
+                hostname=longest.task.hostname,
+                supporting_task_ids=[item.task.task_id for item in long_running],
+            ))
+
+        severity_rank = {"critical": 0, "warning": 1, "info": 2}
+        type_rank = {"orphaned_task": 0, "stalled_progress": 1, "repeating_failures": 2, "long_running": 3}
+        recommendations.sort(key=lambda item: (severity_rank.get(item.severity, 99), type_rank.get(item.recommendation_type, 99), item.title))
+        return recommendations
+
     def get_unretried_orphaned_tasks(self) -> List[TaskEvent]:
         """Get orphaned tasks that have not been retried and have no final-state event."""
         FINAL_STATES = {
@@ -403,7 +497,8 @@ class TaskService:
         self,
         hours: int = 24,
         limit: int = 50,
-        exclude_retried: bool = True
+        exclude_retried: bool = True,
+        now: Optional[datetime] = None,
     ) -> List[TaskEvent]:
         """
         Get failed tasks in the last ``hours`` where the latest event is a failure.
@@ -416,7 +511,8 @@ class TaskService:
         Returns:
             List of failed task events ordered by most recent failure first
         """
-        since = datetime.now(timezone.utc) - timedelta(hours=hours)
+        current_time = _ensure_utc(now) or datetime.now(timezone.utc)
+        since = current_time - timedelta(hours=hours)
 
         latest_subquery = (
             self.session.query(

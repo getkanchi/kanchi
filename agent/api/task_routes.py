@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from services import TaskService, EnvironmentService, SessionService, AppConfigService, ProgressService
 from database import TaskEventDB
-from models import TaskEvent, TaskProgressSnapshot, RuntimeAnomaly
+from models import TaskEvent, TaskProgressSnapshot, RuntimeAnomaly, TriageRecommendation
 from database import ensure_utc_isoformat
 from config import Config
 from security.auth import AuthenticatedUser
@@ -193,6 +193,19 @@ def create_router(app_state) -> APIRouter:
             exclude_retried=not include_retried
         )
         return failed_tasks
+
+    @router.get("/tasks/triage-recommendations", response_model=List[TriageRecommendation])
+    async def get_triage_recommendations(
+        hours: Optional[int] = Query(default=None, ge=1, le=168),
+        limit: int = Query(default=100, ge=1, le=500),
+        session: Session = Depends(get_db),
+        active_env = Depends(get_active_env)
+    ):
+        """Get suggested next actions for incident triage."""
+        task_service = TaskService(session, active_env=active_env)
+        config_service = AppConfigService(session)
+        lookback_hours = hours if hours is not None else config_service.get_task_issue_lookback_hours()
+        return task_service.get_triage_recommendations(failed_hours=lookback_hours, failed_limit=limit)
 
 
     @router.post("/tasks/{task_id}/resolve")
