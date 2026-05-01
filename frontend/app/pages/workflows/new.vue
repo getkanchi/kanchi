@@ -225,8 +225,10 @@ import WorkflowActionsList from '~/components/workflows/WorkflowActionsList.vue'
 import WorkflowCircuitBreakerConfig from '~/components/workflows/WorkflowCircuitBreakerConfig.vue'
 import WorkflowSimulationDialog from '~/components/workflows/WorkflowSimulationDialog.vue'
 import type { WorkflowCreateRequest } from '~/types/workflow'
+import { useLogger } from '~/services/logger'
 
 const workflowStore = useWorkflowsStore()
+const logger = useLogger()
 const saving = ref(false)
 const showSimulationDialog = ref(false)
 
@@ -262,31 +264,27 @@ const simulationContext = computed(() => JSON.stringify({
 }, null, 2))
 
 function updateCircuitBreaker(config: any) {
-  console.log('[New] updateCircuitBreaker called with:', config)
   workflow.value.circuit_breaker = config
-  console.log('[New] workflow.value after update:', JSON.stringify(workflow.value, null, 2))
+  logger.debug('Updated workflow circuit breaker', { config })
 }
 
 async function saveWorkflow() {
   if (!canSave.value) return
 
-  console.log('[New] saveWorkflow called, workflow.value:', JSON.stringify(workflow.value, null, 2))
-
   saving.value = true
   try {
     const cleanedWorkflow = { ...workflow.value }
-    console.log('[New] cleanedWorkflow before cleanup:', JSON.stringify(cleanedWorkflow, null, 2))
 
     if (cleanedWorkflow.circuit_breaker === null) {
-      console.log('[New] Deleting null circuit_breaker')
       delete cleanedWorkflow.circuit_breaker
     }
 
-    console.log('[New] Final payload being sent:', JSON.stringify(cleanedWorkflow, null, 2))
     const created = await workflowStore.createWorkflow(cleanedWorkflow)
     navigateTo(`/workflows/${created.id}`)
   } catch (err) {
-    console.error('Failed to save workflow:', err)
+    logger.error('Failed to save workflow', {
+      error: err instanceof Error ? err.message : String(err)
+    })
   } finally {
     saving.value = false
   }
@@ -296,7 +294,9 @@ onMounted(async () => {
   try {
     await workflowStore.fetchWorkflowMetadata()
   } catch (err) {
-    console.error('Failed to load workflow metadata:', err)
+    logger.error('Failed to load workflow metadata', {
+      error: err instanceof Error ? err.message : String(err)
+    })
   }
 })
 </script>

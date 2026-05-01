@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any
 
 from models import (
     AppSettingUpdate,
@@ -37,7 +37,7 @@ class WorkflowSimulationService:
         self.app_config_service = AppConfigService(session)
         self.task_service = TaskService(session)
 
-    def simulate(self, workflow_data: WorkflowCreateRequest, test_context: Dict[str, Any]) -> WorkflowSimulationResponse:
+    def simulate(self, workflow_data: WorkflowCreateRequest, test_context: dict[str, Any]) -> WorkflowSimulationResponse:
         actions = self.workflow_service._coerce_actions(workflow_data.actions)
         self.workflow_service._validate_workflow_definition(workflow_data.trigger, actions)
 
@@ -81,8 +81,8 @@ class WorkflowSimulationService:
             simulation_history=history,
         )
 
-    def _collect_warnings(self, workflow_data: WorkflowCreateRequest, test_context: Dict[str, Any]) -> List[str]:
-        warnings: List[str] = []
+    def _collect_warnings(self, workflow_data: WorkflowCreateRequest, test_context: dict[str, Any]) -> list[str]:
+        warnings: list[str] = []
         if not workflow_data.conditions or not workflow_data.conditions.conditions:
             warnings.append("No conditions configured: this workflow will match every event for the selected trigger.")
         if workflow_data.trigger.type in {"task.failed", "task.orphaned", "worker.offline"} and len(workflow_data.actions) > 1:
@@ -99,8 +99,8 @@ class WorkflowSimulationService:
             warnings.append("Test context is missing task_id, so task-linked actions may be blocked in the dry run.")
         return warnings
 
-    def _build_action_previews(self, workflow_data: WorkflowCreateRequest, test_context: Dict[str, Any], conditions_met: bool) -> List[WorkflowSimulationActionPreview]:
-        previews: List[WorkflowSimulationActionPreview] = []
+    def _build_action_previews(self, workflow_data: WorkflowCreateRequest, test_context: dict[str, Any], conditions_met: bool) -> list[WorkflowSimulationActionPreview]:
+        previews: list[WorkflowSimulationActionPreview] = []
         for action in workflow_data.actions:
             if not conditions_met:
                 previews.append(WorkflowSimulationActionPreview(
@@ -121,7 +121,7 @@ class WorkflowSimulationService:
                 ))
         return previews
 
-    def _preview_slack_action(self, params: Dict[str, Any], test_context: Dict[str, Any]) -> WorkflowSimulationActionPreview:
+    def _preview_slack_action(self, params: dict[str, Any], test_context: dict[str, Any]) -> WorkflowSimulationActionPreview:
         handler = SlackActionHandler(self.session, self.db_manager, self.monitor_instance)
         is_valid, error = handler.validate_params(params)
         if not is_valid:
@@ -140,7 +140,7 @@ class WorkflowSimulationService:
             )
 
         rendered = handler.render_template(params.get("template", ""), test_context)
-        warnings: List[str] = []
+        warnings: list[str] = []
         if len(rendered) > 280:
             warnings.append("Rendered Slack message is fairly long and may be noisy in production.")
 
@@ -156,7 +156,7 @@ class WorkflowSimulationService:
             warnings=warnings,
         )
 
-    def _preview_retry_action(self, params: Dict[str, Any], test_context: Dict[str, Any]) -> WorkflowSimulationActionPreview:
+    def _preview_retry_action(self, params: dict[str, Any], test_context: dict[str, Any]) -> WorkflowSimulationActionPreview:
         handler = RetryActionHandler(self.session, self.db_manager, self.monitor_instance)
         is_valid, error = handler.validate_params(params)
         if not is_valid:
@@ -175,15 +175,15 @@ class WorkflowSimulationService:
             )
 
         task_events = self.task_service.get_task_events(task_id)
-        warnings: List[str] = []
-        details: Dict[str, Any] = {
+        warnings: list[str] = []
+        details: dict[str, Any] = {
             "task_id": task_id,
             "delay_seconds": params.get("delay_seconds", 0),
             "max_retries": params.get("max_retries", 10),
         }
         if task_events:
-            original_task = task_events[-1]
-            current_retry_count = handler._count_workflow_retries(task_id, original_task.root_id)
+            original_task = task_events[0]
+            current_retry_count = handler.count_workflow_retries(task_id, original_task.root_id)
             details.update({
                 "task_name": original_task.task_name,
                 "queue": original_task.queue or "default",
@@ -208,7 +208,7 @@ class WorkflowSimulationService:
         slug = f"{workflow_name}:{trigger_type}".lower().replace(" ", "-")
         return f"workflow_simulations.{slug}"
 
-    def _store_history(self, workflow_name: str, trigger_type: str, record: WorkflowSimulationRecord) -> List[WorkflowSimulationRecord]:
+    def _store_history(self, workflow_name: str, trigger_type: str, record: WorkflowSimulationRecord) -> list[WorkflowSimulationRecord]:
         key = self._history_key(workflow_name, trigger_type)
         current = self.app_config_service.get_setting_value(key, default=[])
         items = current if isinstance(current, list) else []

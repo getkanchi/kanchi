@@ -77,7 +77,7 @@ class TestWorkflowSimulationService(ServiceTestCase):
         self.session.add(TaskEventDB(
             task_id="task-2",
             task_name="reports.generate",
-            event_type="task-failed",
+            event_type="task.failed",
             timestamp=now,
             queue="priority",
             root_id="root-2",

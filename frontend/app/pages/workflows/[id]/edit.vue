@@ -106,9 +106,9 @@
       </Dialog>
 
       <WorkflowSimulationDialog
-        v-if="workflow"
+        v-if="simulationWorkflow"
         :open="showSimulationDialog"
-        :workflow="workflow as any"
+        :workflow="simulationWorkflow"
         :default-context="testContext"
         @close="showSimulationDialog = false"
       />
@@ -291,10 +291,12 @@ import WorkflowConditionBuilder from '~/components/workflows/WorkflowConditionBu
 import WorkflowActionsList from '~/components/workflows/WorkflowActionsList.vue'
 import WorkflowCircuitBreakerConfig from '~/components/workflows/WorkflowCircuitBreakerConfig.vue'
 import WorkflowSimulationDialog from '~/components/workflows/WorkflowSimulationDialog.vue'
-import type { WorkflowUpdateRequest } from '~/types/workflow'
+import type { WorkflowCreateRequest, WorkflowUpdateRequest } from '~/types/workflow'
+import { useLogger } from '~/services/logger'
 
 const route = useRoute()
 const workflowStore = useWorkflowsStore()
+const logger = useLogger()
 const saving = ref(false)
 const showTestDialog = ref(false)
 const showSimulationDialog = ref(false)
@@ -317,6 +319,25 @@ const canSave = computed(() => {
          workflow.value.actions.length > 0
 })
 
+const simulationWorkflow = computed<WorkflowCreateRequest | null>(() => {
+  if (!workflow.value?.name || !workflow.value.trigger || !workflow.value.actions) {
+    return null
+  }
+
+  return {
+    name: workflow.value.name,
+    description: workflow.value.description,
+    enabled: workflow.value.enabled ?? true,
+    trigger: workflow.value.trigger,
+    conditions: workflow.value.conditions,
+    actions: workflow.value.actions,
+    priority: workflow.value.priority ?? 100,
+    max_executions_per_hour: workflow.value.max_executions_per_hour,
+    cooldown_seconds: workflow.value.cooldown_seconds ?? 0,
+    circuit_breaker: workflow.value.circuit_breaker ?? null,
+  }
+})
+
 async function saveWorkflow() {
   if (!canSave.value || !workflow.value) return
 
@@ -332,7 +353,9 @@ async function saveWorkflow() {
     await workflowStore.fetchWorkflow(route.params.id as string)
     await navigateTo(`/workflows/${route.params.id}`)
   } catch (err) {
-    console.error('Failed to save workflow:', err)
+    logger.error('Failed to save workflow', {
+      error: err instanceof Error ? err.message : String(err)
+    })
   } finally {
     saving.value = false
   }
@@ -382,7 +405,9 @@ onMounted(async () => {
   try {
     await workflowStore.fetchWorkflowMetadata()
   } catch (err) {
-    console.error('Failed to load workflow metadata:', err)
+    logger.error('Failed to load workflow metadata', {
+      error: err instanceof Error ? err.message : String(err)
+    })
   }
 
   const loaded = await workflowStore.fetchWorkflow(route.params.id as string)
@@ -401,7 +426,7 @@ onMounted(async () => {
       circuit_breaker: loaded.circuit_breaker
     }
   } else {
-    console.error('Failed to load workflow data')
+    logger.error('Failed to load workflow data')
   }
 
   isLoading.value = false

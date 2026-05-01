@@ -776,6 +776,11 @@ class WorkflowSimulationRecord(BaseModel):
     warnings: List[str] = Field(default_factory=list)
     action_previews: List[WorkflowSimulationActionPreview] = Field(default_factory=list)
 
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.replace(tzinfo=timezone.utc).isoformat() if v.tzinfo is None else v.isoformat()
+        }
+
 
 class WorkflowSimulationResponse(BaseModel):
     """Workflow dry-run simulation result."""

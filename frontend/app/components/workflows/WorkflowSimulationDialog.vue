@@ -107,6 +107,7 @@ watch(() => props.defaultContext, (value) => {
 watch(() => props.open, (open) => {
   if (open) {
     simulationError.value = null
+    result.value = null
   }
 })
 

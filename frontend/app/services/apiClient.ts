@@ -7,6 +7,7 @@ import type {
   TaskEventResponse,
   WorkerInfo
 } from '../src/types/api'
+import type { WorkflowCreateRequest, WorkflowSimulationResponse } from '../types/workflow'
 
 export type AuthProvider = 'google' | 'github'
 
@@ -700,7 +701,7 @@ class ApiService {
     return response.data
   }
 
-  async simulateWorkflow(workflow: any, testContext: any): Promise<any> {
+  async simulateWorkflow(workflow: WorkflowCreateRequest, testContext: Record<string, unknown>): Promise<WorkflowSimulationResponse> {
     const response = await this.api.request({
       path: '/api/workflows/simulate',
       method: 'POST',

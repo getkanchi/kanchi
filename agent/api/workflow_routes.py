@@ -92,7 +92,7 @@ def create_router(app_state) -> APIRouter:
         try:
             return simulation_service.simulate(request.workflow, request.test_context)
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=400, detail=str(e)) from e
 
     @router.get("/{workflow_id}", response_model=WorkflowDefinition)
     async def get_workflow(
