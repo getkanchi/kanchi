@@ -182,13 +182,23 @@ class WorkflowSimulationService:
             "max_retries": params.get("max_retries", 10),
         }
         if task_events:
-            original_task = task_events[0]
+            original_task = task_events[-1]
             current_retry_count = handler.count_workflow_retries(task_id, original_task.root_id)
             details.update({
                 "task_name": original_task.task_name,
                 "queue": original_task.queue or "default",
                 "current_retry_depth": current_retry_count,
             })
+            if current_retry_count >= details["max_retries"]:
+                return WorkflowSimulationActionPreview(
+                    action_type="task.retry",
+                    status="blocked",
+                    summary="Retry cap already reached for this task chain.",
+                    details=details,
+                    warnings=[
+                        f"Workflow retries are already at {current_retry_count}/{details['max_retries']}; a real execution would be rejected."
+                    ],
+                )
             if current_retry_count + 1 >= details["max_retries"]:
                 warnings.append("This dry run is near the retry cap; later real executions may be blocked soon.")
         else:

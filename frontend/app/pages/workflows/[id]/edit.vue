@@ -109,7 +109,7 @@
         v-if="simulationWorkflow"
         :open="showSimulationDialog"
         :workflow="simulationWorkflow"
-        :default-context="testContext"
+        :default-context="simulationDefaultContext"
         @close="showSimulationDialog = false"
       />
 
@@ -291,7 +291,8 @@ import WorkflowConditionBuilder from '~/components/workflows/WorkflowConditionBu
 import WorkflowActionsList from '~/components/workflows/WorkflowActionsList.vue'
 import WorkflowCircuitBreakerConfig from '~/components/workflows/WorkflowCircuitBreakerConfig.vue'
 import WorkflowSimulationDialog from '~/components/workflows/WorkflowSimulationDialog.vue'
-import type { WorkflowCreateRequest, WorkflowUpdateRequest } from '~/types/workflow'
+import type { WorkflowCreateRequest } from '~/src/types/api'
+import type { WorkflowUpdateRequest } from '~/types/workflow'
 import { useLogger } from '~/services/logger'
 
 const route = useRoute()
@@ -335,6 +336,18 @@ const simulationWorkflow = computed<WorkflowCreateRequest | null>(() => {
     max_executions_per_hour: workflow.value.max_executions_per_hour,
     cooldown_seconds: workflow.value.cooldown_seconds ?? 0,
     circuit_breaker: workflow.value.circuit_breaker ?? null,
+  }
+})
+
+const simulationDefaultContext = computed(() => {
+  try {
+    const parsed = testContext.value ? JSON.parse(testContext.value) : {}
+    return JSON.stringify({
+      ...parsed,
+      event_type: workflow.value?.trigger?.type || parsed.event_type || 'task.failed'
+    }, null, 2)
+  } catch {
+    return testContext.value
   }
 })
 

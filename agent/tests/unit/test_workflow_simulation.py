@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from services.action_config_service import ActionConfigService
 from services.workflow_simulation_service import WorkflowSimulationService
 from models import WorkflowCreateRequest, TriggerConfig, ActionConfig, ConditionGroup, Condition, ActionConfigCreateRequest
-from database import TaskEventDB
+from database import TaskEventDB, RetryRelationshipDB
 from tests.base import ServiceTestCase
 
 
@@ -99,6 +99,37 @@ class TestWorkflowSimulationService(ServiceTestCase):
         self.assertEqual(result.action_previews[0].status, "would_execute")
         self.assertEqual(result.action_previews[0].details["queue"], "priority")
         self.assertEqual(result.action_previews[0].details["current_retry_depth"], 0)
+
+    def test_retry_preview_blocks_when_retry_cap_is_already_reached(self):
+        now = datetime.now(timezone.utc)
+        self.session.add(TaskEventDB(
+            task_id="task-3",
+            task_name="reports.generate",
+            event_type="task.failed",
+            timestamp=now,
+            queue="priority",
+            root_id="root-3",
+        ))
+        self.session.add(RetryRelationshipDB(task_id="task-3", original_id="retry-2"))
+        self.session.add(RetryRelationshipDB(task_id="retry-2", original_id="retry-1"))
+        self.session.add(RetryRelationshipDB(task_id="retry-1", original_id="root-3"))
+        self.session.commit()
+
+        workflow = WorkflowCreateRequest(
+            name="Retry capped report",
+            trigger=TriggerConfig(type="task.failed", config={}),
+            conditions=ConditionGroup(operator="AND", conditions=[]),
+            actions=[ActionConfig(type="task.retry", params={"delay_seconds": 30, "max_retries": 3})],
+        )
+
+        result = self.service.simulate(
+            workflow,
+            {"task_id": "task-3", "task_name": "reports.generate", "event_type": "task.failed"},
+        )
+
+        self.assertEqual(result.action_previews[0].status, "blocked")
+        self.assertIn("Retry cap already reached", result.action_previews[0].summary)
+        self.assertEqual(result.action_previews[0].details["current_retry_depth"], 3)
 
 
 if __name__ == "__main__":

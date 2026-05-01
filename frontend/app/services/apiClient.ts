@@ -7,7 +7,8 @@ import type {
   TaskEventResponse,
   WorkerInfo
 } from '../src/types/api'
-import type { WorkflowCreateRequest, WorkflowSimulationResponse } from '../types/workflow'
+import type { WorkflowCreateRequest } from '../src/types/api'
+import type { WorkflowSimulationResponse } from '../types/workflow'
 
 export type AuthProvider = 'google' | 'github'
 
