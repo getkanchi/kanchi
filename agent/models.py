@@ -347,6 +347,14 @@ class TaskRegistryUpdate(BaseModel):
         return value
 
 
+class TaskResolutionResponse(BaseModel):
+    """Response model for manual task resolution toggles."""
+    task_id: str
+    resolved: bool
+    resolved_by: Optional[str] = None
+    resolved_at: Optional[datetime] = None
+
+
 class TaskRegistryStats(BaseModel):
     """Statistics for a specific task"""
     task_name: str

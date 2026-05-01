@@ -756,6 +756,21 @@ export interface TaskRegistryUpdate {
 }
 
 /**
+ * TaskResolutionResponse
+ * Response model for manual task resolution toggles.
+ */
+export interface TaskResolutionResponse {
+  /** Task Id */
+  task_id: string;
+  /** Resolved */
+  resolved: boolean;
+  /** Resolved By */
+  resolved_by?: string | null;
+  /** Resolved At */
+  resolved_at?: string | null;
+}
+
+/**
  * TaskTimelineResponse
  * Timeline response showing execution frequency over time
  */
@@ -1442,7 +1457,7 @@ export class Api<
       data: ResolveTaskRequest | null,
       params: RequestParams = {},
     ) =>
-      this.request<any, HTTPValidationError>({
+      this.request<TaskResolutionResponse, HTTPValidationError>({
         path: `/api/tasks/${taskId}/resolve`,
         method: "POST",
         body: data,
@@ -1463,7 +1478,7 @@ export class Api<
       taskId: string,
       params: RequestParams = {},
     ) =>
-      this.request<any, HTTPValidationError>({
+      this.request<TaskResolutionResponse, HTTPValidationError>({
         path: `/api/tasks/${taskId}/resolve`,
         method: "DELETE",
         format: "json",

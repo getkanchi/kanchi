@@ -10,8 +10,7 @@ from pydantic import BaseModel
 
 from services import TaskService, EnvironmentService, SessionService, AppConfigService, ProgressService
 from database import TaskEventDB
-from models import TaskEvent, TaskProgressSnapshot
-from database import ensure_utc_isoformat
+from models import TaskEvent, TaskProgressSnapshot, TaskResolutionResponse
 from config import Config
 from security.auth import AuthenticatedUser
 from security.dependencies import get_auth_dependency
@@ -175,7 +174,7 @@ def create_router(app_state) -> APIRouter:
         return failed_tasks
 
 
-    @router.post("/tasks/{task_id}/resolve")
+    @router.post("/tasks/{task_id}/resolve", response_model=TaskResolutionResponse)
     async def resolve_task(
         task_id: str,
         payload: Optional[ResolveTaskRequest] = None,
@@ -193,15 +192,15 @@ def create_router(app_state) -> APIRouter:
             resolved_by = resolved_by or current_user.email or current_user.name
 
         resolution = task_service.set_task_resolution(task_id, resolved_by)
-        return {
-            "task_id": task_id,
-            "resolved": True,
-            "resolved_by": resolution.resolved_by,
-            "resolved_at": ensure_utc_isoformat(resolution.resolved_at) if resolution.resolved_at else None,
-        }
+        return TaskResolutionResponse(
+            task_id=task_id,
+            resolved=True,
+            resolved_by=resolution.resolved_by,
+            resolved_at=resolution.resolved_at,
+        )
 
 
-    @router.delete("/tasks/{task_id}/resolve")
+    @router.delete("/tasks/{task_id}/resolve", response_model=TaskResolutionResponse)
     async def clear_task_resolution(
         task_id: str,
         session: Session = Depends(get_db),
@@ -213,12 +212,12 @@ def create_router(app_state) -> APIRouter:
             raise HTTPException(status_code=404, detail="Task not found")
 
         task_service.clear_task_resolution(task_id)
-        return {
-            "task_id": task_id,
-            "resolved": False,
-            "resolved_by": None,
-            "resolved_at": None,
-        }
+        return TaskResolutionResponse(
+            task_id=task_id,
+            resolved=False,
+            resolved_by=None,
+            resolved_at=None,
+        )
 
 
     @router.post("/tasks/{task_id}/retry")
