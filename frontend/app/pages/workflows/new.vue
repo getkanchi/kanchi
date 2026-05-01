@@ -28,6 +28,31 @@
 
     <!-- Main Form -->
     <div class="space-y-6">
+      <div class="border border-border-subtle rounded-md p-5">
+        <div class="mb-4 flex items-start justify-between gap-4">
+          <div>
+            <h2 class="text-sm font-medium text-text-primary">Start from a template</h2>
+            <p class="text-xs text-text-muted mt-0.5">Pick a common operational workflow and then tweak the defaults before saving.</p>
+          </div>
+          <Badge variant="outline" size="sm">{{ workflowTemplates.length }} templates</Badge>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <button
+            v-for="template in workflowTemplates"
+            :key="template.id"
+            type="button"
+            class="rounded-lg border border-border-subtle p-4 text-left hover:border-primary hover:bg-background-hover transition-colors"
+            @click="applyTemplate(template)"
+          >
+            <div class="flex items-center justify-between gap-3 mb-2">
+              <div class="text-sm font-medium text-text-primary">{{ template.name }}</div>
+              <Badge variant="secondary" size="sm">{{ template.scenario }}</Badge>
+            </div>
+            <p class="text-xs text-text-muted mb-3">{{ template.description }}</p>
+            <div class="text-[11px] text-text-muted">Recommended triggers: {{ template.recommended_for.join(', ') }}</div>
+          </button>
+        </div>
+      </div>
       <!-- Basic Info -->
       <div class="border border-border-subtle rounded-md p-5">
         <div class="mb-4">
@@ -216,10 +241,11 @@ import WorkflowTriggerSelector from '~/components/workflows/WorkflowTriggerSelec
 import WorkflowConditionBuilder from '~/components/workflows/WorkflowConditionBuilder.vue'
 import WorkflowActionsList from '~/components/workflows/WorkflowActionsList.vue'
 import WorkflowCircuitBreakerConfig from '~/components/workflows/WorkflowCircuitBreakerConfig.vue'
-import type { WorkflowCreateRequest } from '~/types/workflow'
+import type { WorkflowCreateRequest, WorkflowTemplateDefinition } from '~/types/workflow'
 
 const workflowStore = useWorkflowsStore()
 const saving = ref(false)
+const workflowTemplates = computed(() => workflowStore.workflowTemplates)
 
 // Form State
 const workflow = ref<WorkflowCreateRequest>({
@@ -237,11 +263,29 @@ const workflow = ref<WorkflowCreateRequest>({
   cooldown_seconds: 0
 })
 
+function isActionValid(action: WorkflowCreateRequest['actions'][number]) {
+  if (action.type === 'slack.notify') {
+    return action.params.config_id?.toString().trim().length > 0 &&
+      action.params.template?.toString().trim().length > 0
+  }
+
+  if (action.type === 'task.retry') {
+    return true
+  }
+
+  return Object.keys(action.params || {}).length > 0
+}
+
 const canSave = computed(() => {
   return workflow.value.name.trim().length > 0 &&
          workflow.value.trigger?.type.length > 0 &&
-         workflow.value.actions.length > 0
+         workflow.value.actions.length > 0 &&
+         workflow.value.actions.every(isActionValid)
 })
+
+function applyTemplate(template: WorkflowTemplateDefinition) {
+  workflow.value = JSON.parse(JSON.stringify(template.workflow))
+}
 
 function updateCircuitBreaker(config: any) {
   console.log('[New] updateCircuitBreaker called with:', config)

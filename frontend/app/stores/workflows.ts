@@ -8,7 +8,8 @@ import type {
   WorkflowExecutionRecord,
   ActionConfigDefinition,
   ActionConfigCreateRequest,
-  ActionConfigUpdateRequest
+  ActionConfigUpdateRequest,
+  WorkflowTemplateDefinition
 } from '~/types/workflow'
 
 export const useWorkflowsStore = defineStore('workflows', () => {
@@ -20,6 +21,7 @@ export const useWorkflowsStore = defineStore('workflows', () => {
   const actionConfigs = ref<ActionConfigDefinition[]>([])
   const triggerCatalog = ref<{ type: string; label: string; description: string; category: string }[]>([])
   const actionCatalog = ref<{ type: string; label: string; description: string; category: string }[]>([])
+  const workflowTemplates = ref<WorkflowTemplateDefinition[]>([])
   const metadataLoaded = ref(false)
 
   const isLoading = ref(false)
@@ -49,6 +51,7 @@ export const useWorkflowsStore = defineStore('workflows', () => {
       const metadata = await apiService.getWorkflowMetadata()
       triggerCatalog.value = metadata.triggers || []
       actionCatalog.value = metadata.actions || []
+      workflowTemplates.value = metadata.templates || []
       metadataLoaded.value = true
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load workflow metadata'
@@ -278,6 +281,7 @@ export const useWorkflowsStore = defineStore('workflows', () => {
     workflowsByTrigger,
     triggerCatalog,
     actionCatalog,
+    workflowTemplates,
 
     fetchWorkflows,
     fetchWorkflow,

@@ -176,6 +176,16 @@ export interface TriggerMetadata {
   contextFields: string[]
 }
 
+
+export interface WorkflowTemplateDefinition {
+  id: string
+  name: string
+  description: string
+  scenario: string
+  recommended_for: string[]
+  workflow: WorkflowCreateRequest
+}
+
 export interface ActionTypeMetadata {
   type: string
   label: string

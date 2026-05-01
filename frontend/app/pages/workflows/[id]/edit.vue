@@ -297,6 +297,19 @@ const isLoading = ref(true)
 // Local workflow state (editable)
 const workflow = ref<WorkflowUpdateRequest | null>(null)
 
+function isActionValid(action: NonNullable<WorkflowUpdateRequest['actions']>[number]) {
+  if (action.type === 'slack.notify') {
+    return action.params.config_id?.toString().trim().length > 0 &&
+      action.params.template?.toString().trim().length > 0
+  }
+
+  if (action.type === 'task.retry') {
+    return true
+  }
+
+  return Object.keys(action.params || {}).length > 0
+}
+
 const canSave = computed(() => {
   return workflow.value &&
          workflow.value.name &&
@@ -304,7 +317,8 @@ const canSave = computed(() => {
          workflow.value.trigger &&
          workflow.value.trigger.type.length > 0 &&
          workflow.value.actions &&
-         workflow.value.actions.length > 0
+         workflow.value.actions.length > 0 &&
+         workflow.value.actions.every(isActionValid)
 })
 
 async function saveWorkflow() {
