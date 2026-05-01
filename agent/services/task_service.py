@@ -244,12 +244,14 @@ class TaskService:
             hostname_counts[hostname] = hostname_counts.get(hostname, 0) + 1
 
         since = current_time - timedelta(days=baseline_days)
+        baseline_query = self.session.query(
+            TaskEventDB.task_name.label("task_name"),
+            func.avg(TaskEventDB.runtime).label("avg_runtime"),
+            func.count(TaskEventDB.id).label("sample_count"),
+        )
+        baseline_query = EnvironmentFilter.apply(baseline_query, self.active_env)
         baseline_rows = (
-            self.session.query(
-                TaskEventDB.task_name.label("task_name"),
-                func.avg(TaskEventDB.runtime).label("avg_runtime"),
-                func.count(TaskEventDB.id).label("sample_count"),
-            )
+            baseline_query
             .filter(
                 TaskEventDB.task_name.in_(task_names),
                 TaskEventDB.event_type == EventType.TASK_SUCCEEDED.value,
@@ -271,7 +273,7 @@ class TaskService:
         anomalies: List[RuntimeAnomaly] = []
         for task in active_tasks:
             started_at = _ensure_utc(task.timestamp)
-            if started_at is None:
+            if started_at is None or task.event_type != EventType.TASK_STARTED.value:
                 continue
 
             runtime_seconds = max(0.0, (current_time - started_at).total_seconds())

@@ -645,7 +645,7 @@ watch(() => environmentStore.activeEnvironment, async () => {
     workersStore.fetchWorkers(),
     orphanTasksStore.fetchOrphanedTasks(),
     failedTasksStore.fetchFailedTasks({ hours: failedTasksStore.lookbackHours }),
-    runtimeAnomaliesStore.fetchRuntimeAnomalies()
+    runtimeAnomaliesStore.fetchRuntimeAnomalies().catch(() => {})
   ])
 })
 
@@ -678,7 +678,7 @@ onMounted(async () => {
     workersStore.fetchWorkers(),
     orphanTasksStore.fetchOrphanedTasks(),
     failedTasksStore.fetchFailedTasks({ hours: failedTasksStore.lookbackHours }),
-    runtimeAnomaliesStore.fetchRuntimeAnomalies()
+    runtimeAnomaliesStore.fetchRuntimeAnomalies().catch(() => {})
   ])
 
   tasksStore.setLiveMode(wsStore.clientMode === 'live')

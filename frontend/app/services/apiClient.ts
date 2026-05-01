@@ -126,6 +126,14 @@ export interface TaskProgressSnapshotResponse {
   history: TaskProgressEventResponse[]
 }
 
+export interface RuntimeAnomaliesQuery {
+  baseline_days?: number
+  min_baseline_samples?: number
+  runtime_multiplier?: number
+  min_long_running_seconds?: number
+  stalled_progress_seconds?: number
+}
+
 export interface RuntimeAnomalyResponse {
   task: TaskEventResponse
   anomaly_type: 'long_running' | 'stalled_progress'
@@ -353,10 +361,11 @@ class ApiService {
     return response.data
   }
 
-  async getRuntimeAnomalies(): Promise<RuntimeAnomalyResponse[]> {
+  async getRuntimeAnomalies(query?: RuntimeAnomaliesQuery): Promise<RuntimeAnomalyResponse[]> {
     const response = await this.api.request({
       path: '/api/tasks/runtime-anomalies',
-      method: 'GET'
+      method: 'GET',
+      query,
     })
     return response.data
   }
