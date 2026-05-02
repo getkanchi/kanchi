@@ -1,3 +1,12 @@
 <script setup lang="ts">
-await navigateTo('/settings/audit', { replace: true })
+const route = useRoute()
+
+await navigateTo(
+  {
+    path: '/settings/audit',
+    query: route.query,
+    hash: route.hash,
+  },
+  { replace: true },
+)
 </script>
