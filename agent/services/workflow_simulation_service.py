@@ -182,7 +182,7 @@ class WorkflowSimulationService:
             "max_retries": params.get("max_retries", 10),
         }
         if task_events:
-            original_task = task_events[-1]
+            original_task = task_events[0]
             current_retry_count = handler.count_workflow_retries(task_id, original_task.root_id)
             details.update({
                 "task_name": original_task.task_name,
