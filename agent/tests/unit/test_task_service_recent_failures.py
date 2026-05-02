@@ -1,6 +1,7 @@
 import unittest
 from datetime import datetime, timezone, timedelta
 
+from database import TaskResolutionDB
 from services.task_service import TaskService
 from tests.base import DatabaseTestCase
 
@@ -107,6 +108,19 @@ class TestTaskServiceRecentFailedTasks(DatabaseTestCase):
             exception="TimeoutError: upstream",
         )
         self.service.set_task_resolution("prior-regressed", resolved_by="tester")
+        resolution = (
+            self.session.query(TaskResolutionDB)
+            .filter(TaskResolutionDB.task_id == "prior-regressed")
+            .one()
+        )
+        resolution.resolved_at = self.now - timedelta(hours=20)
+        self.service._update_task_latest_resolution(
+            "prior-regressed",
+            True,
+            "tester",
+            resolution.resolved_at,
+        )
+        self.session.commit()
         self.create_task_event_db(
             task_id="current-new",
             task_name="tasks.brand_new",

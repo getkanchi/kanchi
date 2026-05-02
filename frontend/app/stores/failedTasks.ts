@@ -23,6 +23,15 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
   const error = ref<string | null>(null)
   const lastFetchedAt = ref<Date | null>(null)
   const lookbackHours = ref(DEFAULT_LOOKBACK_HOURS)
+  const lastQuery = ref<{
+    hours: number
+    limit?: number
+    includeRetried?: boolean
+    noveltyStatus?: FailureNoveltyStatus
+    noveltyLookbackHours?: number
+  }>({
+    hours: DEFAULT_LOOKBACK_HOURS,
+  })
   const lookbackWindowMs = computed(() => lookbackHours.value * 60 * 60 * 1000)
 
   const totalFailedTasks = computed(() => failedTasks.value.length)
@@ -129,6 +138,13 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
 
       const effectiveHours = options?.hours ?? lookbackHours.value
       setLookbackHours(effectiveHours)
+      lastQuery.value = {
+        hours: effectiveHours,
+        limit: options?.limit,
+        includeRetried: options?.includeRetried,
+        noveltyStatus: options?.noveltyStatus,
+        noveltyLookbackHours: options?.noveltyLookbackHours,
+      }
 
       const response = await apiService.getRecentFailedTasks({
         hours: effectiveHours,
@@ -140,7 +156,9 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
         sort_order: 'desc',
       })
 
-      const filtered = response.filter(task => !shouldExclude(task))
+      const filtered = options?.includeRetried
+        ? response
+        : response.filter(task => !shouldExclude(task))
       setTasks(filtered)
       pruneExpired()
       lastFetchedAt.value = new Date()
@@ -181,7 +199,13 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
 
   async function refreshFailedTasksFromLiveUpdate() {
     try {
-      await fetchFailedTasks({ hours: lookbackHours.value })
+      await fetchFailedTasks({
+        hours: lookbackHours.value,
+        limit: lastQuery.value.limit,
+        includeRetried: lastQuery.value.includeRetried,
+        noveltyStatus: lastQuery.value.noveltyStatus,
+        noveltyLookbackHours: lastQuery.value.noveltyLookbackHours,
+      })
     } catch {
       // keep the live event visible even if the background refresh fails
     }

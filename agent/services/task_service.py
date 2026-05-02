@@ -449,9 +449,17 @@ class TaskService:
             related = by_fingerprint.get(fingerprint or "", [])
             prior = [item for item in related if item.task_id != event.task_id and (_ensure_utc(item.timestamp) or datetime.min.replace(tzinfo=timezone.utc)) < (_ensure_utc(event.timestamp) or datetime.min.replace(tzinfo=timezone.utc))]
             latest_prior = prior[-1] if prior else None
+            latest_prior_resolved_before_event = False
+            if latest_prior and latest_prior.resolved:
+                latest_resolution = _ensure_utc(latest_prior.resolved_at)
+                event_timestamp = _ensure_utc(event.timestamp)
+                latest_prior_resolved_before_event = bool(
+                    latest_resolution and event_timestamp and latest_resolution <= event_timestamp
+                )
+
             if not prior:
                 event.failure_novelty_status = "new"
-            elif latest_prior and latest_prior.resolved:
+            elif latest_prior_resolved_before_event:
                 event.failure_novelty_status = "regressed"
             else:
                 event.failure_novelty_status = "recurring"
