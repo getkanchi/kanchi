@@ -283,7 +283,7 @@ import type { TimeRange } from '~/components/TimeRangeFilter.vue'
 import { useUrlQuerySync } from '~/composables/useUrlQuerySync'
 import type { UrlQueryState } from '~/composables/useUrlQuerySync'
 import { useApiService } from '~/services/apiClient'
-import type { TaskEventResponse, IncidentSummaryDTO } from '~/services/apiClient'
+import type { TaskEventResponse, IncidentSummary } from '~/src/types/api'
 import {ChevronRight, RefreshCw, Check, Loader2} from 'lucide-vue-next'
 import {IconButton} from "~/components/common";
 
@@ -370,10 +370,10 @@ const formatLookbackLabel = (hours: number) => {
 }
 const failedTasksTitle = computed(() => `Failed tasks (${formatLookbackLabel(failedTasksLookbackHours.value)})`)
 const failedTasksEmptyTitle = computed(() => `No failed tasks detected in the last ${formatLookbackLabel(failedTasksLookbackHours.value)}`)
-const incidentSummaries = ref<IncidentSummaryDTO[]>([])
+const incidentSummaries = ref<IncidentSummary[]>([])
 const incidentSearchQuery = ref('')
 
-const severityVariant = (severity: IncidentSummaryDTO['severity']) => ({
+const severityVariant = (severity: IncidentSummary['severity']) => ({
   low: 'outline',
   medium: 'secondary',
   high: 'orphaned',
