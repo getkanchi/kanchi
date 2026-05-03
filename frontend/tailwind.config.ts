@@ -1,4 +1,18 @@
 /** @type {import('tailwindcss').Config} */
+const withOpacity = (cssVariable: string) => ({ opacityValue }: { opacityValue?: string }) => {
+  if (opacityValue === undefined) {
+    return `var(${cssVariable})`
+  }
+
+  const opacity = Number.parseFloat(opacityValue)
+
+  if (Number.isNaN(opacity)) {
+    return `var(${cssVariable})`
+  }
+
+  return `color-mix(in srgb, var(${cssVariable}) ${opacity * 100}%, transparent)`
+}
+
 export default {
   content: [
     "./app/**/*.{js,vue,ts}",
@@ -19,90 +33,90 @@ export default {
       colors: {
         // Backgrounds using CSS variables
         background: {
-          base: 'var(--bg-base)',
-          surface: 'var(--bg-surface)',
-          raised: 'var(--bg-raised)',
+          base: withOpacity('--bg-base'),
+          surface: withOpacity('--bg-surface'),
+          raised: withOpacity('--bg-raised'),
           overlay: 'hsl(0, 0%, 18%, 0.8)',
           // Interactive states
-          hover: 'var(--bg-hover)',
-          'hover-subtle': 'var(--bg-hover-subtle)',
-          active: 'var(--bg-active)',
-          selected: 'var(--bg-selected)'
+          hover: withOpacity('--bg-hover'),
+          'hover-subtle': withOpacity('--bg-hover-subtle'),
+          active: withOpacity('--bg-active'),
+          selected: withOpacity('--bg-selected')
         },
         // Text colors using CSS variables
         text: {
-          primary: 'var(--text-primary)',
-          secondary: 'var(--text-secondary)',
-          muted: 'var(--text-muted)',
-          disabled: 'var(--text-disabled)'
+          primary: withOpacity('--text-primary'),
+          secondary: withOpacity('--text-secondary'),
+          muted: withOpacity('--text-muted'),
+          disabled: withOpacity('--text-disabled')
         },
         // Card and borders
         card: {
-          base: 'var(--bg-surface)',
-          border: 'var(--border)',
+          base: withOpacity('--bg-surface'),
+          border: withOpacity('--border'),
         },
         // Border colors
         border: {
-          DEFAULT: 'var(--border)',
-          highlight: 'var(--highlight)',
-          subtle: 'var(--border-subtle)'
+          DEFAULT: withOpacity('--border'),
+          highlight: withOpacity('--highlight'),
+          subtle: withOpacity('--border-subtle')
         },
         // Primary/Brand colors
         primary: {
-          DEFAULT: 'var(--primary)',
-          hover: 'var(--primary-hover)',
-          bg: 'var(--primary-bg)',
-          border: 'var(--primary-border)'
+          DEFAULT: withOpacity('--primary'),
+          hover: withOpacity('--primary-hover'),
+          bg: withOpacity('--primary-bg'),
+          border: withOpacity('--primary-border')
         },
         // Semantic status colors using CSS variables
         status: {
           // Success states
           success: {
-            DEFAULT: 'var(--status-success)',
-            bg: 'var(--status-success-bg)',
-            border: 'var(--status-success-border)',
+            DEFAULT: withOpacity('--status-success'),
+            bg: withOpacity('--status-success-bg'),
+            border: withOpacity('--status-success-border'),
             hover: 'hsl(158,100%,13%)'
           },
           // Error states
           error: {
-            DEFAULT: 'var(--status-error)',
-            bg: 'var(--status-error-bg)',
-            border: 'var(--status-error-border)',
+            DEFAULT: withOpacity('--status-error'),
+            bg: withOpacity('--status-error-bg'),
+            border: withOpacity('--status-error-border'),
             hover: 'hsl(347, 77%, 18%)'
           },
           // Warning states
           warning: {
-            DEFAULT: 'var(--status-warning)',
-            bg: 'var(--status-warning-bg)',
-            border: 'var(--status-warning-border)',
+            DEFAULT: withOpacity('--status-warning'),
+            bg: withOpacity('--status-warning-bg'),
+            border: withOpacity('--status-warning-border'),
             hover: 'hsl(45, 85%, 18%)'
           },
           // Info states
           info: {
-            DEFAULT: 'var(--status-info)',
-            bg: 'var(--status-info-bg)',
-            border: 'var(--status-info-border)',
+            DEFAULT: withOpacity('--status-info'),
+            bg: withOpacity('--status-info-bg'),
+            border: withOpacity('--status-info-border'),
             hover: 'hsl(199, 89%, 18%)'
           },
           // Retry states
           retry: {
-            DEFAULT: 'var(--status-retry)',
-            bg: 'var(--status-retry-bg)',
-            border: 'var(--status-retry-border)',
+            DEFAULT: withOpacity('--status-retry'),
+            bg: withOpacity('--status-retry-bg'),
+            border: withOpacity('--status-retry-border'),
             hover: 'hsl(24, 95%, 18%)'
           },
           // Neutral states
           neutral: {
-            DEFAULT: 'var(--status-neutral)',
-            bg: 'var(--status-neutral-bg)',
-            border: 'var(--status-neutral-border)',
+            DEFAULT: withOpacity('--status-neutral'),
+            bg: withOpacity('--status-neutral-bg'),
+            border: withOpacity('--status-neutral-border'),
             hover: 'hsl(215, 20%, 18%)'
           },
           // Special states
           special: {
-            DEFAULT: 'var(--status-special)',
-            bg: 'var(--status-special-bg)',
-            border: 'var(--status-special-border)',
+            DEFAULT: withOpacity('--status-special'),
+            bg: withOpacity('--status-special-bg'),
+            border: withOpacity('--status-special-border'),
             hover: 'hsl(263, 70%, 18%)'
           }
         }
