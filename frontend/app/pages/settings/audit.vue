@@ -100,6 +100,7 @@ async function loadAudit() {
   const nextQuery = JSON.stringify(query)
   if (currentQuery !== nextQuery) {
     await router.replace({ query })
+    return
   }
 
   await auditStore.fetchAuditLogs({
