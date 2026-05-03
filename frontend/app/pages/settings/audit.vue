@@ -56,22 +56,52 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import AuditLogList from '~/components/audit/AuditLogList.vue'
 import Select from '~/components/common/Select.vue'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 
 const route = useRoute()
+const router = useRouter()
 const auditStore = useAuditStore()
 
-const search = ref((route.query.search as string) || '')
-const sourceFilter = ref((route.query.source as string) || '')
-const statusFilter = ref((route.query.status as string) || '')
-const taskFilter = ref((route.query.task_id as string) || '')
-const workflowFilter = ref((route.query.workflow_id as string) || '')
+const search = ref('')
+const sourceFilter = ref('')
+const statusFilter = ref('')
+const taskFilter = ref('')
+const workflowFilter = ref('')
+
+function syncFiltersFromRoute() {
+  search.value = (route.query.search as string) || ''
+  sourceFilter.value = (route.query.source as string) || ''
+  statusFilter.value = (route.query.status as string) || ''
+  taskFilter.value = (route.query.task_id as string) || ''
+  workflowFilter.value = (route.query.workflow_id as string) || ''
+}
 
 async function loadAudit() {
+  const query = {
+    ...route.query,
+    ...(search.value ? { search: search.value } : {}),
+    ...(sourceFilter.value ? { source: sourceFilter.value } : {}),
+    ...(statusFilter.value ? { status: statusFilter.value } : {}),
+    ...(taskFilter.value ? { task_id: taskFilter.value } : {}),
+    ...(workflowFilter.value ? { workflow_id: workflowFilter.value } : {}),
+  }
+
+  for (const key of ['search', 'source', 'status', 'task_id', 'workflow_id'] as const) {
+    if (!query[key]) {
+      delete query[key]
+    }
+  }
+
+  const currentQuery = JSON.stringify(route.query)
+  const nextQuery = JSON.stringify(query)
+  if (currentQuery !== nextQuery) {
+    await router.replace({ query })
+  }
+
   await auditStore.fetchAuditLogs({
     limit: 100,
     search: search.value || null,
@@ -82,5 +112,16 @@ async function loadAudit() {
   })
 }
 
-onMounted(loadAudit)
+watch(
+  () => route.query,
+  () => {
+    syncFiltersFromRoute()
+    loadAudit()
+  },
+)
+
+onMounted(() => {
+  syncFiltersFromRoute()
+  loadAudit()
+})
 </script>
