@@ -30,7 +30,7 @@
         </div>
 
         <div class="flex items-center gap-2">
-          <NuxtLink :to="`/audit?workflow_id=${route.params.id}`">
+          <NuxtLink :to="`/settings/audit?workflow_id=${route.params.id}`">
             <Button
               variant="outline"
               size="sm"
@@ -143,7 +143,7 @@
               <h2 class="text-sm font-medium text-text-primary">Audit History</h2>
               <p class="text-xs text-text-muted">Manual edits and automated executions for this workflow.</p>
             </div>
-            <NuxtLink :to="`/audit?workflow_id=${route.params.id}`">
+            <NuxtLink :to="`/settings/audit?workflow_id=${route.params.id}`">
               <Button variant="outline" size="sm">Open Full Log</Button>
             </NuxtLink>
           </div>
