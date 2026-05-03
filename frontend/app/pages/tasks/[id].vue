@@ -34,7 +34,7 @@
         </div>
 
         <div class="flex items-center gap-2">
-          <NuxtLink :to="`/audit?task_id=${task.task_id}`">
+          <NuxtLink :to="`/settings/audit?task_id=${task.task_id}`">
             <Button
               variant="outline"
               size="sm"
@@ -336,7 +336,7 @@
                   <h2 class="text-sm font-medium text-text-primary">Audit History</h2>
                   <p class="text-xs text-text-muted">Manual actions and workflow interventions for this task.</p>
                 </div>
-                <NuxtLink :to="`/audit?task_id=${task?.task_id}`">
+                <NuxtLink :to="`/settings/audit?task_id=${task?.task_id}`">
                   <Button variant="outline" size="sm">Open Full Log</Button>
                 </NuxtLink>
               </div>
