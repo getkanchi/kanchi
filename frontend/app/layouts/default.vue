@@ -1,5 +1,9 @@
 <template>
-  <div class="min-h-screen bg-background-base text-text-primary lg:flex">
+  <div v-if="isLoginRoute" class="min-h-screen bg-background-base text-text-primary">
+    <slot />
+  </div>
+
+  <div v-else class="min-h-screen bg-background-base text-text-primary lg:flex">
     <div class="hidden lg:block lg:h-screen lg:sticky lg:top-0">
       <AppSidebar />
     </div>
@@ -36,13 +40,16 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
+import { useRoute } from '#imports'
 import { Menu } from 'lucide-vue-next'
 import AppSidebar from '~/components/AppSidebar.vue'
 import { Sheet, SheetContent, SheetTrigger } from '~/components/ui/sheet'
 import { useEnvironmentStore } from '~/stores/environment'
 
+const route = useRoute()
 const environmentStore = useEnvironmentStore()
+const isLoginRoute = computed(() => route.path === '/login')
 
 onMounted(async () => {
   await environmentStore.initialize()
