@@ -19,7 +19,7 @@
         <NuxtLink :to="`/workflows/${route.params.id}`">
           <Button variant="ghost" size="sm">Cancel</Button>
         </NuxtLink>
-        <Button variant="outline" size="sm" @click="showSimulationDialog = true">
+        <Button variant="outline" size="sm" :disabled="!simulationWorkflow" @click="showSimulationDialog = true">
           <FlaskConical class="h-3.5 w-3.5 mr-1.5" />
           Simulate
         </Button>

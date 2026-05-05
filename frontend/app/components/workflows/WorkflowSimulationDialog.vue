@@ -116,7 +116,10 @@ async function runSimulation() {
     simulationError.value = null
     result.value = null
     running.value = true
-    const context = localContext.value ? JSON.parse(localContext.value) : {}
+    const parsedContext = localContext.value ? JSON.parse(localContext.value) : {}
+    const context = parsedContext && typeof parsedContext === 'object' && !Array.isArray(parsedContext)
+      ? parsedContext
+      : {}
     result.value = await workflowStore.simulateWorkflow(props.workflow, context)
   } catch (err) {
     if (err instanceof SyntaxError) {
