@@ -726,6 +726,7 @@ export function useApiService(): ApiService {
 }
 
 export type {
+  IncidentSummary,
   TaskStats,
   TaskEventResponse,
   WorkerInfo,
