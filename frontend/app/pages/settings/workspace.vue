@@ -9,7 +9,7 @@
       </p>
     </section>
 
-    <div class="space-y-6">
+    <div class="space-y-6" :inert="showCleanupConfirm || undefined" :aria-hidden="showCleanupConfirm ? 'true' : undefined">
       <section class="rounded-2xl border border-border-subtle bg-background-surface p-6 shadow-sm">
         <div class="flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -164,8 +164,10 @@
         </div>
       </section>
 
-      <div v-if="showCleanupConfirm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+      <div v-if="showCleanupConfirm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" @click.self="!cleanupRunning && closeCleanupConfirm()">
         <div
+          ref="cleanupDialogRef"
+          tabindex="-1"
           class="grid w-full max-w-md gap-4 rounded-lg border border-border-subtle bg-background-surface p-6 shadow-lg"
           role="dialog"
           aria-modal="true"
@@ -183,7 +185,7 @@
               type="button"
               class="mt-2 inline-flex items-center justify-center gap-2 rounded-md border border-border-subtle bg-background-surface px-4 py-2 text-sm font-medium text-text-primary shadow-sm transition-colors hover:bg-background-subtle disabled:cursor-not-allowed disabled:opacity-50 sm:mt-0"
               :disabled="cleanupRunning"
-              @click="showCleanupConfirm = false"
+              @click="closeCleanupConfirm()"
             >
               Cancel
             </button>
@@ -249,7 +251,7 @@
 
 <script setup lang="ts">
 import { ArrowUpRight, Github, Sparkles } from 'lucide-vue-next'
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Alert from '~/components/alert/Alert.vue'
 import ThemeToggle from '~/components/ThemeToggle.vue'
 import TimeDisplay from '~/components/TimeDisplay.vue'
@@ -311,6 +313,8 @@ const cleanupResult = ref<RetentionCleanupResponseDTO | null>(null)
 const cleanupError = ref('')
 const showCleanupConfirm = ref(false)
 const retentionSchedule = ref<RetentionScheduleStatusDTO | null>(null)
+const cleanupDialogRef = ref<HTMLElement | null>(null)
+let cleanupTriggerElement: HTMLElement | null = null
 
 const isLoading = computed(() => configStore.isLoading)
 const loadError = computed(() => configStore.error)
@@ -320,7 +324,11 @@ function syncFormFromStore() {
 }
 
 async function refreshRetentionSchedule() {
-  retentionSchedule.value = await configStore.getRetentionSchedule()
+  try {
+    retentionSchedule.value = await configStore.getRetentionSchedule()
+  } catch (error) {
+    console.error('Failed to refresh retention schedule', error)
+  }
 }
 
 function resetRetentionForm() {
@@ -363,8 +371,68 @@ async function runCleanup() {
   await executeCleanup(false)
 }
 
-async function confirmCleanupRun() {
+function closeCleanupConfirm() {
   showCleanupConfirm.value = false
+}
+
+function getCleanupFocusableElements() {
+  return Array.from(
+    cleanupDialogRef.value?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    ) ?? []
+  )
+}
+
+function handleCleanupConfirmKeydown(event: KeyboardEvent) {
+  if (!showCleanupConfirm.value) return
+
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    if (!cleanupRunning.value) closeCleanupConfirm()
+    return
+  }
+
+  if (event.key !== 'Tab') return
+
+  const focusable = getCleanupFocusableElements()
+  if (focusable.length === 0) {
+    event.preventDefault()
+    cleanupDialogRef.value?.focus()
+    return
+  }
+
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  const active = document.activeElement as HTMLElement | null
+
+  if (event.shiftKey && active === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && active === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
+
+watch(showCleanupConfirm, async (open) => {
+  if (open) {
+    cleanupTriggerElement = document.activeElement as HTMLElement | null
+    document.addEventListener('keydown', handleCleanupConfirmKeydown)
+    await nextTick()
+    getCleanupFocusableElements()[1]?.focus() ?? getCleanupFocusableElements()[0]?.focus() ?? cleanupDialogRef.value?.focus()
+    return
+  }
+
+  document.removeEventListener('keydown', handleCleanupConfirmKeydown)
+  cleanupTriggerElement?.focus()
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleCleanupConfirmKeydown)
+})
+
+async function confirmCleanupRun() {
+  closeCleanupConfirm()
   await runCleanup()
 }
 

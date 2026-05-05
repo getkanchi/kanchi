@@ -60,6 +60,7 @@ class RetentionScheduler:
             logger.warning("Retention cleanup scheduler already running")
             return
 
+        self._stop_event.clear()
         self._thread = threading.Thread(target=self._run_loop, name="retention-cleanup-scheduler", daemon=True)
         self._thread.start()
         logger.info("Automatic retention cleanup scheduler started (interval=%ss)", int(self.interval.total_seconds()))

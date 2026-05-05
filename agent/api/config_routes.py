@@ -98,7 +98,8 @@ def create_router(app_state) -> APIRouter:
         """Get automatic retention cleanup schedule status."""
         scheduler = app_state.retention_scheduler
         if scheduler is None:
-            return RetentionScheduleStatus(enabled=False, interval_hours=24)
+            interval_hours = getattr(app_state.config, 'retention_interval_hours', 24)
+            return RetentionScheduleStatus(enabled=False, interval_hours=interval_hours)
         return scheduler.get_status()
 
     @router.post("/retention/cleanup", response_model=RetentionCleanupResponse)

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { AlertTriangle, Loader2 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 
@@ -27,22 +27,84 @@ const emit = defineEmits<{
 }>()
 
 const isOpen = ref(false)
+const dialogRef = ref<HTMLElement | null>(null)
+let previousFocusedElement: HTMLElement | null = null
+
+function getFocusableElements() {
+  return Array.from(
+    dialogRef.value?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    ) ?? []
+  )
+}
+
+function closeDialog() {
+  isOpen.value = false
+}
+
+function handleKeydown(event: KeyboardEvent) {
+  if (!isOpen.value) return
+
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    if (!props.isLoading) handleCancel()
+    return
+  }
+
+  if (event.key !== 'Tab') return
+
+  const focusable = getFocusableElements()
+  if (focusable.length === 0) {
+    event.preventDefault()
+    dialogRef.value?.focus()
+    return
+  }
+
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  const active = document.activeElement as HTMLElement | null
+
+  if (event.shiftKey && active === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && active === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
+
+watch(isOpen, async (open) => {
+  if (open) {
+    previousFocusedElement = document.activeElement as HTMLElement | null
+    document.addEventListener('keydown', handleKeydown)
+    await nextTick()
+    getFocusableElements()[0]?.focus() ?? dialogRef.value?.focus()
+    return
+  }
+
+  document.removeEventListener('keydown', handleKeydown)
+  previousFocusedElement?.focus()
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleKeydown)
+})
 
 const handleConfirm = () => {
   emit('confirm')
   if (!props.isLoading) {
-    isOpen.value = false
+    closeDialog()
   }
 }
 
 const handleCancel = () => {
   emit('cancel')
-  isOpen.value = false
+  closeDialog()
 }
 
 defineExpose({
   open: () => { isOpen.value = true },
-  close: () => { isOpen.value = false }
+  close: closeDialog
 })
 </script>
 
@@ -53,8 +115,10 @@ defineExpose({
     </slot>
   </div>
 
-  <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+  <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" @click.self="!isLoading && handleCancel()">
     <div
+      ref="dialogRef"
+      tabindex="-1"
       class="grid w-full max-w-md gap-4 rounded-lg border border-border-subtle bg-background-surface p-6 shadow-lg"
       role="dialog"
       aria-modal="true"

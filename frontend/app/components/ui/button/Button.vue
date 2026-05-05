@@ -1,4 +1,6 @@
 <script setup lang="ts">
+defineOptions({ inheritAttrs: false })
+
 import type { HTMLAttributes } from 'vue'
 import { computed, useAttrs } from 'vue'
 import { cn } from '@/lib/utils'
