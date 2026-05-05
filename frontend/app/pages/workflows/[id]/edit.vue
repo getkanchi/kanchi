@@ -291,8 +291,7 @@ import WorkflowConditionBuilder from '~/components/workflows/WorkflowConditionBu
 import WorkflowActionsList from '~/components/workflows/WorkflowActionsList.vue'
 import WorkflowCircuitBreakerConfig from '~/components/workflows/WorkflowCircuitBreakerConfig.vue'
 import WorkflowSimulationDialog from '~/components/workflows/WorkflowSimulationDialog.vue'
-import type { WorkflowCreateRequest } from '~/src/types/api'
-import type { WorkflowUpdateRequest } from '~/types/workflow'
+import type { WorkflowCreateRequest, WorkflowUpdateRequest } from '~/services/apiClient'
 import { useLogger } from '~/services/logger'
 
 const route = useRoute()

@@ -84,8 +84,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '~/components/ui/dialog'
-import type { WorkflowCreateRequest } from '~/src/types/api'
-import type { WorkflowSimulationResponse } from '~/types/workflow'
+import type { WorkflowCreateRequest, WorkflowSimulationResponse } from '~/services/apiClient'
 
 const props = defineProps<{
   open: boolean

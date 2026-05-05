@@ -8,7 +8,7 @@ import type {
   WorkerInfo
 } from '../src/types/api'
 import type { WorkflowCreateRequest } from '../src/types/api'
-import type { WorkflowSimulationResponse } from '../types/workflow'
+import type { WorkflowSimulationResponse, WorkflowUpdateRequest } from '../types/workflow'
 
 export type AuthProvider = 'google' | 'github'
 
@@ -779,7 +779,10 @@ export type {
   AppConfigSnapshotDTO,
   AppSettingDTO,
   AppSettingInput,
-  TaskIssueConfigDTO
+  TaskIssueConfigDTO,
+  WorkflowCreateRequest,
+  WorkflowSimulationResponse,
+  WorkflowUpdateRequest
 }
 
 // Re-export session types from auto-generated API
