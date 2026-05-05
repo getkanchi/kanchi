@@ -205,6 +205,23 @@ class WorkflowSimulationService:
             warnings.append("Task history was not found in the database; retry preview is based only on the provided context.")
             details["task_name"] = test_context.get("task_name")
             details["queue"] = test_context.get("queue") or "default"
+            current_retry_count = test_context.get("retry_count", 0)
+            if isinstance(current_retry_count, bool) or not isinstance(current_retry_count, int):
+                current_retry_count = 0
+            details["current_retry_depth"] = current_retry_count
+            if current_retry_count >= details["max_retries"]:
+                return WorkflowSimulationActionPreview(
+                    action_type="task.retry",
+                    status="blocked",
+                    summary="Would NOT enqueue a retry because the retry cap has already been reached.",
+                    details=details,
+                    warnings=[
+                        *warnings,
+                        f"Workflow retries are already at {current_retry_count}/{details['max_retries']}; a real execution would be rejected.",
+                    ],
+                )
+            if current_retry_count + 1 >= details["max_retries"]:
+                warnings.append("This dry run is near the retry cap; later real executions may be blocked soon.")
 
         return WorkflowSimulationActionPreview(
             action_type="task.retry",

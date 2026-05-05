@@ -131,6 +131,29 @@ class TestWorkflowSimulationService(ServiceTestCase):
         self.assertIn("Retry cap already reached", result.action_previews[0].summary)
         self.assertEqual(result.action_previews[0].details["current_retry_depth"], 3)
 
+    def test_retry_preview_blocks_from_context_when_history_is_missing(self):
+        workflow = WorkflowCreateRequest(
+            name="Retry capped by context",
+            trigger=TriggerConfig(type="task.failed", config={}),
+            conditions=ConditionGroup(operator="AND", conditions=[]),
+            actions=[ActionConfig(type="task.retry", params={"delay_seconds": 30, "max_retries": 3})],
+        )
+
+        result = self.service.simulate(
+            workflow,
+            {
+                "task_id": "task-missing",
+                "task_name": "reports.generate",
+                "event_type": "task.failed",
+                "retry_count": 3,
+            },
+        )
+
+        self.assertEqual(result.action_previews[0].status, "blocked")
+        self.assertIn("Would NOT enqueue a retry", result.action_previews[0].summary)
+        self.assertEqual(result.action_previews[0].details["current_retry_depth"], 3)
+        self.assertTrue(any("would be rejected" in warning for warning in result.action_previews[0].warnings))
+
 
 if __name__ == "__main__":
     unittest.main()
