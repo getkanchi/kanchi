@@ -75,6 +75,15 @@ class Config:
     max_clients: int = int(os.getenv('MAX_WS_CLIENTS', 100))
     event_buffer_size: int = int(os.getenv('EVENT_BUFFER_SIZE', 1000))
 
+    # Retention cleanup scheduler
+    retention_cleanup_enabled: bool = _as_bool(os.getenv('RETENTION_CLEANUP_ENABLED', 'true'), default=True)
+    retention_cleanup_interval_hours: int = int(os.getenv('RETENTION_CLEANUP_INTERVAL_HOURS', 24))
+    retention_cleanup_interval_seconds: Optional[int] = (
+        int(os.getenv('RETENTION_CLEANUP_INTERVAL_SECONDS'))
+        if os.getenv('RETENTION_CLEANUP_INTERVAL_SECONDS')
+        else None
+    )
+
     # CORS / Hosts
     allowed_origins: List[str] = field(default_factory=lambda: _split_csv(os.getenv('ALLOWED_ORIGINS')))
     allowed_hosts: List[str] = field(default_factory=lambda: _split_csv(os.getenv('ALLOWED_HOSTS')))

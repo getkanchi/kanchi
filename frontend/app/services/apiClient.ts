@@ -87,6 +87,17 @@ export interface RetentionCleanupResponseDTO {
   results: RetentionCleanupResultDTO[]
 }
 
+export interface RetentionScheduleStatusDTO {
+  enabled: boolean
+  interval_hours: number
+  next_run_at?: string | null
+  last_run_at?: string | null
+  last_completed_at?: string | null
+  last_duration_seconds?: number | null
+  last_deleted_rows?: number | null
+  last_error?: string | null
+}
+
 export interface AppConfigSnapshotDTO {
   task_issue_summary: TaskIssueConfigDTO
   data_retention: DataRetentionConfigDTO
@@ -231,6 +242,14 @@ class ApiService {
   async getRetentionConfig(): Promise<DataRetentionConfigDTO> {
     const response = await this.api.request({
       path: '/api/config/retention',
+      method: 'GET'
+    })
+    return response.data
+  }
+
+  async getRetentionSchedule(): Promise<RetentionScheduleStatusDTO> {
+    const response = await this.api.request({
+      path: '/api/config/retention/schedule',
       method: 'GET'
     })
     return response.data

@@ -7,6 +7,7 @@ import {
   type AppSettingInput,
   type DataRetentionConfigDTO,
   type RetentionCleanupResponseDTO,
+  type RetentionScheduleStatusDTO,
 } from '~/services/apiClient'
 
 const TASK_ISSUE_LOOKBACK_DEFAULT = 24
@@ -172,6 +173,10 @@ export const useConfigStore = defineStore('config', () => {
     }
   }
 
+  async function getRetentionSchedule(): Promise<RetentionScheduleStatusDTO> {
+    return apiService.getRetentionSchedule()
+  }
+
   async function runRetentionCleanup(dryRun = true): Promise<RetentionCleanupResponseDTO> {
     return apiService.runRetentionCleanup(dryRun)
   }
@@ -189,6 +194,7 @@ export const useConfigStore = defineStore('config', () => {
     deleteSetting,
     updateTaskIssueLookback,
     updateDataRetention,
+    getRetentionSchedule,
     runRetentionCleanup,
   }
 })

@@ -484,6 +484,18 @@ class RetentionCleanupResponse(BaseModel):
     results: List[RetentionCleanupResult] = Field(default_factory=list)
 
 
+class RetentionScheduleStatus(BaseModel):
+    """Status of automatic retention cleanup scheduling."""
+    enabled: bool = True
+    interval_hours: int = Field(default=24, ge=1, le=168)
+    next_run_at: Optional[datetime] = None
+    last_run_at: Optional[datetime] = None
+    last_completed_at: Optional[datetime] = None
+    last_duration_seconds: Optional[float] = Field(default=None, ge=0)
+    last_deleted_rows: Optional[int] = Field(default=None, ge=0)
+    last_error: Optional[str] = None
+
+
 class AppConfigSnapshot(BaseModel):
     """Grouped configuration snapshot returned to clients."""
     task_issue_summary: TaskIssueConfig

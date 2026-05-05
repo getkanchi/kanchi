@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from config import Config
-from models import AppSetting, AppSettingUpdate, AppConfigSnapshot, DataRetentionConfig, RetentionCleanupResponse
+from models import AppSetting, AppSettingUpdate, AppConfigSnapshot, DataRetentionConfig, RetentionCleanupResponse, RetentionScheduleStatus
 from services import AppConfigService, RetentionService
 from security.dependencies import get_auth_dependency
 
@@ -92,6 +92,14 @@ def create_router(app_state) -> APIRouter:
     ):
         """Get normalized data retention policy values."""
         return retention_service.get_policy()
+
+    @router.get("/retention/schedule", response_model=RetentionScheduleStatus)
+    async def get_retention_schedule_status():
+        """Get automatic retention cleanup schedule status."""
+        scheduler = app_state.retention_scheduler
+        if scheduler is None:
+            return RetentionScheduleStatus(enabled=False, interval_hours=24)
+        return scheduler.get_status()
 
     @router.post("/retention/cleanup", response_model=RetentionCleanupResponse)
     async def run_retention_cleanup(
