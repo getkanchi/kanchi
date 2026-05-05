@@ -418,6 +418,73 @@ export interface ResolveTaskRequest {
 }
 
 /**
+ * RetentionCleanupResponse
+ * Summary of a retention cleanup run.
+ */
+export interface RetentionCleanupResponse {
+  /**
+   * Dry Run
+   * @default false
+   */
+  dry_run?: boolean;
+  /**
+   * Total Deleted
+   * @min 0
+   */
+  total_deleted: number;
+  /** Results */
+  results?: RetentionCleanupResult[];
+}
+
+/**
+ * RetentionCleanupResult
+ * Result for a single retention target cleanup.
+ */
+export interface RetentionCleanupResult {
+  /** Key */
+  key: string;
+  /** Label */
+  label: string;
+  /**
+   * Retention Days
+   * @min 1
+   */
+  retention_days: number;
+  /**
+   * Deleted
+   * @min 0
+   */
+  deleted: number;
+}
+
+/**
+ * RuntimeAnomaly
+ * Detected anomaly for an active task runtime/progress profile.
+ */
+export interface RuntimeAnomaly {
+  /** Represents a Celery task event */
+  task: TaskEvent;
+  /** Anomaly Type */
+  anomaly_type: "long_running" | "stalled_progress";
+  /** Runtime Seconds */
+  runtime_seconds: number;
+  /** Baseline Runtime Seconds */
+  baseline_runtime_seconds?: number | null;
+  /** Progress Age Seconds */
+  progress_age_seconds?: number | null;
+  /**
+   * Worker Active Task Count
+   * @default 1
+   */
+  worker_active_task_count?: number;
+  /** Threshold Seconds */
+  threshold_seconds: number;
+  /** Detail */
+  detail: string;
+}
+
+/**
+>>>>>>> ed76241 (Add typed task resolution responses)
  * StepDefinition
  * Single step definition for task progress.
  */
