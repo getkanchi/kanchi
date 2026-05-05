@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from threading import RLock
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -12,6 +13,7 @@ from database import AppSettingDB
 from models import TaskEvent, TaskSuppressionMetrics, TaskSuppressionRule, TaskSuppressionRuleCreate
 
 SUPPRESSION_RULES_KEY = "task_issue_summary.suppression_rules"
+SUPPRESSION_RULES_LOCK = RLock()
 
 
 def _ensure_utc(dt: Optional[datetime]) -> Optional[datetime]:
@@ -42,26 +44,28 @@ class SuppressionService:
         return None
 
     def create_rule(self, payload: TaskSuppressionRuleCreate) -> TaskSuppressionRule:
-        rules = self._raw_rules()
-        rule = TaskSuppressionRule(
-            id=str(uuid4()),
-            task_name=payload.task_name,
-            exception_contains=payload.exception_contains,
-            reason=payload.reason,
-            created_at=datetime.now(timezone.utc),
-            expires_at=_ensure_utc(payload.expires_at),
-        )
-        rules.append(rule.model_dump(mode="json"))
-        self._save_rules(rules)
-        return rule
+        with SUPPRESSION_RULES_LOCK:
+            rules = self._raw_rules()
+            rule = TaskSuppressionRule(
+                id=str(uuid4()),
+                task_name=payload.task_name,
+                exception_contains=payload.exception_contains,
+                reason=payload.reason,
+                created_at=datetime.now(timezone.utc),
+                expires_at=_ensure_utc(payload.expires_at),
+            )
+            rules.append(rule.model_dump(mode="json"))
+            self._save_rules(rules)
+            return rule
 
     def delete_rule(self, rule_id: str) -> bool:
-        rules = self._raw_rules()
-        filtered = [rule for rule in rules if rule.get("id") != rule_id]
-        if len(filtered) == len(rules):
-            return False
-        self._save_rules(filtered)
-        return True
+        with SUPPRESSION_RULES_LOCK:
+            rules = self._raw_rules()
+            filtered = [rule for rule in rules if rule.get("id") != rule_id]
+            if len(filtered) == len(rules):
+                return False
+            self._save_rules(filtered)
+            return True
 
     def match_rule(self, event: TaskEvent, rules: Optional[List[TaskSuppressionRule]] = None) -> Optional[TaskSuppressionRule]:
         return self._match_rule_from_rules(rules or self.list_rules(), event)
