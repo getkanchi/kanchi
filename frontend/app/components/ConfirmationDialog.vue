@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { getCurrentInstance, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { AlertTriangle, Loader2 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 
@@ -28,6 +28,10 @@ const emit = defineEmits<{
 
 const isOpen = ref(false)
 const dialogRef = ref<HTMLElement | null>(null)
+const instance = getCurrentInstance()
+const uniqueId = instance?.uid ?? Math.random().toString(36).slice(2)
+const titleId = `confirmation-dialog-title-${uniqueId}`
+const descriptionId = `confirmation-dialog-description-${uniqueId}`
 let previousFocusedElement: HTMLElement | null = null
 
 function getFocusableElements() {
@@ -122,15 +126,15 @@ defineExpose({
       class="grid w-full max-w-md gap-4 rounded-lg border border-border-subtle bg-background-surface p-6 shadow-lg"
       role="dialog"
       aria-modal="true"
-      :aria-labelledby="'confirmation-dialog-title'"
-      :aria-describedby="'confirmation-dialog-description'"
+      :aria-labelledby="titleId"
+      :aria-describedby="description ? descriptionId : undefined"
     >
       <div class="space-y-2">
-        <h2 id="confirmation-dialog-title" class="flex items-center gap-2 text-lg font-semibold text-text-primary">
+        <h2 :id="titleId" class="flex items-center gap-2 text-lg font-semibold text-text-primary">
           <AlertTriangle v-if="variant === 'destructive'" class="h-5 w-5 text-red-500" />
           {{ title }}
         </h2>
-        <p id="confirmation-dialog-description" v-if="description" class="text-sm text-text-secondary">
+        <p :id="descriptionId" v-if="description" class="text-sm text-text-secondary">
           {{ description }}
         </p>
       </div>

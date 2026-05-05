@@ -9,7 +9,7 @@
       </p>
     </section>
 
-    <div class="space-y-6" :inert="showCleanupConfirm || undefined" :aria-hidden="showCleanupConfirm ? 'true' : undefined">
+    <div class="space-y-6">
       <section class="rounded-2xl border border-border-subtle bg-background-surface p-6 shadow-sm">
         <div class="flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -164,43 +164,6 @@
         </div>
       </section>
 
-      <div v-if="showCleanupConfirm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" @click.self="!cleanupRunning && closeCleanupConfirm()">
-        <div
-          ref="cleanupDialogRef"
-          tabindex="-1"
-          class="grid w-full max-w-md gap-4 rounded-lg border border-border-subtle bg-background-surface p-6 shadow-lg"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="retention-cleanup-title"
-          aria-describedby="retention-cleanup-description"
-        >
-          <div class="space-y-2">
-            <h2 id="retention-cleanup-title" class="text-lg font-semibold text-text-primary">Run retention cleanup?</h2>
-            <p id="retention-cleanup-description" class="text-sm text-text-secondary">
-              This will permanently delete data that falls outside the configured retention windows. Preview cleanup first if you want to inspect the impact before deleting anything.
-            </p>
-          </div>
-          <div class="flex flex-col-reverse sm:flex-row sm:justify-end sm:gap-2">
-            <button
-              type="button"
-              class="mt-2 inline-flex items-center justify-center gap-2 rounded-md border border-border-subtle bg-background-surface px-4 py-2 text-sm font-medium text-text-primary shadow-sm transition-colors hover:bg-background-subtle disabled:cursor-not-allowed disabled:opacity-50 sm:mt-0"
-              :disabled="cleanupRunning"
-              @click="closeCleanupConfirm()"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              class="inline-flex items-center justify-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="cleanupRunning"
-              @click="confirmCleanupRun"
-            >
-              {{ cleanupRunning && cleanupMode === 'live' ? 'Running cleanup…' : 'Run cleanup' }}
-            </button>
-          </div>
-        </div>
-      </div>
-
       <section class="rounded-2xl border border-border-subtle bg-background-surface p-6 shadow-sm">
         <div class="space-y-4">
           <div>
@@ -246,6 +209,43 @@
         <WorkflowSlackConfigPanel :active="true" :enable-selection="false" />
       </section>
     </div>
+
+    <div v-if="showCleanupConfirm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" @click.self="!cleanupRunning && closeCleanupConfirm()">
+      <div
+        ref="cleanupDialogRef"
+        tabindex="-1"
+        class="grid w-full max-w-md gap-4 rounded-lg border border-border-subtle bg-background-surface p-6 shadow-lg"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="retention-cleanup-title"
+        aria-describedby="retention-cleanup-description"
+      >
+        <div class="space-y-2">
+          <h2 id="retention-cleanup-title" class="text-lg font-semibold text-text-primary">Run retention cleanup?</h2>
+          <p id="retention-cleanup-description" class="text-sm text-text-secondary">
+            This will permanently delete data that falls outside the configured retention windows. Preview cleanup first if you want to inspect the impact before deleting anything.
+          </p>
+        </div>
+        <div class="flex flex-col-reverse sm:flex-row sm:justify-end sm:gap-2">
+          <button
+            type="button"
+            class="mt-2 inline-flex items-center justify-center gap-2 rounded-md border border-border-subtle bg-background-surface px-4 py-2 text-sm font-medium text-text-primary shadow-sm transition-colors hover:bg-background-subtle disabled:cursor-not-allowed disabled:opacity-50 sm:mt-0"
+            :disabled="cleanupRunning"
+            @click="closeCleanupConfirm()"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="inline-flex items-center justify-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="cleanupRunning"
+            @click="confirmCleanupRun"
+          >
+            {{ cleanupRunning && cleanupMode === 'live' ? 'Running cleanup…' : 'Run cleanup' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -259,10 +259,12 @@ import WorkflowSlackConfigPanel from '~/components/workflows/WorkflowSlackConfig
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
-import { useConfigStore } from '~/stores/config'
 import type { DataRetentionConfigDTO, RetentionCleanupResponseDTO, RetentionScheduleStatusDTO } from '~/services/apiClient'
+import { useLogger } from '~/services/logger'
+import { useConfigStore } from '~/stores/config'
 
 const configStore = useConfigStore()
+const logger = useLogger()
 
 const retentionFields: Array<{ key: keyof DataRetentionConfigDTO; label: string; description: string }> = [
   {
@@ -327,7 +329,7 @@ async function refreshRetentionSchedule() {
   try {
     retentionSchedule.value = await configStore.getRetentionSchedule()
   } catch (error) {
-    console.error('Failed to refresh retention schedule', error)
+    logger.error('Failed to refresh retention schedule', error)
   }
 }
 

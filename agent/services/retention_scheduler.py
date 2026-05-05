@@ -67,6 +67,10 @@ class RetentionScheduler:
 
     def stop(self) -> None:
         self._stop_event.set()
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=5)
+            if self._thread.is_alive():
+                logger.warning("Retention cleanup scheduler thread did not stop within timeout")
 
     def is_alive(self) -> bool:
         return bool(self._thread and self._thread.is_alive())
