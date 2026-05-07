@@ -69,11 +69,11 @@
                 </Button>
               </NuxtLink>
             </div>
-            <div v-if="incident.affected_workers.length" class="mt-3 flex flex-wrap gap-1.5">
-              <Badge v-for="worker in incident.affected_workers.slice(0, 3)" :key="worker" variant="secondary" class="font-mono text-[10px]">
+            <div v-if="incident.affected_workers?.length" class="mt-3 flex flex-wrap gap-1.5">
+              <Badge v-for="worker in (incident.affected_workers || []).slice(0, 3)" :key="worker" variant="secondary" class="font-mono text-[10px]">
                 {{ worker }}
               </Badge>
-              <span v-if="incident.affected_workers.length > 3" class="text-xs text-text-muted">+{{ incident.affected_workers.length - 3 }} more</span>
+              <span v-if="incident.affected_workers && incident.affected_workers.length > 3" class="text-xs text-text-muted">+{{ incident.affected_workers.length - 3 }} more</span>
             </div>
           </div>
         </div>
@@ -372,6 +372,7 @@ const failedTasksTitle = computed(() => `Failed tasks (${formatLookbackLabel(fai
 const failedTasksEmptyTitle = computed(() => `No failed tasks detected in the last ${formatLookbackLabel(failedTasksLookbackHours.value)}`)
 const incidentSummaries = ref<IncidentSummary[]>([])
 const incidentSearchQuery = ref('')
+let incidentSummaryRequestId = 0
 
 const severityVariant = (severity: IncidentSummary['severity']) => ({
   low: 'outline',
@@ -385,10 +386,15 @@ function focusIncident(taskName: string) {
 }
 
 async function refreshIncidentSummaries() {
-  incidentSummaries.value = await apiService.getIncidentSummaries({
+  const requestId = ++incidentSummaryRequestId
+  const summaries = await apiService.getIncidentSummaries({
     hours: failedTasksStore.lookbackHours,
     limit: 6
   })
+
+  if (requestId === incidentSummaryRequestId) {
+    incidentSummaries.value = summaries
+  }
 }
 
 const retryDialogRef = ref<InstanceType<typeof RetryTaskConfirmDialog> | null>(null)
@@ -702,7 +708,6 @@ onMounted(async () => {
 
   failedTasksInterval = setInterval(() => {
     failedTasksStore.fetchFailedTasks({ hours: failedTasksStore.lookbackHours }).catch(() => {})
-    refreshIncidentSummaries().catch(() => {})
   }, 60000) // Poll every 60 seconds for failed tasks
 
   workerInterval = setInterval(() => {
