@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed, readonly } from 'vue'
+import { ref, computed } from 'vue'
 import { useApiService } from '../services/apiClient'
 import type { TaskEventResponse } from '../services/apiClient'
 
@@ -128,9 +128,9 @@ export const useOrphanTasksStore = defineStore('orphanTasks', () => {
   }
 
   return {
-    orphanedTasks: readonly(orphanedTasks),
-    isLoading: readonly(isLoading),
-    error: readonly(error),
+    orphanedTasks,
+    isLoading,
+    error,
 
     orphanedTasksCount,
     recentOrphanedTasks,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+import threading
 from typing import Callable, List
 
 from sqlalchemy import and_, not_, select
@@ -23,6 +24,8 @@ from database import (
 )
 from models import DataRetentionConfig, RetentionCleanupResponse, RetentionCleanupResult
 from services.app_config_service import AppConfigService
+
+_cleanup_lock = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -44,33 +47,40 @@ class RetentionService:
         return self.config_service.get_data_retention_config()
 
     def cleanup(self, *, dry_run: bool = False) -> RetentionCleanupResponse:
-        policy = self.get_policy()
-        now = datetime.now(timezone.utc)
-        results: List[RetentionCleanupResult] = []
+        if not _cleanup_lock.acquire(blocking=False):
+            raise RuntimeError("Retention cleanup is already running")
 
-        for target in RETENTION_TARGETS:
-            retention_days = target.retention_days(policy)
-            cutoff = now - timedelta(days=retention_days)
-            deleted = target.apply(self.session, cutoff, dry_run)
-            results.append(
-                RetentionCleanupResult(
-                    key=target.key,
-                    label=target.label,
-                    retention_days=retention_days,
-                    deleted=deleted,
+        try:
+            policy = self.get_policy()
+            now = datetime.now(timezone.utc)
+            results: List[RetentionCleanupResult] = []
+
+            for target in RETENTION_TARGETS:
+                retention_days = target.retention_days(policy)
+                cutoff = now - timedelta(days=retention_days)
+                deleted = target.apply(self.session, cutoff, dry_run)
+                results.append(
+                    RetentionCleanupResult(
+                        key=target.key,
+                        label=target.label,
+                        retention_days=retention_days,
+                        deleted=deleted,
+                    )
                 )
+
+            if dry_run:
+                self.session.rollback()
+            else:
+                self.session.commit()
+
+            return RetentionCleanupResponse(
+                dry_run=dry_run,
+                total_deleted=sum(item.deleted for item in results),
+                policy=policy,
+                results=results,
             )
-
-        if dry_run:
-            self.session.rollback()
-        else:
-            self.session.commit()
-
-        return RetentionCleanupResponse(
-            dry_run=dry_run,
-            total_deleted=sum(item.deleted for item in results),
-            results=results,
-        )
+        finally:
+            _cleanup_lock.release()
 
 
 def _delete_by_datetime(model, column_name: str):

@@ -1,12 +1,21 @@
 """Service for managing application configuration stored in the database."""
 
 import logging
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
 from database import AppSettingDB
-from models import AppSetting, AppSettingUpdate, AppConfigSnapshot, TaskIssueConfig, DataRetentionConfig
+from models import (
+    AppSetting,
+    AppSettingUpdate,
+    AppConfigSnapshot,
+    TaskIssueConfig,
+    DataRetentionConfig,
+    RetentionLastRun,
+    RetentionScheduleConfig,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +26,10 @@ RETENTION_WORKER_EVENTS_DAYS_KEY = "data_retention.worker_events_days"
 RETENTION_WORKFLOW_EXECUTIONS_DAYS_KEY = "data_retention.workflow_executions_days"
 RETENTION_TASK_DAILY_STATS_DAYS_KEY = "data_retention.task_daily_stats_days"
 RETENTION_INACTIVE_SESSIONS_DAYS_KEY = "data_retention.inactive_sessions_days"
+RETENTION_SCHEDULE_ENABLED_KEY = "data_retention.schedule.enabled"
+RETENTION_SCHEDULE_FREQUENCY_KEY = "data_retention.schedule.frequency"
+RETENTION_SCHEDULE_RUN_AT_KEY = "data_retention.schedule.run_at"
+RETENTION_LAST_RUN_KEY = "data_retention.last_run"
 
 DEFAULT_SETTING_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     TASK_ISSUE_LOOKBACK_KEY: {
@@ -81,6 +94,36 @@ DEFAULT_SETTING_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "category": "data_retention",
         "min": 1,
         "max": 3650,
+    },
+    RETENTION_SCHEDULE_ENABLED_KEY: {
+        "default": False,
+        "value_type": "boolean",
+        "label": "Automatic cleanup",
+        "description": "Whether retention cleanup should run automatically.",
+        "category": "data_retention",
+    },
+    RETENTION_SCHEDULE_FREQUENCY_KEY: {
+        "default": "daily",
+        "value_type": "string",
+        "label": "Automatic cleanup frequency",
+        "description": "How often automatic cleanup should run.",
+        "category": "data_retention",
+        "allowed": {"daily", "weekly"},
+    },
+    RETENTION_SCHEDULE_RUN_AT_KEY: {
+        "default": "03:00",
+        "value_type": "string",
+        "label": "Automatic cleanup time",
+        "description": "UTC time when automatic cleanup should run.",
+        "category": "data_retention",
+        "pattern": r"^([01]\d|2[0-3]):[0-5]\d$",
+    },
+    RETENTION_LAST_RUN_KEY: {
+        "default": {"status": "never", "total_deleted": 0, "dry_run": False, "results": []},
+        "value_type": "json",
+        "label": "Last retention cleanup run",
+        "description": "Last automatic cleanup status and result.",
+        "category": "data_retention",
     },
 }
 
@@ -170,6 +213,15 @@ class AppConfigService:
             value = self._normalize_boolean(value)
         elif target_type == "string":
             value = str(value) if value is not None else ""
+            allowed_values = definition.get("allowed")
+            if allowed_values and value not in allowed_values:
+                allowed_display = ", ".join(sorted(allowed_values))
+                raise ValueError(f"Value for {key} must be one of: {allowed_display}")
+            pattern = definition.get("pattern")
+            if pattern and not re.match(pattern, value):
+                raise ValueError(f"Value for {key} must match {pattern}")
+        elif target_type == "json":
+            value = value if value is not None else {}
 
         return value, target_type
 
@@ -298,6 +350,47 @@ class AppConfigService:
             inactive_sessions_days=self._get_bounded_number_setting(RETENTION_INACTIVE_SESSIONS_DAYS_KEY),
         )
 
+    def get_retention_schedule_config(self) -> RetentionScheduleConfig:
+        """Return normalized automatic retention cleanup schedule."""
+        self.ensure_defaults()
+        enabled_value = self.get_setting_value(RETENTION_SCHEDULE_ENABLED_KEY, False)
+        try:
+            enabled = self._normalize_boolean(enabled_value)
+        except ValueError:
+            enabled = False
+
+        frequency = str(self.get_setting_value(RETENTION_SCHEDULE_FREQUENCY_KEY, "daily"))
+        if frequency not in {"daily", "weekly"}:
+            frequency = "daily"
+
+        run_at = str(self.get_setting_value(RETENTION_SCHEDULE_RUN_AT_KEY, "03:00"))
+        if not re.match(r"^([01]\d|2[0-3]):[0-5]\d$", run_at):
+            run_at = "03:00"
+
+        return RetentionScheduleConfig(enabled=enabled, frequency=frequency, run_at=run_at)
+
+    def get_retention_last_run(self) -> RetentionLastRun:
+        """Return the last automatic retention cleanup status."""
+        self.ensure_defaults()
+        value = self.get_setting_value(RETENTION_LAST_RUN_KEY, {})
+        if not isinstance(value, dict):
+            value = {}
+        try:
+            return RetentionLastRun(**value)
+        except Exception:  # pylint: disable=broad-except
+            return RetentionLastRun()
+
+    def set_retention_last_run(self, last_run: RetentionLastRun) -> AppSetting:
+        """Persist the last automatic retention cleanup status."""
+        return self.upsert_setting(
+            RETENTION_LAST_RUN_KEY,
+            AppSettingUpdate(
+                value=last_run.model_dump(mode="json"),
+                value_type="json",
+                category="data_retention",
+            ),
+        )
+
     def get_config_snapshot(self) -> AppConfigSnapshot:
         """Return grouped configuration for clients."""
         self.ensure_defaults()
@@ -305,4 +398,6 @@ class AppConfigService:
         return AppConfigSnapshot(
             task_issue_summary=TaskIssueConfig(lookback_hours=lookback_hours),
             data_retention=self.get_data_retention_config(),
+            retention_schedule=self.get_retention_schedule_config(),
+            retention_last_run=self.get_retention_last_run(),
         )

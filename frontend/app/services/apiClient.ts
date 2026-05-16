@@ -84,12 +84,31 @@ export interface RetentionCleanupResultDTO {
 export interface RetentionCleanupResponseDTO {
   dry_run: boolean
   total_deleted: number
+  policy: DataRetentionConfigDTO
+  results: RetentionCleanupResultDTO[]
+}
+
+export interface RetentionScheduleConfigDTO {
+  enabled: boolean
+  frequency: 'daily' | 'weekly'
+  run_at: string
+}
+
+export interface RetentionLastRunDTO {
+  status: 'never' | 'success' | 'error' | 'running'
+  started_at?: string | null
+  finished_at?: string | null
+  total_deleted: number
+  dry_run: boolean
+  error?: string | null
   results: RetentionCleanupResultDTO[]
 }
 
 export interface AppConfigSnapshotDTO {
   task_issue_summary: TaskIssueConfigDTO
   data_retention: DataRetentionConfigDTO
+  retention_schedule: RetentionScheduleConfigDTO
+  retention_last_run: RetentionLastRunDTO
 }
 
 export interface TaskStepDefinition {
@@ -765,7 +784,11 @@ export type {
   AppConfigSnapshotDTO,
   AppSettingDTO,
   AppSettingInput,
-  TaskIssueConfigDTO
+  TaskIssueConfigDTO,
+  DataRetentionConfigDTO,
+  RetentionCleanupResponseDTO,
+  RetentionScheduleConfigDTO,
+  RetentionLastRunDTO
 }
 
 // Re-export session types from auto-generated API
