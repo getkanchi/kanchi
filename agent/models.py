@@ -208,6 +208,46 @@ class TaskProgressSnapshot(BaseModel):
     history: List[TaskProgressEvent] = Field(default_factory=list)
 
 
+class AuditLogActor(BaseModel):
+    """Actor associated with an audit entry."""
+    type: str
+    id: Optional[str] = None
+    name: str
+
+
+class AuditLogEntry(BaseModel):
+    """Single audit log entry."""
+    id: int
+    timestamp: datetime
+    source: Literal["manual", "workflow", "system"]
+    action_type: str
+    status: Literal["success", "failed", "skipped"]
+    actor: AuditLogActor
+    target_type: str
+    target_id: str
+    target_label: Optional[str] = None
+    task_id: Optional[str] = None
+    related_task_id: Optional[str] = None
+    workflow_id: Optional[str] = None
+    execution_id: Optional[int] = None
+    reason: Optional[str] = None
+    result_summary: Optional[str] = None
+    details: Dict[str, Any] = Field(default_factory=dict)
+
+    model_config = {
+        'from_attributes': True,
+        'json_encoders': {
+            datetime: lambda v: v.isoformat() if v else None
+        }
+    }
+
+
+class AuditLogListResponse(BaseModel):
+    """Paginated audit log response."""
+    total: int
+    items: List[AuditLogEntry] = Field(default_factory=list)
+
+
 class WorkerInfo(BaseModel):
     """Worker information model"""
     hostname: str

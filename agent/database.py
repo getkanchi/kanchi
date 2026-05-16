@@ -275,6 +275,66 @@ class TaskResolutionDB(Base):
         Index('idx_task_resolved_flag', 'resolved'),
     )
 
+
+class AuditLogDB(Base):
+    """Persistent audit trail for manual and automated actions."""
+    __tablename__ = 'audit_logs'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    timestamp = Column(DateTime(timezone=True), nullable=False, default=utc_now, index=True)
+
+    source = Column(String(32), nullable=False, index=True)
+    action_type = Column(String(100), nullable=False, index=True)
+    status = Column(String(32), nullable=False, index=True)
+
+    actor_type = Column(String(32), nullable=False)
+    actor_id = Column(String(255), index=True)
+    actor_name = Column(String(255), nullable=False, index=True)
+
+    target_type = Column(String(50), nullable=False, index=True)
+    target_id = Column(String(255), nullable=False, index=True)
+    target_label = Column(String(255), index=True)
+
+    task_id = Column(String(255), index=True)
+    related_task_id = Column(String(255), index=True)
+    workflow_id = Column(String(36), index=True)
+    execution_id = Column(Integer, index=True)
+
+    reason = Column(Text)
+    result_summary = Column(Text)
+    details = Column(JSON)
+
+    __table_args__ = (
+        Index('idx_audit_timestamp_id', 'timestamp', 'id'),
+        Index('idx_audit_target_lookup', 'target_type', 'target_id', 'timestamp'),
+        Index('idx_audit_task_lookup', 'task_id', 'related_task_id', 'timestamp'),
+        Index('idx_audit_workflow_lookup', 'workflow_id', 'timestamp'),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for API responses."""
+        return {
+            'id': self.id,
+            'timestamp': ensure_utc_isoformat(self.timestamp),
+            'source': self.source,
+            'action_type': self.action_type,
+            'status': self.status,
+            'actor_type': self.actor_type,
+            'actor_id': self.actor_id,
+            'actor_name': self.actor_name,
+            'target_type': self.target_type,
+            'target_id': self.target_id,
+            'target_label': self.target_label,
+            'task_id': self.task_id,
+            'related_task_id': self.related_task_id,
+            'workflow_id': self.workflow_id,
+            'execution_id': self.execution_id,
+            'reason': self.reason,
+            'result_summary': self.result_summary,
+            'details': self.details or {},
+        }
+
+
 class WorkerEventDB(Base):
     """SQLAlchemy model for worker events."""
     __tablename__ = 'worker_events'

@@ -34,6 +34,14 @@
         </div>
 
         <div class="flex items-center gap-2">
+          <NuxtLink :to="`/audit?task_id=${task.task_id}`">
+            <Button
+              variant="outline"
+              size="sm"
+            >
+              Audit Log
+            </Button>
+          </NuxtLink>
           <Button
             @click="handleTaskIdUrlCopy"
             variant="outline"
@@ -77,10 +85,11 @@
       <main class="flex-1 min-w-0">
         <!-- Tabs -->
         <Tabs default-value="overview" class="w-full">
-          <TabsList class="grid w-full grid-cols-3 mb-6">
+          <TabsList class="grid w-full grid-cols-4 mb-6">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="timeline">Timeline</TabsTrigger>
             <TabsTrigger value="data">Data</TabsTrigger>
+            <TabsTrigger value="audit">Audit</TabsTrigger>
           </TabsList>
 
           <!-- Overview Tab -->
@@ -319,6 +328,27 @@
               </div>
             </div>
           </TabsContent>
+
+          <TabsContent value="audit">
+            <div class="space-y-4">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <h2 class="text-sm font-medium text-text-primary">Audit History</h2>
+                  <p class="text-xs text-text-muted">Manual actions and workflow interventions for this task.</p>
+                </div>
+                <NuxtLink :to="`/audit?task_id=${task?.task_id}`">
+                  <Button variant="outline" size="sm">Open Full Log</Button>
+                </NuxtLink>
+              </div>
+
+              <AuditLogList
+                :entries="auditEntries"
+                :loading="isAuditLoading"
+                empty-title="No audit events for this task"
+                empty-description="Manual retries, resolutions, and workflow actions will appear here."
+              />
+            </div>
+          </TabsContent>
         </Tabs>
       </main>
 
@@ -400,16 +430,19 @@ import UuidDisplay from '~/components/UuidDisplay.vue'
 import PayloadTruncationNotice from '~/components/PayloadTruncationNotice.vue'
 import RetryTaskConfirmDialog from '~/components/RetryTaskConfirmDialog.vue'
 import TaskProgressSteps from '~/components/tasks/TaskProgressSteps.vue'
+import AuditLogList from '~/components/audit/AuditLogList.vue'
 import type { TaskEventResponse } from '~/services/apiClient'
 import { useCopy } from '~/composables/useCopy'
 
 const route = useRoute()
 const tasksStore = useTasksStore()
+const auditStore = useAuditStore()
 const isRetrying = computed(() => tasksStore.isLoading)
 const retryDialogRef = ref<InstanceType<typeof RetryTaskConfirmDialog> | null>(null)
 
 const task = ref<TaskEventResponse | null>(null)
 const allEvents = ref<TaskEventResponse[]>([])
+const isAuditLoading = ref(false)
 const isLoading = ref(true)
 const error = ref<string | null>(null)
 
@@ -431,6 +464,7 @@ const taskId = computed(() => route.params.id as string)
 const progressSnapshot = computed(() => tasksStore.getProgressSnapshot(taskId.value))
 const currentProgress = computed(() => progressSnapshot.value?.latest?.progress ?? null)
 const currentMessage = computed(() => progressSnapshot.value?.latest?.message ?? '')
+const auditEntries = computed(() => auditStore.getTaskAudit(taskId.value))
 
 const shareUrl = computed(() => {
   if (typeof window === 'undefined') return ''
@@ -495,8 +529,24 @@ async function fetchTaskData() {
   }
 }
 
+async function fetchTaskAudit() {
+  if (!taskId.value) return
+
+  try {
+    isAuditLoading.value = true
+    await auditStore.fetchTaskAuditLogs(taskId.value, 25)
+  } finally {
+    isAuditLoading.value = false
+  }
+}
+
 onMounted(async () => {
-  await fetchTaskData()
+  await Promise.all([
+    fetchTaskData(),
+    fetchTaskAudit().catch((auditError) => {
+      console.error('Failed to load task audit log:', auditError)
+    }),
+  ])
 })
 
 const openRetryDialog = () => {
@@ -508,7 +558,12 @@ const handleRetryConfirm = async () => {
 
   try {
     await tasksStore.retryTask(task.value.task_id)
-    await fetchTaskData()
+    await Promise.all([
+      fetchTaskData(),
+      fetchTaskAudit().catch((auditError) => {
+        console.error('Failed to refresh task audit log:', auditError)
+      }),
+    ])
   } catch (error) {
     console.error('Failed to rerun task:', error)
   }

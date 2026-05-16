@@ -13,7 +13,9 @@ from models import (
 from services.workflow_service import WorkflowService
 from services.action_executor import ActionExecutor
 from services.workflow_catalog import TRIGGER_METADATA
+from services.audit_service import AuditLogService, get_actor_for_user
 from config import Config
+from security.auth import AuthenticatedUser
 from security.dependencies import get_auth_dependency
 
 
@@ -23,6 +25,7 @@ def create_router(app_state) -> APIRouter:
 
     config = app_state.config or Config.from_env()
     require_user_dep = get_auth_dependency(app_state, require=True)
+    optional_user_dep = get_auth_dependency(app_state, require=False)
 
     if config.auth_enabled:
         router.dependencies.append(Depends(require_user_dep))
@@ -47,7 +50,8 @@ def create_router(app_state) -> APIRouter:
     @router.post("", response_model=WorkflowDefinition, status_code=201)
     async def create_workflow(
         workflow_data: WorkflowCreateRequest,
-        session: Session = Depends(get_db)
+        session: Session = Depends(get_db),
+        current_user: Optional[AuthenticatedUser] = Depends(optional_user_dep),
     ):
         """Create a new workflow."""
         workflow_service = WorkflowService(session)
@@ -55,6 +59,21 @@ def create_router(app_state) -> APIRouter:
             workflow = workflow_service.create_workflow(workflow_data)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
+        AuditLogService(session).record_safe_entry(
+            source="manual",
+            action_type="workflow.created",
+            status="success",
+            target_type="workflow",
+            target_id=workflow.id or "",
+            target_label=workflow.name,
+            workflow_id=workflow.id,
+            result_summary="Workflow created",
+            details={
+                "trigger_type": workflow.trigger.type,
+                "action_types": [action.type for action in workflow.actions],
+            },
+            **get_actor_for_user(current_user),
+        )
         return workflow
 
     @router.get("", response_model=List[WorkflowDefinition])
@@ -93,7 +112,8 @@ def create_router(app_state) -> APIRouter:
     async def update_workflow(
         workflow_id: str,
         updates: WorkflowUpdateRequest,
-        session: Session = Depends(get_db)
+        session: Session = Depends(get_db),
+        current_user: Optional[AuthenticatedUser] = Depends(optional_user_dep),
     ):
         """Update an existing workflow."""
         workflow_service = WorkflowService(session)
@@ -105,19 +125,46 @@ def create_router(app_state) -> APIRouter:
         if not workflow:
             raise HTTPException(status_code=404, detail="Workflow not found")
 
+        AuditLogService(session).record_safe_entry(
+            source="manual",
+            action_type="workflow.updated",
+            status="success",
+            target_type="workflow",
+            target_id=workflow_id,
+            target_label=workflow.name,
+            workflow_id=workflow_id,
+            result_summary="Workflow updated",
+            details=updates.model_dump(exclude_unset=True),
+            **get_actor_for_user(current_user),
+        )
         return workflow
 
     @router.delete("/{workflow_id}", status_code=204)
     async def delete_workflow(
         workflow_id: str,
-        session: Session = Depends(get_db)
+        session: Session = Depends(get_db),
+        current_user: Optional[AuthenticatedUser] = Depends(optional_user_dep),
     ):
         """Delete a workflow."""
         workflow_service = WorkflowService(session)
+        existing = workflow_service.get_workflow(workflow_id)
         success = workflow_service.delete_workflow(workflow_id)
 
         if not success:
             raise HTTPException(status_code=404, detail="Workflow not found")
+
+        AuditLogService(session).record_safe_entry(
+            source="manual",
+            action_type="workflow.deleted",
+            status="success",
+            target_type="workflow",
+            target_id=workflow_id,
+            target_label=existing.name if existing else None,
+            workflow_id=workflow_id,
+            result_summary="Workflow deleted",
+            details={},
+            **get_actor_for_user(current_user),
+        )
 
     # ==================== Workflow Executions ====================
 

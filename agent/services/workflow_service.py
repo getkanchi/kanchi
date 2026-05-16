@@ -181,7 +181,7 @@ class WorkflowService:
         workflow_snapshot: Dict[str, Any],
         circuit_breaker_key: Optional[str],
         reason: str
-    ) -> None:
+    ) -> int:
         """Persist a workflow execution record for a circuit breaker skip."""
         execution_db = WorkflowExecutionDB(
             workflow_id=workflow.id,
@@ -196,6 +196,7 @@ class WorkflowService:
 
         self.session.add(execution_db)
         self.session.commit()
+        return execution_db.id
 
     def _validate_workflow_definition(
         self,

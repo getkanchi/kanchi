@@ -8,13 +8,21 @@ from fastapi import APIRouter, Depends, HTTPException, Header, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from services import TaskService, EnvironmentService, SessionService, AppConfigService, ProgressService
+from services import (
+    TaskService,
+    EnvironmentService,
+    SessionService,
+    AppConfigService,
+    ProgressService,
+    AuditLogService,
+)
 from database import TaskEventDB
 from models import TaskEvent, TaskProgressSnapshot
 from database import ensure_utc_isoformat
 from config import Config
 from security.auth import AuthenticatedUser
 from security.dependencies import get_auth_dependency
+from services.audit_service import get_actor_for_user
 
 logger = logging.getLogger(__name__)
 
@@ -193,6 +201,22 @@ def create_router(app_state) -> APIRouter:
             resolved_by = resolved_by or current_user.email or current_user.name
 
         resolution = task_service.set_task_resolution(task_id, resolved_by)
+        AuditLogService(session).record_safe_entry(
+            source="manual",
+            action_type="task.resolved",
+            status="success",
+            target_type="task",
+            target_id=task_id,
+            target_label=task_events[-1].task_name,
+            task_id=task_id,
+            reason=payload.resolved_by if payload and payload.resolved_by else None,
+            result_summary="Task marked as resolved",
+            details={
+                "resolved_by": resolution.resolved_by,
+                "resolved_at": ensure_utc_isoformat(resolution.resolved_at) if resolution.resolved_at else None,
+            },
+            **get_actor_for_user(current_user, fallback_name=resolved_by),
+        )
         return {
             "task_id": task_id,
             "resolved": True,
@@ -205,6 +229,7 @@ def create_router(app_state) -> APIRouter:
     async def clear_task_resolution(
         task_id: str,
         session: Session = Depends(get_db),
+        current_user: Optional[AuthenticatedUser] = Depends(optional_user_dep),
     ):
         """Remove manual resolution mark from a task."""
         task_service = TaskService(session)
@@ -213,6 +238,18 @@ def create_router(app_state) -> APIRouter:
             raise HTTPException(status_code=404, detail="Task not found")
 
         task_service.clear_task_resolution(task_id)
+        AuditLogService(session).record_safe_entry(
+            source="manual",
+            action_type="task.unresolved",
+            status="success",
+            target_type="task",
+            target_id=task_id,
+            target_label=task_events[-1].task_name,
+            task_id=task_id,
+            result_summary="Task resolution cleared",
+            details={},
+            **get_actor_for_user(current_user),
+        )
         return {
             "task_id": task_id,
             "resolved": False,
@@ -222,7 +259,11 @@ def create_router(app_state) -> APIRouter:
 
 
     @router.post("/tasks/{task_id}/retry")
-    async def retry_task(task_id: str, session: Session = Depends(get_db)):
+    async def retry_task(
+        task_id: str,
+        session: Session = Depends(get_db),
+        current_user: Optional[AuthenticatedUser] = Depends(optional_user_dep),
+    ):
         """Retry a failed task by creating a new task with the same parameters."""
         if not app_state.monitor_instance:
             raise HTTPException(status_code=500, detail="Monitor not initialized")
@@ -251,14 +292,54 @@ def create_router(app_state) -> APIRouter:
         task_service.create_retry_relationship(task_id, new_task_id)
         session.commit()
 
-        result = app_state.monitor_instance.app.send_task(
-            original_task.task_name,
-            args=args,
-            kwargs=kwargs,
-            queue=queue_name,
-            task_id=new_task_id  # Use our pre-generated ID
+        actor = get_actor_for_user(current_user)
+        try:
+            app_state.monitor_instance.app.send_task(
+                original_task.task_name,
+                args=args,
+                kwargs=kwargs,
+                queue=queue_name,
+                task_id=new_task_id  # Use our pre-generated ID
+            )
+        except Exception as exc:
+            AuditLogService(session).record_safe_entry(
+                source="manual",
+                action_type="task.retry",
+                status="failed",
+                target_type="task",
+                target_id=task_id,
+                target_label=original_task.task_name,
+                task_id=task_id,
+                related_task_id=new_task_id,
+                reason=str(exc),
+                result_summary="Manual retry failed",
+                details={
+                    "new_task_id": new_task_id,
+                    "queue": queue_name,
+                    "was_orphaned": orphaned_task is not None,
+                },
+                **actor,
+            )
+            raise HTTPException(status_code=500, detail=f"Failed to retry task: {exc}") from exc
+
+        AuditLogService(session).record_safe_entry(
+            source="manual",
+            action_type="task.retry",
+            status="success",
+            target_type="task",
+            target_id=task_id,
+            target_label=original_task.task_name,
+            task_id=task_id,
+            related_task_id=new_task_id,
+            result_summary=f"Manual retry created {new_task_id}",
+            details={
+                "new_task_id": new_task_id,
+                "queue": queue_name,
+                "was_orphaned": orphaned_task is not None,
+            },
+            **actor,
         )
-        
+
         return {
             "status": "success",
             "message": "Task retried successfully",
