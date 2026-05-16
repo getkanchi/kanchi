@@ -2,6 +2,9 @@
 
 import json
 import logging
+import hashlib
+import fnmatch
+import re
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional, Tuple, Union
 
@@ -11,8 +14,8 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 
-from database import TaskEventDB, RetryRelationshipDB, TaskLatestDB, TaskResolutionDB
-from models import TaskEvent
+from database import TaskEventDB, RetryRelationshipDB, TaskLatestDB, TaskResolutionDB, FailureGroupDB, EnvironmentDB
+from models import TaskEvent, FailureGroupSummary
 from constants import TaskState, EventType, STATE_TO_EVENT_MAP, ACTIVE_EVENT_TYPES
 from services.utils import EnvironmentFilter, GenericFilter, parse_filter_string
 from utils.payload_sanitizer import find_placeholder_paths
@@ -32,6 +35,85 @@ class TaskService:
     def __init__(self, session: Session, active_env=None):
         self.session = session
         self.active_env = active_env
+
+    def _resolve_environment_name(self, queue: Optional[str], hostname: Optional[str]) -> Optional[str]:
+        environments = self.session.query(EnvironmentDB).all()
+        for env in environments:
+            queue_match = True
+            worker_match = True
+            if env.queue_patterns:
+                queue_match = bool(queue) and any(fnmatch.fnmatch(queue, pattern) for pattern in env.queue_patterns)
+            if env.worker_patterns:
+                worker_match = bool(hostname) and any(fnmatch.fnmatch(hostname, pattern) for pattern in env.worker_patterns)
+            if queue_match and worker_match and (env.queue_patterns or env.worker_patterns):
+                return env.name
+        return None
+
+    def _normalize_exception_text(self, exception: Optional[str], traceback: Optional[str]) -> str:
+        source = (traceback or exception or '').strip()
+        if not source:
+            return 'unknown'
+        line = source.splitlines()[-1] if 'Traceback' in source else source.splitlines()[0]
+        line = re.sub(r'[0-9a-f]{8}-[0-9a-f-]{27}', '<uuid>', line, flags=re.IGNORECASE)
+        line = re.sub(r'0x[0-9a-f]+', '<hex>', line, flags=re.IGNORECASE)
+        line = re.sub(r'\d+', '<num>', line)
+        line = re.sub(r"'[^']*'|\"[^\"]*\"", '<str>', line)
+        line = re.sub(r'\s+', ' ', line).strip()
+        return line[:500] or 'unknown'
+
+    def _build_failure_grouping(self, task_event: TaskEvent, queue: Optional[str]) -> Dict[str, Optional[str]]:
+        if task_event.event_type != EventType.TASK_FAILED.value:
+            return {'failure_fingerprint': None, 'failure_group_id': None, 'environment': self._resolve_environment_name(queue, task_event.hostname), 'exception_fingerprint': None}
+
+        environment = self._resolve_environment_name(queue, task_event.hostname)
+        exception_fingerprint = self._normalize_exception_text(task_event.exception, task_event.traceback)
+        parts = [
+            task_event.task_name or 'unknown',
+            exception_fingerprint,
+            queue or '',
+            task_event.hostname or '',
+            environment or '',
+        ]
+        digest = hashlib.sha256('||'.join(parts).encode('utf-8')).hexdigest()
+        return {
+            'failure_fingerprint': digest,
+            'failure_group_id': digest[:16],
+            'environment': environment,
+            'exception_fingerprint': exception_fingerprint,
+        }
+
+    def _upsert_failure_group(self, event_db: TaskEventDB, exception_fingerprint: Optional[str]) -> None:
+        if not event_db.failure_group_id:
+            return
+        group = self.session.query(FailureGroupDB).filter(FailureGroupDB.id == event_db.failure_group_id).one_or_none()
+        if not group:
+            self.session.add(FailureGroupDB(
+                id=event_db.failure_group_id,
+                fingerprint=event_db.failure_fingerprint,
+                task_name=event_db.task_name or 'unknown',
+                exception_fingerprint=exception_fingerprint,
+                queue=event_db.queue,
+                hostname=event_db.hostname,
+                environment=event_db.environment,
+                first_seen=_ensure_utc(event_db.timestamp),
+                last_seen=_ensure_utc(event_db.timestamp),
+                failure_count=1,
+                last_task_id=event_db.task_id,
+            ))
+            return
+
+        event_ts = _ensure_utc(event_db.timestamp)
+        if group.first_seen is None or event_ts < _ensure_utc(group.first_seen):
+            group.first_seen = event_ts
+        if group.last_seen is None or event_ts >= _ensure_utc(group.last_seen):
+            group.last_seen = event_ts
+            group.last_task_id = event_db.task_id
+        group.failure_count = (group.failure_count or 0) + 1
+        group.fingerprint = event_db.failure_fingerprint or group.fingerprint
+        group.exception_fingerprint = exception_fingerprint or group.exception_fingerprint
+        group.queue = event_db.queue or group.queue
+        group.hostname = event_db.hostname or group.hostname
+        group.environment = event_db.environment or group.environment
 
     def save_task_event(self, task_event: TaskEvent) -> TaskEventDB:
         """
@@ -58,6 +140,11 @@ class TaskService:
             task_event.args = args
             task_event.kwargs = kwargs
 
+            grouping = self._build_failure_grouping(task_event, queue)
+            task_event.failure_fingerprint = grouping['failure_fingerprint']
+            task_event.failure_group_id = grouping['failure_group_id']
+            task_event.environment = grouping['environment']
+
             task_event_db = self._create_task_event_db(
                 task_event, routing_key, queue, args, kwargs
             )
@@ -65,6 +152,7 @@ class TaskService:
             self.session.add(task_event_db)
             self.session.flush()  # Ensure task_event_db.id is available for snapshot upsert
             self._upsert_task_latest(task_event_db)
+            self._upsert_failure_group(task_event_db, grouping.get('exception_fingerprint'))
             self.session.commit()
             return task_event_db
 
@@ -358,6 +446,69 @@ class TaskService:
         self._bulk_enrich_with_retry_info(events)
         self._attach_resolution_info(events)
 
+        return events
+
+    def get_recent_failure_groups(
+        self,
+        hours: int = 24,
+        limit: int = 50,
+        exclude_retried: bool = True
+    ) -> List[FailureGroupSummary]:
+        since = datetime.now(timezone.utc) - timedelta(hours=hours)
+
+        query = (
+            self.session.query(FailureGroupDB, TaskLatestDB)
+            .join(TaskLatestDB, TaskLatestDB.task_id == FailureGroupDB.last_task_id)
+            .filter(FailureGroupDB.last_seen >= since)
+        )
+
+        if self.active_env is not None:
+            query = EnvironmentFilter.apply(query, self.active_env, model=TaskLatestDB)
+
+        if exclude_retried:
+            query = query.filter(
+                or_(TaskLatestDB.has_retries.is_(False), TaskLatestDB.has_retries.is_(None))
+            )
+
+        rows = query.order_by(FailureGroupDB.last_seen.desc()).limit(limit).all()
+        summaries = []
+        for group_db, latest_db in rows:
+            latest_failure = self._db_to_task_event(latest_db)
+            self._bulk_enrich_with_retry_info([latest_failure])
+            self._attach_resolution_info([latest_failure])
+            summaries.append(FailureGroupSummary(
+                id=group_db.id,
+                fingerprint=group_db.fingerprint,
+                task_name=group_db.task_name,
+                exception_fingerprint=group_db.exception_fingerprint,
+                queue=group_db.queue,
+                hostname=group_db.hostname,
+                environment=group_db.environment,
+                first_seen=group_db.first_seen,
+                last_seen=group_db.last_seen,
+                failure_count=group_db.failure_count,
+                last_task_id=group_db.last_task_id,
+                recurrence_rate_per_hour=round((group_db.failure_count or 0) / max(hours, 1), 2),
+                latest_failure=latest_failure,
+            ))
+        return summaries
+
+    def get_failure_group_events(self, group_id: str, limit: int = 100) -> List[TaskEvent]:
+        query = (
+            self.session.query(TaskEventDB)
+            .filter(
+                TaskEventDB.failure_group_id == group_id,
+                TaskEventDB.event_type == EventType.TASK_FAILED.value,
+            )
+            .order_by(TaskEventDB.timestamp.desc())
+        )
+
+        if self.active_env is not None:
+            query = EnvironmentFilter.apply(query, self.active_env, model=TaskEventDB)
+
+        events = [self._db_to_task_event(event_db) for event_db in query.limit(limit).all()]
+        self._bulk_enrich_with_retry_info(events)
+        self._attach_resolution_info(events)
         return events
 
     def create_retry_relationship(
@@ -676,6 +827,9 @@ class TaskService:
             runtime=task_event.runtime,
             exception=task_event.exception,
             traceback=task_event.traceback,
+            failure_fingerprint=task_event.failure_fingerprint,
+            failure_group_id=task_event.failure_group_id,
+            environment=task_event.environment,
             retry_of=task_event.retry_of.task_id if task_event.retry_of else None,
             retried_by=(
                 json.dumps([t.task_id for t in task_event.retried_by])
@@ -712,6 +866,9 @@ class TaskService:
             "runtime": event_db.runtime,
             "exception": event_db.exception,
             "traceback": event_db.traceback,
+            "failure_fingerprint": event_db.failure_fingerprint,
+            "failure_group_id": event_db.failure_group_id,
+            "environment": event_db.environment,
             "retry_of": event_db.retry_of,
             "retried_by": event_db.retried_by,
             "is_retry": event_db.is_retry,
@@ -908,7 +1065,10 @@ class TaskService:
             result=event_db.result,
             runtime=event_db.runtime,
             exception=event_db.exception,
-            traceback=event_db.traceback
+            traceback=event_db.traceback,
+            failure_fingerprint=getattr(event_db, 'failure_fingerprint', None),
+            failure_group_id=getattr(event_db, 'failure_group_id', None),
+            environment=getattr(event_db, 'environment', None),
         )
 
         task_event.is_orphan = event_db.is_orphan or False

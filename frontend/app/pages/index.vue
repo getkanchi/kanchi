@@ -16,7 +16,20 @@
 
       <!-- Failure & Orphaned Tasks Overview -->
       <div class="mb-6 flex flex-col gap-4 failure-insights-section">
+        <div class="flex items-center justify-end gap-2">
+          <Button variant="outline" size="sm" :class="failedTasksStore.viewMode === 'grouped' ? 'bg-background-raised' : ''" @click="failedTasksStore.setViewMode('grouped')">Grouped</Button>
+          <Button variant="outline" size="sm" :class="failedTasksStore.viewMode === 'raw' ? 'bg-background-raised' : ''" @click="failedTasksStore.setViewMode('raw')">Raw</Button>
+        </div>
+
+        <FailureGroupSummary
+          v-if="failedTasksStore.viewMode === 'grouped'"
+          :groups="failedTasksStore.failureGroups"
+          :lookback-hours="failedTasksStore.lookbackHours"
+          :fetch-group-events="failedTasksStore.fetchFailureGroupEvents"
+        />
+
         <TaskIssueSummary
+          v-else
           :tasks="failedTasksStore.failedTasks"
           :is-loading="failedTasksStore.isLoading"
           :status="failedCardStatus"
@@ -209,6 +222,7 @@ import DataTable from "~/components/data-table.vue"
 import WorkerStatusSummary from "~/components/WorkerStatusSummary.vue"
 import CommandPalette from "~/components/CommandPalette.vue"
 import TaskIssueSummary from "~/components/TaskIssueSummary.vue"
+import FailureGroupSummary from '~/components/FailureGroupSummary.vue'
 import RetryTaskConfirmDialog from "~/components/RetryTaskConfirmDialog.vue"
 import { Button } from '~/components/ui/button'
 import { Badge } from '~/components/ui/badge'

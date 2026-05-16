@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from services import TaskService, EnvironmentService, SessionService, AppConfigService, ProgressService
 from database import TaskEventDB
-from models import TaskEvent, TaskProgressSnapshot
+from models import TaskEvent, TaskProgressSnapshot, FailureGroupSummary
 from database import ensure_utc_isoformat
 from config import Config
 from security.auth import AuthenticatedUser
@@ -149,6 +149,37 @@ def create_router(app_state) -> APIRouter:
         """Get tasks that have been marked as orphaned and NOT yet retried."""
         task_service = TaskService(session, active_env=active_env)
         return task_service.get_unretried_orphaned_tasks()
+
+    @router.get("/tasks/failed/groups/recent", response_model=List[FailureGroupSummary])
+    async def get_recent_failure_groups(
+        hours: Optional[int] = Query(default=None, ge=1, le=168, description="Lookback window in hours (defaults to configured value)"),
+        limit: int = 50,
+        include_retried: bool = False,
+        session: Session = Depends(get_db),
+        active_env = Depends(get_active_env)
+    ):
+        """Get grouped failed-task incidents within the last ``hours`` window."""
+        task_service = TaskService(session, active_env=active_env)
+        config_service = AppConfigService(session)
+        lookback_hours = hours if hours is not None else config_service.get_task_issue_lookback_hours()
+        return task_service.get_recent_failure_groups(
+            hours=lookback_hours,
+            limit=limit,
+            exclude_retried=not include_retried
+        )
+
+
+    @router.get("/tasks/failed/groups/{group_id}", response_model=List[TaskEvent])
+    async def get_failure_group_events(
+        group_id: str,
+        limit: int = 100,
+        session: Session = Depends(get_db),
+        active_env = Depends(get_active_env)
+    ):
+        """Get individual failed task executions for a failure group."""
+        task_service = TaskService(session, active_env=active_env)
+        return task_service.get_failure_group_events(group_id, limit=limit)
+
 
     @router.get("/tasks/failed/recent", response_model=List[TaskEvent])
     async def get_recent_failed_tasks(

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, readonly } from 'vue'
 import { useApiService } from '../services/apiClient'
-import type { TaskEventResponse } from '../services/apiClient'
+import type { TaskEventResponse, FailureGroupSummaryResponse } from '../services/apiClient'
 
 const DEFAULT_LOOKBACK_HOURS = 24
 const MIN_LOOKBACK_HOURS = 1
@@ -19,6 +19,8 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
   const apiService = useApiService()
 
   const failedTasks = ref<TaskEventResponse[]>([])
+  const failureGroups = ref<FailureGroupSummaryResponse[]>([])
+  const viewMode = ref<'raw' | 'grouped'>('grouped')
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   const lastFetchedAt = ref<Date | null>(null)
@@ -116,6 +118,11 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
       const filtered = response.filter(task => !shouldExclude(task))
       setTasks(filtered)
       pruneExpired()
+      failureGroups.value = await apiService.getRecentFailureGroups({
+        hours: effectiveHours,
+        limit: options?.limit,
+        include_retried: options?.includeRetried ?? false
+      })
       lastFetchedAt.value = new Date()
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch failed tasks'
@@ -189,8 +196,18 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
     }
   }
 
+  async function fetchFailureGroupEvents(groupId: string, limit = 100) {
+    return apiService.getFailureGroupEvents(groupId, { limit })
+  }
+
+  function setViewMode(mode: 'raw' | 'grouped') {
+    viewMode.value = mode
+  }
+
   return {
     failedTasks: readonly(failedTasks),
+    failureGroups: readonly(failureGroups),
+    viewMode: readonly(viewMode),
     isLoading: readonly(isLoading),
     error: readonly(error),
     lastFetchedAt: readonly(lastFetchedAt),
@@ -200,6 +217,8 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
     latestFailedTask,
 
     fetchFailedTasks,
+    fetchFailureGroupEvents,
+    setViewMode,
     setLookbackHours,
     updateFromLiveEvent,
     pruneExpired,
