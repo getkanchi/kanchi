@@ -19,9 +19,9 @@
         <NuxtLink :to="`/workflows/${route.params.id}`">
           <Button variant="ghost" size="sm">Cancel</Button>
         </NuxtLink>
-        <Button variant="outline" size="sm" @click="showTestDialog = true">
+        <Button variant="outline" size="sm" :disabled="!simulationWorkflow" @click="showSimulationDialog = true">
           <FlaskConical class="h-3.5 w-3.5 mr-1.5" />
-          Test
+          Simulate
         </Button>
         <Button @click="saveWorkflow" :disabled="!canSave || saving" size="sm">
           <Save class="h-3.5 w-3.5 mr-1.5" />
@@ -104,6 +104,14 @@
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <WorkflowSimulationDialog
+        v-if="simulationWorkflow"
+        :open="showSimulationDialog"
+        :workflow="simulationWorkflow"
+        :default-context="simulationDefaultContext"
+        @close="showSimulationDialog = false"
+      />
 
       <!-- Workflow Builder -->
       <div class="border border-border-subtle rounded-md p-5">
@@ -282,12 +290,16 @@ import WorkflowTriggerSelector from '~/components/workflows/WorkflowTriggerSelec
 import WorkflowConditionBuilder from '~/components/workflows/WorkflowConditionBuilder.vue'
 import WorkflowActionsList from '~/components/workflows/WorkflowActionsList.vue'
 import WorkflowCircuitBreakerConfig from '~/components/workflows/WorkflowCircuitBreakerConfig.vue'
-import type { WorkflowUpdateRequest } from '~/types/workflow'
+import WorkflowSimulationDialog from '~/components/workflows/WorkflowSimulationDialog.vue'
+import type { WorkflowCreateRequest, WorkflowUpdateRequest } from '~/services/apiClient'
+import { useLogger } from '~/services/logger'
 
 const route = useRoute()
 const workflowStore = useWorkflowsStore()
+const logger = useLogger()
 const saving = ref(false)
 const showTestDialog = ref(false)
+const showSimulationDialog = ref(false)
 const testing = ref(false)
 const testContext = ref('{\n  "task_id": "example-task",\n  "task_name": "process_payment",\n  "event_type": "task.failed",\n  "retry_count": 0,\n  "queue": "default"\n}')
 const testResult = ref<any | null>(null)
@@ -307,6 +319,37 @@ const canSave = computed(() => {
          workflow.value.actions.length > 0
 })
 
+const simulationWorkflow = computed<WorkflowCreateRequest | null>(() => {
+  if (!workflow.value?.name || !workflow.value.trigger || !workflow.value.actions) {
+    return null
+  }
+
+  return {
+    name: workflow.value.name,
+    description: workflow.value.description,
+    enabled: workflow.value.enabled ?? true,
+    trigger: workflow.value.trigger,
+    conditions: workflow.value.conditions,
+    actions: workflow.value.actions,
+    priority: workflow.value.priority ?? 100,
+    max_executions_per_hour: workflow.value.max_executions_per_hour,
+    cooldown_seconds: workflow.value.cooldown_seconds ?? 0,
+    circuit_breaker: workflow.value.circuit_breaker ?? null,
+  }
+})
+
+const simulationDefaultContext = computed(() => {
+  try {
+    const parsed = testContext.value ? JSON.parse(testContext.value) : {}
+    return JSON.stringify({
+      ...parsed,
+      event_type: workflow.value?.trigger?.type || parsed.event_type || 'task.failed'
+    }, null, 2)
+  } catch {
+    return testContext.value
+  }
+})
+
 async function saveWorkflow() {
   if (!canSave.value || !workflow.value) return
 
@@ -322,7 +365,9 @@ async function saveWorkflow() {
     await workflowStore.fetchWorkflow(route.params.id as string)
     await navigateTo(`/workflows/${route.params.id}`)
   } catch (err) {
-    console.error('Failed to save workflow:', err)
+    logger.error('Failed to save workflow', {
+      error: err instanceof Error ? err.message : String(err)
+    })
   } finally {
     saving.value = false
   }
@@ -372,7 +417,9 @@ onMounted(async () => {
   try {
     await workflowStore.fetchWorkflowMetadata()
   } catch (err) {
-    console.error('Failed to load workflow metadata:', err)
+    logger.error('Failed to load workflow metadata', {
+      error: err instanceof Error ? err.message : String(err)
+    })
   }
 
   const loaded = await workflowStore.fetchWorkflow(route.params.id as string)
@@ -391,7 +438,7 @@ onMounted(async () => {
       circuit_breaker: loaded.circuit_breaker
     }
   } else {
-    console.error('Failed to load workflow data')
+    logger.error('Failed to load workflow data')
   }
 
   isLoading.value = false

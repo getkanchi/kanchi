@@ -6,6 +6,7 @@ import type {
   WorkflowCreateRequest,
   WorkflowUpdateRequest,
   WorkflowExecutionRecord,
+  WorkflowSimulationResponse,
   ActionConfigDefinition,
   ActionConfigCreateRequest,
   ActionConfigUpdateRequest
@@ -20,6 +21,7 @@ export const useWorkflowsStore = defineStore('workflows', () => {
   const actionConfigs = ref<ActionConfigDefinition[]>([])
   const triggerCatalog = ref<{ type: string; label: string; description: string; category: string }[]>([])
   const actionCatalog = ref<{ type: string; label: string; description: string; category: string }[]>([])
+  const latestSimulation = ref<WorkflowSimulationResponse | null>(null)
   const metadataLoaded = ref(false)
 
   const isLoading = ref(false)
@@ -195,6 +197,17 @@ export const useWorkflowsStore = defineStore('workflows', () => {
     }
   }
 
+  async function simulateWorkflow(workflow: WorkflowCreateRequest, testContext: any) {
+    try {
+      error.value = null
+      latestSimulation.value = await apiService.simulateWorkflow(workflow, testContext)
+      return latestSimulation.value
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to simulate workflow'
+      throw err
+    }
+  }
+
   async function fetchActionConfigs(params?: { action_type?: string }) {
     try {
       isLoading.value = true
@@ -270,6 +283,7 @@ export const useWorkflowsStore = defineStore('workflows', () => {
     currentWorkflow,
     executions,
     actionConfigs,
+    latestSimulation,
     isLoading,
     error,
 
@@ -288,6 +302,7 @@ export const useWorkflowsStore = defineStore('workflows', () => {
     fetchWorkflowExecutions,
     fetchRecentExecutions,
     testWorkflow,
+    simulateWorkflow,
     fetchActionConfigs,
     createActionConfig,
     updateActionConfig,

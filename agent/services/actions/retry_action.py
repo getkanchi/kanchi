@@ -227,6 +227,10 @@ class RetryActionHandler(ActionHandler):
 
         return raw_value if raw_value is not None else default
 
+    def count_workflow_retries(self, task_id: str, root_id: Optional[str]) -> int:
+        """Public wrapper for computing workflow retry depth."""
+        return self._count_workflow_retries(task_id, root_id)
+
     def _count_workflow_retries(self, task_id: str, root_id: Optional[str]) -> int:
         """
         Count how many times this task chain has been retried by workflows.

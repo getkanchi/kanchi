@@ -7,6 +7,8 @@ import type {
   TaskEventResponse,
   WorkerInfo
 } from '../src/types/api'
+import type { WorkflowCreateRequest, WorkflowUpdateRequest } from '../src/types/api'
+import type { WorkflowSimulationResponse } from '../types/workflow'
 
 export type AuthProvider = 'google' | 'github'
 
@@ -700,6 +702,18 @@ class ApiService {
     return response.data
   }
 
+  async simulateWorkflow(workflow: WorkflowCreateRequest, testContext: Record<string, unknown>): Promise<WorkflowSimulationResponse> {
+    const response = await this.api.request({
+      path: '/api/workflows/simulate',
+      method: 'POST',
+      body: {
+        workflow,
+        test_context: testContext
+      }
+    })
+    return response.data
+  }
+
   async getActionConfigs(params?: {
     action_type?: string
     limit?: number
@@ -765,7 +779,10 @@ export type {
   AppConfigSnapshotDTO,
   AppSettingDTO,
   AppSettingInput,
-  TaskIssueConfigDTO
+  TaskIssueConfigDTO,
+  WorkflowCreateRequest,
+  WorkflowSimulationResponse,
+  WorkflowUpdateRequest
 }
 
 // Re-export session types from auto-generated API
