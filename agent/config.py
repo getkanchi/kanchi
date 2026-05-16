@@ -54,7 +54,7 @@ class Config:
     """Configuration for the Celery WebSocket Bridge"""
 
     # Celery broker configuration (supports both RabbitMQ and Redis)
-    broker_url: str = os.getenv('CELERY_BROKER_URL')
+    broker_url: str = os.getenv('CELERY_BROKER_URL', 'amqp://guest:guest@localhost:5672//')
 
     # Database configuration
     database_url: str = os.getenv('DATABASE_URL', 'sqlite:///kanchi.db')  # Default to SQLite
