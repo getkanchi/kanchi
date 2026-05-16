@@ -147,7 +147,7 @@ class TaskRegistryService:
         update_data: TaskRegistryUpdate
     ) -> Optional[TaskRegistryResponse]:
         """
-        Update task metadata (human_readable_name, description, tags).
+        Update task metadata (human_readable_name, description, runbook, severity, notes, tags).
 
         Args:
             task_name: Name of task to update
@@ -169,13 +169,22 @@ class TaskRegistryService:
             if not task:
                 return None
 
-            if update_data.human_readable_name is not None:
+            if "human_readable_name" in update_data.model_fields_set:
                 task.human_readable_name = update_data.human_readable_name
 
-            if update_data.description is not None:
+            if "description" in update_data.model_fields_set:
                 task.description = update_data.description
 
-            if update_data.tags is not None:
+            if "runbook_url" in update_data.model_fields_set:
+                task.runbook_url = update_data.runbook_url
+
+            if "severity_default" in update_data.model_fields_set:
+                task.severity_default = update_data.severity_default
+
+            if "response_notes" in update_data.model_fields_set:
+                task.response_notes = update_data.response_notes
+
+            if "tags" in update_data.model_fields_set:
                 task.tags = update_data.tags
 
             task.updated_at = datetime.now(timezone.utc)

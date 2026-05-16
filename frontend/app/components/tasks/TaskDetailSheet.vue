@@ -36,6 +36,40 @@
               {{ task.description }}
             </p>
 
+            <div v-if="isEditing" class="mb-2">
+              <label class="text-[10px] font-mono text-text-muted uppercase tracking-wider mb-1 block">Runbook URL</label>
+              <input
+                v-model="editForm.runbook_url"
+                type="url"
+                class="w-full px-2 py-1 text-xs font-mono bg-background-base border border-border-subtle rounded text-text-primary focus:outline-none focus:border-primary"
+                placeholder="https://docs.example.com/runbook"
+              />
+            </div>
+
+            <div v-if="isEditing" class="mb-2">
+              <label class="text-[10px] font-mono text-text-muted uppercase tracking-wider mb-1 block">Default Severity</label>
+              <select
+                v-model="editForm.severity_default"
+                class="w-full px-2 py-1 text-xs font-mono bg-background-base border border-border-subtle rounded text-text-primary focus:outline-none focus:border-primary"
+              >
+                <option :value="null">None</option>
+                <option value="info">Info</option>
+                <option value="warning">Warning</option>
+                <option value="error">Error</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+
+            <div v-if="isEditing" class="mb-2">
+              <label class="text-[10px] font-mono text-text-muted uppercase tracking-wider mb-1 block">Response Notes</label>
+              <textarea
+                v-model="editForm.response_notes"
+                rows="3"
+                class="w-full px-2 py-1 text-xs bg-background-base border border-border-subtle rounded text-text-secondary leading-relaxed focus:outline-none focus:border-primary resize-none"
+                placeholder="Concise response steps for operators"
+              />
+            </div>
+
             <!-- Edit mode: tags -->
             <div v-if="isEditing" class="mb-2">
               <label class="text-[10px] font-mono text-text-muted uppercase tracking-wider mb-1 block">Tags</label>
@@ -264,6 +298,13 @@
               </div>
             </div>
           </div>
+
+          <TaskResponseContext
+            :runbook-url="task.runbook_url"
+            :severity-default="task.severity_default"
+            :response-notes="task.response_notes"
+            compact
+          />
         </div>
       </div>
     </SheetContent>
@@ -285,6 +326,7 @@ import { Pencil, AlertTriangle, X } from 'lucide-vue-next'
 import { Sheet, SheetContent } from '~/components/ui/sheet'
 import { Button } from '~/components/ui/button'
 import TaskFrequencyTimeline from './TaskFrequencyTimeline.vue'
+import TaskResponseContext from './TaskResponseContext.vue'
 import Tag from '~/components/common/Tag.vue'
 import { Badge } from '~/components/ui/badge'
 import IconButton from '~/components/common/IconButton.vue'
@@ -324,6 +366,9 @@ const newTag = ref('')
 const editForm = ref<TaskRegistryUpdate>({
   human_readable_name: null,
   description: null,
+  runbook_url: null,
+  severity_default: null,
+  response_notes: null,
   tags: null
 })
 
@@ -375,6 +420,9 @@ function startEdit() {
   editForm.value = {
     human_readable_name: props.task.human_readable_name || '',
     description: props.task.description || '',
+    runbook_url: props.task.runbook_url || '',
+    severity_default: props.task.severity_default || null,
+    response_notes: props.task.response_notes || '',
     tags: [...(props.task.tags || [])]
   }
 }

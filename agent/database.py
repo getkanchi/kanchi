@@ -329,6 +329,9 @@ class TaskRegistryDB(Base):
     name = Column(String(255), unique=True, nullable=False, index=True)
     human_readable_name = Column(String(255))
     description = Column(Text)
+    runbook_url = Column(String(2048))
+    severity_default = Column(String(32))
+    response_notes = Column(Text)
     tags = Column(JSON)  # Array of strings
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
@@ -347,6 +350,9 @@ class TaskRegistryDB(Base):
             'name': self.name,
             'human_readable_name': self.human_readable_name,
             'description': self.description,
+            'runbook_url': self.runbook_url,
+            'severity_default': self.severity_default,
+            'response_notes': self.response_notes,
             'tags': self.tags or [],
             'created_at': ensure_utc_isoformat(self.created_at),
             'updated_at': ensure_utc_isoformat(self.updated_at),

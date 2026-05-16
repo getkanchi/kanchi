@@ -166,6 +166,12 @@
                 </div>
               </div>
 
+              <TaskResponseContext
+                :runbook-url="task.runbook_url"
+                :severity-default="task.severity_default"
+                :response-notes="task.response_notes"
+              />
+
               <!-- Exception/Traceback -->
               <div v-if="task.exception || task.traceback" class="border border-status-error-border rounded-md p-5 bg-status-error-bg/20">
                 <h2 class="text-sm font-medium text-status-error mb-4">Error Details</h2>
@@ -400,6 +406,7 @@ import UuidDisplay from '~/components/UuidDisplay.vue'
 import PayloadTruncationNotice from '~/components/PayloadTruncationNotice.vue'
 import RetryTaskConfirmDialog from '~/components/RetryTaskConfirmDialog.vue'
 import TaskProgressSteps from '~/components/tasks/TaskProgressSteps.vue'
+import TaskResponseContext from '~/components/tasks/TaskResponseContext.vue'
 import type { TaskEventResponse } from '~/services/apiClient'
 import { useCopy } from '~/composables/useCopy'
 

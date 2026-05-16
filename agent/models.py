@@ -1,6 +1,7 @@
 from typing import Any, Dict, Optional, List, Union, Literal
 from datetime import datetime, timezone, date
 from enum import Enum
+from urllib.parse import urlparse
 import ast
 from pydantic import BaseModel, Field, field_validator
 
@@ -39,6 +40,9 @@ class TaskEvent(BaseModel):
     resolved: bool = False
     resolved_by: Optional[str] = None
     resolved_at: Optional[datetime] = None
+    runbook_url: Optional[str] = None
+    severity_default: Optional[Literal["info", "warning", "error", "critical"]] = None
+    response_notes: Optional[str] = None
 
     model_config = {
         'from_attributes': True,
@@ -297,6 +301,9 @@ class TaskRegistryResponse(BaseModel):
     name: str
     human_readable_name: Optional[str] = None
     description: Optional[str] = None
+    runbook_url: Optional[str] = None
+    severity_default: Optional[Literal["info", "warning", "error", "critical"]] = None
+    response_notes: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
@@ -314,7 +321,38 @@ class TaskRegistryUpdate(BaseModel):
     """Task registry update request model"""
     human_readable_name: Optional[str] = None
     description: Optional[str] = None
+    runbook_url: Optional[str] = None
+    severity_default: Optional[Literal["info", "warning", "error", "critical"]] = None
+    response_notes: Optional[str] = None
     tags: Optional[List[str]] = None
+
+    @field_validator("human_readable_name", "description", "runbook_url", "response_notes", mode="before")
+    @classmethod
+    def normalize_optional_string(cls, value):
+        if value is None:
+            return None
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped or None
+        return value
+
+    @field_validator("runbook_url")
+    @classmethod
+    def validate_runbook_url(cls, value):
+        if value is None:
+            return None
+        parsed = urlparse(value)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("runbook_url must be an absolute http or https URL")
+        return value
+
+
+class TaskResolutionResponse(BaseModel):
+    """Response model for manual task resolution toggles."""
+    task_id: str
+    resolved: bool
+    resolved_by: Optional[str] = None
+    resolved_at: Optional[datetime] = None
 
 
 class TaskRegistryStats(BaseModel):

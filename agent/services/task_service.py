@@ -11,7 +11,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 
-from database import TaskEventDB, RetryRelationshipDB, TaskLatestDB, TaskResolutionDB
+from database import TaskEventDB, RetryRelationshipDB, TaskLatestDB, TaskRegistryDB, TaskResolutionDB
 from models import TaskEvent
 from constants import TaskState, EventType, STATE_TO_EVENT_MAP, ACTIVE_EVENT_TYPES
 from services.utils import EnvironmentFilter, GenericFilter, parse_filter_string
@@ -102,6 +102,7 @@ class TaskService:
                 events[i].retry_count = events[0].retry_count
 
         self._attach_resolution_info(events)
+        self._attach_registry_metadata(events)
         return events
 
     def get_recent_events(
@@ -205,6 +206,7 @@ class TaskService:
         events = [self._db_to_task_event(event_db) for event_db in active_events_db]
         self._bulk_enrich_with_retry_info(events)
         self._attach_resolution_info(events)
+        self._attach_registry_metadata(events)
 
         return events
 
@@ -259,6 +261,7 @@ class TaskService:
         orphaned_events = [self._db_to_task_event(e) for e in orphaned_events_db]
         self._bulk_enrich_with_retry_info(orphaned_events)
         self._attach_resolution_info(orphaned_events)
+        self._attach_registry_metadata(orphaned_events)
 
         if not orphaned_events:
             return []
@@ -357,6 +360,7 @@ class TaskService:
         events = [self._db_to_task_event(event_db) for event_db in events_db]
         self._bulk_enrich_with_retry_info(events)
         self._attach_resolution_info(events)
+        self._attach_registry_metadata(events)
 
         return events
 
@@ -1014,6 +1018,7 @@ class TaskService:
             task_event.retried_by = []
             related_tasks_map[event_db.task_id] = task_event
 
+        self._attach_registry_metadata(list(related_tasks_map.values()))
         return related_tasks_map
 
     def _attach_resolution_info(self, events: List[TaskEvent]) -> None:
@@ -1039,6 +1044,32 @@ class TaskService:
             event.resolved = bool(resolution.resolved) if resolution else False
             event.resolved_by = resolution.resolved_by if resolution else None
             event.resolved_at = _ensure_utc(resolution.resolved_at) if resolution else None
+
+    def _attach_registry_metadata(self, events: List[TaskEvent]) -> None:
+        """
+        Attach response guidance metadata from the task registry in bulk.
+        """
+        if not events:
+            return
+
+        task_names = {event.task_name for event in events if event.task_name}
+        if not task_names:
+            return
+
+        metadata_rows = (
+            self.session.query(TaskRegistryDB)
+            .filter(TaskRegistryDB.name.in_(task_names))
+            .all()
+        )
+        metadata_by_name = {row.name: row for row in metadata_rows}
+
+        for event in events:
+            metadata = metadata_by_name.get(event.task_name)
+            if not metadata:
+                continue
+            event.runbook_url = metadata.runbook_url
+            event.severity_default = metadata.severity_default
+            event.response_notes = metadata.response_notes
 
     def _populate_retry_info(
         self,
@@ -1156,6 +1187,7 @@ class TaskService:
         events = [self._db_to_task_event(event_db) for event_db in events_db]
         self._bulk_enrich_with_retry_info(events)
         self._attach_resolution_info(events)
+        self._attach_registry_metadata(events)
 
         return events, total_events
 
@@ -1222,6 +1254,7 @@ class TaskService:
         events = [self._db_to_task_event(event_db) for event_db in events_db]
         self._bulk_enrich_with_retry_info(events)
         self._attach_resolution_info(events)
+        self._attach_registry_metadata(events)
         return events, total_events
 
 
