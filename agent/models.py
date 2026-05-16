@@ -208,6 +208,18 @@ class TaskProgressSnapshot(BaseModel):
     history: List[TaskProgressEvent] = Field(default_factory=list)
 
 
+class RuntimeAnomaly(BaseModel):
+    """Detected anomaly for an active task runtime/progress profile."""
+    task: TaskEvent
+    anomaly_type: Literal["long_running", "stalled_progress"]
+    runtime_seconds: float
+    baseline_runtime_seconds: Optional[float] = None
+    progress_age_seconds: Optional[float] = None
+    worker_active_task_count: int = 1
+    threshold_seconds: float
+    detail: str
+
+
 class WorkerInfo(BaseModel):
     """Worker information model"""
     hostname: str

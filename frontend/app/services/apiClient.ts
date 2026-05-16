@@ -3,6 +3,7 @@
  */
 import { Api } from '../src/types/api'
 import type {
+  RuntimeAnomaly,
   TaskStats,
   TaskEventResponse,
   WorkerInfo
@@ -125,6 +126,16 @@ export interface TaskProgressSnapshotResponse {
   steps: TaskStepDefinition[]
   history: TaskProgressEventResponse[]
 }
+
+export interface RuntimeAnomaliesQuery {
+  baseline_days?: number
+  min_baseline_samples?: number
+  runtime_multiplier?: number
+  min_long_running_seconds?: number
+  stalled_progress_seconds?: number
+}
+
+export type RuntimeAnomalyResponse = RuntimeAnomaly
 
 class ApiService {
   private api: Api<unknown>
@@ -339,6 +350,11 @@ class ApiService {
 
   async getActiveTasks(): Promise<TaskEventResponse[]> {
     const response = await this.api.api.getActiveTasksApiTasksActiveGet()
+    return response.data
+  }
+
+  async getRuntimeAnomalies(query?: RuntimeAnomaliesQuery): Promise<RuntimeAnomalyResponse[]> {
+    const response = await this.api.api.getRuntimeAnomaliesApiTasksRuntimeAnomaliesGet(query)
     return response.data
   }
 

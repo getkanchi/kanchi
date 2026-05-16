@@ -17,6 +17,73 @@
       <!-- Failure & Orphaned Tasks Overview -->
       <div class="mb-6 flex flex-col gap-4 failure-insights-section">
         <TaskIssueSummary
+          :tasks="runtimeAnomaliesStore.anomalies"
+          :is-loading="runtimeAnomaliesStore.isLoading"
+          :status="runtimeAnomalyCardStatus"
+          :summary-variant="runtimeAnomalySummaryVariant"
+          :hide-when-empty="true"
+          title="Runtime anomalies"
+          primary-label="flagged"
+          secondary-label="stalled"
+          recent-field="timestamp"
+          :recent-window-minutes="10"
+          latest-label="Oldest active"
+          time-field="timestamp"
+          badge-label="Anomaly"
+          :badge-variant="runtimeAnomaliesStore.anomalies.length > 0 ? 'warning' : 'success'"
+          empty-state-title="No active runtime anomalies"
+          empty-state-description="Long-running and stalled-progress tasks will surface here."
+        >
+          <template #meta-badges="{ task }">
+            <Badge
+              variant="outline"
+              class="text-[11px] px-2 py-0.5 border-status-warning text-status-warning bg-status-warning-bg/40"
+            >
+              {{ task.anomaly_type === 'stalled_progress' ? 'Stalled progress' : 'Long-running' }}
+            </Badge>
+          </template>
+          <template #actions="{ task }">
+            <div class="flex items-center gap-2">
+              <NuxtLink :to="`/tasks/${task.task_id}`">
+                <Button variant="outline" size="sm" class="gap-1.5">
+                  <ChevronRight class="h-3.5 w-3.5" />
+                  Open
+                </Button>
+              </NuxtLink>
+            </div>
+          </template>
+          <template #details="{ task }">
+            <div class="mt-3 flex flex-wrap items-center gap-2 text-xs text-text-secondary">
+              <Badge variant="outline" class="gap-2 border-border-subtle text-text-secondary">
+                <span class="uppercase tracking-wide text-[9px] text-text-muted">Runtime</span>
+                <span class="font-mono">{{ formatDurationSeconds(task.runtime_seconds) }}</span>
+              </Badge>
+              <Badge
+                v-if="task.baseline_runtime_seconds"
+                variant="outline"
+                class="gap-2 border-border-subtle text-text-secondary"
+              >
+                <span class="uppercase tracking-wide text-[9px] text-text-muted">Baseline</span>
+                <span class="font-mono">{{ formatDurationSeconds(task.baseline_runtime_seconds) }}</span>
+              </Badge>
+              <Badge
+                v-if="task.progress_age_seconds"
+                variant="outline"
+                class="gap-2 border-border-subtle text-text-secondary"
+              >
+                <span class="uppercase tracking-wide text-[9px] text-text-muted">No progress</span>
+                <span class="font-mono">{{ formatDurationSeconds(task.progress_age_seconds) }}</span>
+              </Badge>
+              <Badge variant="outline" class="gap-2 border-border-subtle text-text-secondary">
+                <span class="uppercase tracking-wide text-[9px] text-text-muted">Worker load</span>
+                <span class="font-mono">{{ task.worker_active_task_count }} active</span>
+              </Badge>
+              <span>{{ task.detail }}</span>
+            </div>
+          </template>
+        </TaskIssueSummary>
+
+        <TaskIssueSummary
           :tasks="failedTasksStore.failedTasks"
           :is-loading="failedTasksStore.isLoading"
           :status="failedCardStatus"
@@ -226,6 +293,7 @@ const tasksStore = useTasksStore()
 const workersStore = useWorkersStore()
 const orphanTasksStore = useOrphanTasksStore()
 const failedTasksStore = useFailedTasksStore()
+const runtimeAnomaliesStore = useRuntimeAnomaliesStore()
 const configStore = useConfigStore()
 const wsStore = useWebSocketStore()
 const environmentStore = useEnvironmentStore()
@@ -290,6 +358,8 @@ const uniqueOrphanedTasks = computed<TaskEventResponse[]>(() => {
   return Array.from(taskMap.values())
 })
 
+const runtimeAnomalyCardStatus = computed(() => runtimeAnomaliesStore.anomalies.length > 0 ? 'warning' : 'success')
+const runtimeAnomalySummaryVariant = computed(() => runtimeAnomaliesStore.anomalies.length > 0 ? 'warning' : 'success')
 const failedCardStatus = computed(() => failedTasksStore.failedTasks.length > 0 ? 'error' : 'success')
 const failedSummaryVariant = computed(() => failedTasksStore.failedTasks.length > 0 ? 'error' : 'success')
 const orphanCardStatus = computed(() => uniqueOrphanedTasks.value.length > 0 ? 'warning' : 'success')
@@ -304,6 +374,17 @@ const formatLookbackLabel = (hours: number) => {
 }
 const failedTasksTitle = computed(() => `Failed tasks (${formatLookbackLabel(failedTasksLookbackHours.value)})`)
 const failedTasksEmptyTitle = computed(() => `No failed tasks detected in the last ${formatLookbackLabel(failedTasksLookbackHours.value)}`)
+
+const formatDurationSeconds = (seconds?: number | null) => {
+  if (seconds == null || !Number.isFinite(seconds)) return '-'
+  if (seconds < 60) return `${Math.round(seconds)}s`
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = Math.round(seconds % 60)
+  if (minutes < 60) return `${minutes}m ${remainingSeconds}s`
+  const hours = Math.floor(minutes / 60)
+  const remainingMinutes = minutes % 60
+  return `${hours}h ${remainingMinutes}m`
+}
 
 const retryDialogRef = ref<InstanceType<typeof RetryTaskConfirmDialog> | null>(null)
 const retryDialogState = ref<{ task: TaskEventResponse; type: 'failed' | 'orphan' } | null>(null)
@@ -563,7 +644,8 @@ watch(() => environmentStore.activeEnvironment, async () => {
     tasksStore.fetchStats(),
     workersStore.fetchWorkers(),
     orphanTasksStore.fetchOrphanedTasks(),
-    failedTasksStore.fetchFailedTasks({ hours: failedTasksStore.lookbackHours })
+    failedTasksStore.fetchFailedTasks({ hours: failedTasksStore.lookbackHours }),
+    runtimeAnomaliesStore.fetchRuntimeAnomalies().catch(() => {})
   ])
 })
 
@@ -579,6 +661,7 @@ watch(() => configStore.taskIssueLookbackHours, (hours) => {
 // Store interval IDs at component scope
 let orphanTasksInterval: ReturnType<typeof setInterval> | null = null
 let failedTasksInterval: ReturnType<typeof setInterval> | null = null
+let runtimeAnomaliesInterval: ReturnType<typeof setInterval> | null = null
 let workerInterval: ReturnType<typeof setInterval> | null = null
 
 // Lifecycle
@@ -594,7 +677,8 @@ onMounted(async () => {
     tasksStore.fetchStats(),
     workersStore.fetchWorkers(),
     orphanTasksStore.fetchOrphanedTasks(),
-    failedTasksStore.fetchFailedTasks({ hours: failedTasksStore.lookbackHours })
+    failedTasksStore.fetchFailedTasks({ hours: failedTasksStore.lookbackHours }),
+    runtimeAnomaliesStore.fetchRuntimeAnomalies().catch(() => {})
   ])
 
   tasksStore.setLiveMode(wsStore.clientMode === 'live')
@@ -610,6 +694,10 @@ onMounted(async () => {
     failedTasksStore.fetchFailedTasks({ hours: failedTasksStore.lookbackHours }).catch(() => {})
   }, 60000) // Poll every 60 seconds for failed tasks
 
+  runtimeAnomaliesInterval = setInterval(() => {
+    runtimeAnomaliesStore.fetchRuntimeAnomalies().catch(() => {})
+  }, 60000)
+
   workerInterval = setInterval(() => {
     // Only fetch if WebSocket is not connected
     if (!wsStore.isConnected) {
@@ -622,6 +710,7 @@ onUnmounted(() => {
   // Clean up intervals
   if (orphanTasksInterval) clearInterval(orphanTasksInterval)
   if (failedTasksInterval) clearInterval(failedTasksInterval)
+  if (runtimeAnomaliesInterval) clearInterval(runtimeAnomaliesInterval)
   if (workerInterval) clearInterval(workerInterval)
 
   // Clean up event listeners
