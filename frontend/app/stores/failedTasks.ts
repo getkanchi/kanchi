@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, readonly } from 'vue'
 import { useApiService } from '../services/apiClient'
-import type { TaskEventResponse } from '../services/apiClient'
+import type { FailureNoveltyStatus, TaskFailureNoveltyResponse } from '../services/apiClient'
 
 const DEFAULT_LOOKBACK_HOURS = 24
 const MIN_LOOKBACK_HOURS = 1
@@ -18,25 +18,51 @@ function parseTimestamp(timestamp?: string | null): number | null {
 export const useFailedTasksStore = defineStore('failedTasks', () => {
   const apiService = useApiService()
 
-  const failedTasks = ref<TaskEventResponse[]>([])
+  const failedTasks = ref<TaskFailureNoveltyResponse[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   const lastFetchedAt = ref<Date | null>(null)
   const lookbackHours = ref(DEFAULT_LOOKBACK_HOURS)
+  const lastQuery = ref<{
+    hours: number
+    limit?: number
+    includeRetried?: boolean
+    noveltyStatus?: FailureNoveltyStatus
+    noveltyLookbackHours?: number
+  }>({
+    hours: DEFAULT_LOOKBACK_HOURS,
+  })
   const lookbackWindowMs = computed(() => lookbackHours.value * 60 * 60 * 1000)
 
   const totalFailedTasks = computed(() => failedTasks.value.length)
   const latestFailedTask = computed(() => failedTasks.value[0] || null)
 
-  function sortTasks(tasks: TaskEventResponse[]): TaskEventResponse[] {
+  function noveltyPriority(task: TaskFailureNoveltyResponse): number {
+    switch (task.failure_novelty_status) {
+      case 'new':
+        return 0
+      case 'regressed':
+        return 1
+      case 'recurring':
+        return 2
+      default:
+        return 3
+    }
+  }
+
+  function sortTasks(tasks: TaskFailureNoveltyResponse[]): TaskFailureNoveltyResponse[] {
     return [...tasks].sort((a, b) => {
+      const noveltyDiff = noveltyPriority(a) - noveltyPriority(b)
+      if (noveltyDiff !== 0) {
+        return noveltyDiff
+      }
       const aTime = parseTimestamp(a.timestamp) ?? 0
       const bTime = parseTimestamp(b.timestamp) ?? 0
       return bTime - aTime
     })
   }
 
-  function setTasks(tasks: TaskEventResponse[]) {
+  function setTasks(tasks: TaskFailureNoveltyResponse[]) {
     failedTasks.value = sortTasks(tasks)
   }
 
@@ -48,7 +74,7 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
     })
   }
 
-  function upsertFailedTask(task: TaskEventResponse) {
+  function upsertFailedTask(task: TaskFailureNoveltyResponse) {
     if (!task.task_id) {
       return
     }
@@ -77,11 +103,11 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
         resolved,
         resolved_by: resolved_by ?? null,
         resolved_at: normalizedResolvedAt,
-      } as TaskEventResponse & { resolved?: boolean; resolved_by?: string | null; resolved_at?: string | null }
+      } as TaskFailureNoveltyResponse
     })
   }
 
-  function shouldExclude(task: TaskEventResponse): boolean {
+  function shouldExclude(task: TaskFailureNoveltyResponse): boolean {
     if (task.has_retries) {
       return true
     }
@@ -99,21 +125,40 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
     lookbackHours.value = Math.max(MIN_LOOKBACK_HOURS, hours)
   }
 
-  async function fetchFailedTasks(options?: { hours?: number; limit?: number; includeRetried?: boolean }) {
+  async function fetchFailedTasks(options?: {
+    hours?: number
+    limit?: number
+    includeRetried?: boolean
+    noveltyStatus?: FailureNoveltyStatus
+    noveltyLookbackHours?: number
+  }) {
     try {
       isLoading.value = true
       error.value = null
 
       const effectiveHours = options?.hours ?? lookbackHours.value
       setLookbackHours(effectiveHours)
+      lastQuery.value = {
+        hours: effectiveHours,
+        limit: options?.limit,
+        includeRetried: options?.includeRetried,
+        noveltyStatus: options?.noveltyStatus,
+        noveltyLookbackHours: options?.noveltyLookbackHours,
+      }
 
       const response = await apiService.getRecentFailedTasks({
         hours: effectiveHours,
         limit: options?.limit,
-        include_retried: options?.includeRetried ?? false
+        include_retried: options?.includeRetried ?? false,
+        novelty_status: options?.noveltyStatus,
+        novelty_lookback_hours: options?.noveltyLookbackHours,
+        sort_by: 'novelty',
+        sort_order: 'desc',
       })
 
-      const filtered = response.filter(task => !shouldExclude(task))
+      const filtered = options?.includeRetried
+        ? response
+        : response.filter(task => !shouldExclude(task))
       setTasks(filtered)
       pruneExpired()
       lastFetchedAt.value = new Date()
@@ -152,7 +197,21 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
     }
   }
 
-  function updateFromLiveEvent(event: TaskEventResponse) {
+  async function refreshFailedTasksFromLiveUpdate() {
+    try {
+      await fetchFailedTasks({
+        hours: lookbackHours.value,
+        limit: lastQuery.value.limit,
+        includeRetried: lastQuery.value.includeRetried,
+        noveltyStatus: lastQuery.value.noveltyStatus,
+        noveltyLookbackHours: lastQuery.value.noveltyLookbackHours,
+      })
+    } catch {
+      // keep the live event visible even if the background refresh fails
+    }
+  }
+
+  function updateFromLiveEvent(event: TaskFailureNoveltyResponse) {
     const environmentStore = useEnvironmentStore()
     const { matchesEnvironment } = useEnvironmentMatcher()
 
@@ -180,6 +239,7 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
 
       upsertFailedTask(event)
       pruneExpired()
+      void refreshFailedTasksFromLiveUpdate()
       return
     }
 

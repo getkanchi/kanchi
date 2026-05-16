@@ -19,6 +19,12 @@ from utils.payload_sanitizer import find_placeholder_paths
 
 logger = logging.getLogger(__name__)
 
+FAILURE_NOVELTY_PRIORITY = {
+    "new": 0,
+    "regressed": 1,
+    "recurring": 2,
+}
+
 
 def _ensure_utc(dt: Optional[datetime]) -> Optional[datetime]:
     if dt is None:
@@ -295,7 +301,11 @@ class TaskService:
         self,
         hours: int = 24,
         limit: int = 50,
-        exclude_retried: bool = True
+        exclude_retried: bool = True,
+        novelty_status: Optional[str] = None,
+        novelty_lookback_hours: int = 168,
+        sort_by: Optional[str] = None,
+        sort_order: str = "desc",
     ) -> List[TaskEvent]:
         """
         Get failed tasks in the last ``hours`` where the latest event is a failure.
@@ -347,9 +357,12 @@ class TaskService:
                 or_(TaskEventDB.has_retries.is_(False), TaskEventDB.has_retries.is_(None))
             )
 
+        normalized_novelty = (novelty_status or "").strip().lower() or None
+        needs_novelty_post_processing = normalized_novelty is not None or sort_by == "novelty"
+
         query = query.order_by(TaskEventDB.timestamp.desc())
 
-        if limit and limit > 0:
+        if limit and limit > 0 and not needs_novelty_post_processing:
             query = query.limit(limit)
 
         events_db = query.all()
@@ -357,8 +370,107 @@ class TaskService:
         events = [self._db_to_task_event(event_db) for event_db in events_db]
         self._bulk_enrich_with_retry_info(events)
         self._attach_resolution_info(events)
+        self._attach_failure_novelty_info(events, lookback_hours=novelty_lookback_hours)
+
+        if normalized_novelty:
+            events = [event for event in events if event.failure_novelty_status == normalized_novelty]
+
+        if sort_by == "novelty":
+            if sort_order == "asc":
+                events = sorted(
+                    events,
+                    key=lambda event: (
+                        FAILURE_NOVELTY_PRIORITY.get(event.failure_novelty_status or "recurring", 99),
+                        _ensure_utc(event.timestamp) or datetime.min.replace(tzinfo=timezone.utc),
+                    ),
+                )
+            else:
+                events = sorted(
+                    events,
+                    key=lambda event: (
+                        FAILURE_NOVELTY_PRIORITY.get(event.failure_novelty_status or "recurring", 99),
+                        -((_ensure_utc(event.timestamp) or datetime(1970, 1, 1, tzinfo=timezone.utc)).timestamp()),
+                    ),
+                )
+
+        if limit and limit > 0 and needs_novelty_post_processing:
+            events = events[:limit]
 
         return events
+
+    def _normalize_failure_fingerprint(self, event: TaskEvent) -> Optional[str]:
+        if event.event_type != EventType.TASK_FAILED.value:
+            return None
+
+        name = (event.task_name or "unknown").strip().lower()
+        queue = (event.routing_key or event.queue or "default").strip().lower()
+        exception = " ".join((event.exception or "unknown-error").strip().lower().split())
+        exception = exception[:500]
+        return f"{name}|{queue}|{exception}"
+
+    def _attach_failure_novelty_info(self, events: List[TaskEvent], lookback_hours: int = 168) -> None:
+        failed_events = [event for event in events if event.event_type == EventType.TASK_FAILED.value]
+        if not failed_events:
+            return
+
+        for event in failed_events:
+            event.failure_fingerprint = self._normalize_failure_fingerprint(event)
+
+        fingerprints = {event.failure_fingerprint for event in failed_events if event.failure_fingerprint}
+        if not fingerprints:
+            return
+
+        lookback_since = datetime.now(timezone.utc) - timedelta(hours=max(1, lookback_hours))
+        history_query = self.session.query(TaskEventDB).filter(
+            TaskEventDB.event_type == EventType.TASK_FAILED.value,
+            TaskEventDB.timestamp >= lookback_since,
+        )
+
+        env_filtered_query = self.session.query(TaskEventDB.task_id)
+        env_filtered_query = EnvironmentFilter.apply(env_filtered_query, self.active_env)
+        env_conditions = env_filtered_query.whereclause
+        if env_conditions is not None:
+            history_query = history_query.filter(env_conditions)
+
+        history = [self._db_to_task_event(row) for row in history_query.all()]
+        self._attach_resolution_info(history)
+
+        by_fingerprint: Dict[str, List[TaskEvent]] = {}
+        for item in history:
+            fingerprint = self._normalize_failure_fingerprint(item)
+            if fingerprint in fingerprints:
+                by_fingerprint.setdefault(fingerprint, []).append(item)
+
+        for fingerprint_events in by_fingerprint.values():
+            fingerprint_events.sort(key=lambda item: _ensure_utc(item.timestamp) or datetime.min.replace(tzinfo=timezone.utc))
+
+        for event in failed_events:
+            fingerprint = event.failure_fingerprint
+            related = by_fingerprint.get(fingerprint or "", [])
+            prior = [item for item in related if item.task_id != event.task_id and (_ensure_utc(item.timestamp) or datetime.min.replace(tzinfo=timezone.utc)) < (_ensure_utc(event.timestamp) or datetime.min.replace(tzinfo=timezone.utc))]
+            latest_prior = prior[-1] if prior else None
+            latest_prior_resolved_before_event = False
+            if latest_prior and latest_prior.resolved:
+                latest_resolution = _ensure_utc(latest_prior.resolved_at)
+                event_timestamp = _ensure_utc(event.timestamp)
+                latest_prior_resolved_before_event = bool(
+                    latest_resolution and event_timestamp and latest_resolution <= event_timestamp
+                )
+
+            if not prior:
+                event.failure_novelty_status = "new"
+            elif latest_prior_resolved_before_event:
+                event.failure_novelty_status = "regressed"
+            else:
+                event.failure_novelty_status = "recurring"
+
+            event.failure_novelty_rank = FAILURE_NOVELTY_PRIORITY.get(event.failure_novelty_status or "recurring")
+            event.failure_occurrence_count = len(prior) + 1
+            ordered_history = prior + [event]
+            if ordered_history:
+                event.failure_first_seen_at = min((_ensure_utc(item.timestamp) for item in ordered_history if item.timestamp), default=None)
+                event.failure_last_seen_at = max((_ensure_utc(item.timestamp) for item in ordered_history if item.timestamp), default=None)
+            event.known_failure = any(item.resolved for item in prior) or event.failure_novelty_status in {"recurring", "regressed"}
 
     def create_retry_relationship(
         self,
