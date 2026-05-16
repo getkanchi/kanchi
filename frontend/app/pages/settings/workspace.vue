@@ -35,7 +35,7 @@
             <span>{{ loadError }}</span>
           </Alert>
 
-          <form class="grid gap-4 md:grid-cols-2" @submit.prevent="saveRetention">
+          <div class="grid gap-4 md:grid-cols-2">
             <div v-for="field in retentionFields" :key="field.key" class="space-y-2">
               <Label :for="field.key">{{ field.label }}</Label>
               <Input
@@ -50,15 +50,25 @@
             </div>
 
             <div class="md:col-span-2 flex flex-wrap items-center gap-3 pt-2">
-              <Button type="submit" :disabled="isSaving || isLoading">
+              <button
+                type="button"
+                class="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="isSaving || isLoading"
+                @click="saveRetention"
+              >
                 {{ isSaving ? 'Saving…' : 'Save retention settings' }}
-              </Button>
-              <Button type="button" variant="outline" :disabled="isSaving || isLoading" @click="resetRetentionForm">
+              </button>
+              <button
+                type="button"
+                class="inline-flex items-center justify-center gap-2 rounded-md border border-border-subtle bg-background-surface px-4 py-2 text-sm font-medium text-text-primary shadow-sm transition-colors hover:bg-background-subtle disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="isSaving || isLoading"
+                @click="resetRetentionForm"
+              >
                 Reset
-              </Button>
+              </button>
               <span v-if="saveMessage" class="text-sm text-text-secondary">{{ saveMessage }}</span>
             </div>
-          </form>
+          </div>
 
           <div class="rounded-2xl border border-border-subtle/80 bg-background-subtle p-4 space-y-4">
             <div>
@@ -66,27 +76,60 @@
               <p class="mt-1 text-sm text-text-secondary">
                 Preview what would be removed, then run cleanup when you are ready.
               </p>
+              <div class="mt-3 rounded-xl border border-border-subtle bg-background-surface px-4 py-3 text-sm">
+                <p class="text-text-primary">
+                  <span class="font-medium">Automatic cleanup:</span>
+                  {{ retentionSchedule?.enabled ? `every ${retentionSchedule.interval_hours}h` : 'disabled' }}
+                </p>
+                <div class="mt-2 space-y-2">
+                  <div class="flex items-start justify-between gap-4 rounded-lg bg-background-subtle/60 px-3 py-2">
+                    <span class="pt-1 text-xs font-medium uppercase tracking-[0.2em] text-text-secondary">Next run</span>
+                    <TimeDisplay
+                      v-if="retentionSchedule?.next_run_at"
+                      :timestamp="retentionSchedule.next_run_at"
+                      :refresh-interval="1000"
+                    />
+                    <span v-else class="text-sm text-text-secondary">Not scheduled yet</span>
+                  </div>
+                  <div v-if="retentionSchedule?.last_completed_at" class="flex items-start justify-between gap-4 rounded-lg bg-background-subtle/60 px-3 py-2">
+                    <span class="pt-1 text-xs font-medium uppercase tracking-[0.2em] text-text-secondary">Last completed</span>
+                    <div class="flex flex-col items-end gap-1">
+                      <TimeDisplay
+                        :timestamp="retentionSchedule.last_completed_at"
+                        :refresh-interval="1000"
+                      />
+                      <span
+                        v-if="retentionSchedule.last_deleted_rows !== null && retentionSchedule.last_deleted_rows !== undefined"
+                        class="text-xs text-text-secondary"
+                      >
+                        Deleted {{ retentionSchedule.last_deleted_rows }} rows
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <p v-if="retentionSchedule?.last_error" class="mt-1 text-red-400">
+                  Last scheduler error: {{ retentionSchedule.last_error }}
+                </p>
+              </div>
             </div>
 
             <div class="flex flex-wrap items-center gap-3">
-              <Button variant="outline" :disabled="cleanupRunning" @click="previewCleanup">
-                {{ cleanupRunning && cleanupMode === 'dry' ? 'Running preview…' : 'Preview cleanup' }}
-              </Button>
-              <ConfirmationDialog
-                title="Run retention cleanup?"
-                description="This will permanently delete data that falls outside the configured retention windows. Preview cleanup first if you want to inspect the impact before deleting anything."
-                confirm-text="Run cleanup"
-                cancel-text="Cancel"
-                variant="destructive"
-                :is-loading="cleanupRunning && cleanupMode === 'live'"
-                @confirm="runCleanup"
+              <button
+                type="button"
+                class="inline-flex items-center justify-center gap-2 rounded-md border border-border-subtle bg-background-surface px-4 py-2 text-sm font-medium text-text-primary shadow-sm transition-colors hover:bg-background-subtle disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="cleanupRunning"
+                @click="previewCleanup"
               >
-                <template #trigger>
-                  <Button :disabled="cleanupRunning">
-                    {{ cleanupRunning && cleanupMode === 'live' ? 'Running cleanup…' : 'Run cleanup now' }}
-                  </Button>
-                </template>
-              </ConfirmationDialog>
+                {{ cleanupRunning && cleanupMode === 'dry' ? 'Running preview…' : 'Preview cleanup' }}
+              </button>
+              <button
+                type="button"
+                class="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="cleanupRunning"
+                @click="showCleanupConfirm = true"
+              >
+                {{ cleanupRunning && cleanupMode === 'live' ? 'Running cleanup…' : 'Run cleanup now' }}
+              </button>
             </div>
 
             <Alert v-if="cleanupError" variant="destructive">
@@ -166,23 +209,62 @@
         <WorkflowSlackConfigPanel :active="true" :enable-selection="false" />
       </section>
     </div>
+
+    <div v-if="showCleanupConfirm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" @click.self="!cleanupRunning && closeCleanupConfirm()">
+      <div
+        ref="cleanupDialogRef"
+        tabindex="-1"
+        class="grid w-full max-w-md gap-4 rounded-lg border border-border-subtle bg-background-surface p-6 shadow-lg"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="retention-cleanup-title"
+        aria-describedby="retention-cleanup-description"
+      >
+        <div class="space-y-2">
+          <h2 id="retention-cleanup-title" class="text-lg font-semibold text-text-primary">Run retention cleanup?</h2>
+          <p id="retention-cleanup-description" class="text-sm text-text-secondary">
+            This will permanently delete data that falls outside the configured retention windows. Preview cleanup first if you want to inspect the impact before deleting anything.
+          </p>
+        </div>
+        <div class="flex flex-col-reverse sm:flex-row sm:justify-end sm:gap-2">
+          <button
+            type="button"
+            class="mt-2 inline-flex items-center justify-center gap-2 rounded-md border border-border-subtle bg-background-surface px-4 py-2 text-sm font-medium text-text-primary shadow-sm transition-colors hover:bg-background-subtle disabled:cursor-not-allowed disabled:opacity-50 sm:mt-0"
+            :disabled="cleanupRunning"
+            @click="closeCleanupConfirm()"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="inline-flex items-center justify-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="cleanupRunning"
+            @click="confirmCleanupRun"
+          >
+            {{ cleanupRunning && cleanupMode === 'live' ? 'Running cleanup…' : 'Run cleanup' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ArrowUpRight, Github, Sparkles } from 'lucide-vue-next'
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Alert from '~/components/alert/Alert.vue'
-import ConfirmationDialog from '~/components/ConfirmationDialog.vue'
 import ThemeToggle from '~/components/ThemeToggle.vue'
+import TimeDisplay from '~/components/TimeDisplay.vue'
 import WorkflowSlackConfigPanel from '~/components/workflows/WorkflowSlackConfigPanel.vue'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
+import type { DataRetentionConfigDTO, RetentionCleanupResponseDTO, RetentionScheduleStatusDTO } from '~/services/apiClient'
+import { useLogger } from '~/services/logger'
 import { useConfigStore } from '~/stores/config'
-import type { DataRetentionConfigDTO, RetentionCleanupResponseDTO } from '~/services/apiClient'
 
 const configStore = useConfigStore()
+const logger = useLogger()
 
 const retentionFields: Array<{ key: keyof DataRetentionConfigDTO; label: string; description: string }> = [
   {
@@ -231,12 +313,24 @@ const cleanupRunning = ref(false)
 const cleanupMode = ref<'dry' | 'live' | null>(null)
 const cleanupResult = ref<RetentionCleanupResponseDTO | null>(null)
 const cleanupError = ref('')
+const showCleanupConfirm = ref(false)
+const retentionSchedule = ref<RetentionScheduleStatusDTO | null>(null)
+const cleanupDialogRef = ref<HTMLElement | null>(null)
+let cleanupTriggerElement: HTMLElement | null = null
 
 const isLoading = computed(() => configStore.isLoading)
 const loadError = computed(() => configStore.error)
 
 function syncFormFromStore() {
   retentionForm.value = { ...configStore.dataRetention }
+}
+
+async function refreshRetentionSchedule() {
+  try {
+    retentionSchedule.value = await configStore.getRetentionSchedule()
+  } catch (error) {
+    logger.error('Failed to refresh retention schedule', error)
+  }
 }
 
 function resetRetentionForm() {
@@ -263,6 +357,7 @@ async function executeCleanup(dryRun: boolean) {
     cleanupMode.value = dryRun ? 'dry' : 'live'
     cleanupError.value = ''
     cleanupResult.value = await configStore.runRetentionCleanup(dryRun)
+    await refreshRetentionSchedule()
   } catch (err) {
     cleanupError.value = err instanceof Error ? err.message : 'Cleanup request failed.'
   } finally {
@@ -278,11 +373,77 @@ async function runCleanup() {
   await executeCleanup(false)
 }
 
+function closeCleanupConfirm() {
+  showCleanupConfirm.value = false
+}
+
+function getCleanupFocusableElements() {
+  return Array.from(
+    cleanupDialogRef.value?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    ) ?? []
+  )
+}
+
+function handleCleanupConfirmKeydown(event: KeyboardEvent) {
+  if (!showCleanupConfirm.value) return
+
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    if (!cleanupRunning.value) closeCleanupConfirm()
+    return
+  }
+
+  if (event.key !== 'Tab') return
+
+  const focusable = getCleanupFocusableElements()
+  if (focusable.length === 0) {
+    event.preventDefault()
+    cleanupDialogRef.value?.focus()
+    return
+  }
+
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  const active = document.activeElement as HTMLElement | null
+
+  if (event.shiftKey && active === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && active === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
+
+watch(showCleanupConfirm, async (open) => {
+  if (open) {
+    cleanupTriggerElement = document.activeElement as HTMLElement | null
+    document.addEventListener('keydown', handleCleanupConfirmKeydown)
+    await nextTick()
+    getCleanupFocusableElements()[1]?.focus() ?? getCleanupFocusableElements()[0]?.focus() ?? cleanupDialogRef.value?.focus()
+    return
+  }
+
+  document.removeEventListener('keydown', handleCleanupConfirmKeydown)
+  cleanupTriggerElement?.focus()
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleCleanupConfirmKeydown)
+})
+
+async function confirmCleanupRun() {
+  closeCleanupConfirm()
+  await runCleanup()
+}
+
 onMounted(async () => {
   if (!configStore.config) {
     await configStore.fetchConfig()
   }
   syncFormFromStore()
+  await refreshRetentionSchedule()
 })
 
 definePageMeta({
