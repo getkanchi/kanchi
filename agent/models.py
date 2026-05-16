@@ -469,6 +469,13 @@ class DataRetentionConfig(BaseModel):
     inactive_sessions_days: int = Field(default=30, ge=1, le=3650)
 
 
+class RetentionScheduleConfig(BaseModel):
+    """Automatic retention cleanup schedule."""
+    enabled: bool = False
+    frequency: Literal["daily", "weekly"] = "daily"
+    run_at: str = Field(default="03:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
 class RetentionCleanupResult(BaseModel):
     """Result for a single retention target cleanup."""
     key: str
@@ -481,6 +488,18 @@ class RetentionCleanupResponse(BaseModel):
     """Summary of a retention cleanup run."""
     dry_run: bool = False
     total_deleted: int = Field(ge=0)
+    policy: DataRetentionConfig
+    results: List[RetentionCleanupResult] = Field(default_factory=list)
+
+
+class RetentionLastRun(BaseModel):
+    """Last automatic retention cleanup run status."""
+    status: Literal["never", "success", "error", "running"] = "never"
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    total_deleted: int = Field(default=0, ge=0)
+    dry_run: bool = False
+    error: Optional[str] = None
     results: List[RetentionCleanupResult] = Field(default_factory=list)
 
 
@@ -488,6 +507,8 @@ class AppConfigSnapshot(BaseModel):
     """Grouped configuration snapshot returned to clients."""
     task_issue_summary: TaskIssueConfig
     data_retention: DataRetentionConfig
+    retention_schedule: RetentionScheduleConfig = Field(default_factory=RetentionScheduleConfig)
+    retention_last_run: RetentionLastRun = Field(default_factory=RetentionLastRun)
 
 
 class UserInfo(BaseModel):

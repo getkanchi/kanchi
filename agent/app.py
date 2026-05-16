@@ -43,6 +43,7 @@ class ApplicationState:
         self.config: Optional[Config] = None
         self.auth_manager = None
         self.auth_dependencies = None
+        self.retention_scheduler = None
 
 
 app_state = ApplicationState()
@@ -57,6 +58,8 @@ async def lifespan(app: FastAPI):
     # Shutdown
     if app_state.health_monitor:
         app_state.health_monitor.stop()
+    if app_state.retention_scheduler:
+        app_state.retention_scheduler.stop()
     if app_state.connection_manager:
         await app_state.connection_manager.stop_background_broadcaster()
     if app_state.monitor_instance:
@@ -287,6 +290,7 @@ async def initialize_application():
     app_state.workflow_engine.monitor_instance = app_state.monitor_instance
 
     start_health_monitor()
+    start_retention_scheduler()
 
 
 def start_monitor(config: Config):
@@ -323,6 +327,18 @@ def start_health_monitor():
         app_state.event_handler
     )
     app_state.health_monitor.start()
+
+
+def start_retention_scheduler():
+    """Start the automatic retention cleanup scheduler."""
+    if app_state.retention_scheduler:
+        logger.warning("Retention scheduler already running")
+        return
+
+    from services.retention_scheduler_service import RetentionSchedulerService
+
+    app_state.retention_scheduler = RetentionSchedulerService(app_state.db_manager)
+    app_state.retention_scheduler.start()
 
 
 def start_server():

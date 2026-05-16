@@ -7,6 +7,8 @@ import {
   type AppSettingInput,
   type DataRetentionConfigDTO,
   type RetentionCleanupResponseDTO,
+  type RetentionLastRunDTO,
+  type RetentionScheduleConfigDTO,
 } from '~/services/apiClient'
 
 const TASK_ISSUE_LOOKBACK_DEFAULT = 24
@@ -27,6 +29,22 @@ const RETENTION_KEYS = {
   task_daily_stats_days: 'data_retention.task_daily_stats_days',
   inactive_sessions_days: 'data_retention.inactive_sessions_days',
 } as const
+const RETENTION_SCHEDULE_KEYS = {
+  enabled: 'data_retention.schedule.enabled',
+  frequency: 'data_retention.schedule.frequency',
+  run_at: 'data_retention.schedule.run_at',
+} as const
+const RETENTION_SCHEDULE_DEFAULTS: RetentionScheduleConfigDTO = {
+  enabled: false,
+  frequency: 'daily',
+  run_at: '03:00',
+}
+const RETENTION_LAST_RUN_DEFAULTS: RetentionLastRunDTO = {
+  status: 'never',
+  total_deleted: 0,
+  dry_run: false,
+  results: [],
+}
 
 export const useConfigStore = defineStore('config', () => {
   const apiService = useApiService()
@@ -65,6 +83,18 @@ export const useConfigStore = defineStore('config', () => {
     return TASK_ISSUE_LOOKBACK_DEFAULT
   })
 
+  const retentionSchedule = computed<RetentionScheduleConfigDTO>(() => {
+    return config.value?.retention_schedule ?? {
+      enabled: Boolean(settingsMap.value[RETENTION_SCHEDULE_KEYS.enabled]?.value ?? RETENTION_SCHEDULE_DEFAULTS.enabled),
+      frequency: (settingsMap.value[RETENTION_SCHEDULE_KEYS.frequency]?.value as 'daily' | 'weekly' | undefined) ?? RETENTION_SCHEDULE_DEFAULTS.frequency,
+      run_at: String(settingsMap.value[RETENTION_SCHEDULE_KEYS.run_at]?.value ?? RETENTION_SCHEDULE_DEFAULTS.run_at),
+    }
+  })
+
+  const retentionLastRun = computed<RetentionLastRunDTO>(() => {
+    return config.value?.retention_last_run ?? RETENTION_LAST_RUN_DEFAULTS
+  })
+
   async function fetchConfig() {
     try {
       isLoading.value = true
@@ -98,6 +128,8 @@ export const useConfigStore = defineStore('config', () => {
           ...(config.value ?? {
             task_issue_summary: { lookback_hours: TASK_ISSUE_LOOKBACK_DEFAULT },
             data_retention: dataRetention.value,
+            retention_schedule: retentionSchedule.value,
+            retention_last_run: retentionLastRun.value,
           }),
           task_issue_summary: { lookback_hours: Number(updated.value) }
         }
@@ -110,10 +142,29 @@ export const useConfigStore = defineStore('config', () => {
           ...(config.value ?? {
             task_issue_summary: { lookback_hours: TASK_ISSUE_LOOKBACK_DEFAULT },
             data_retention: dataRetention.value,
+            retention_schedule: retentionSchedule.value,
+            retention_last_run: retentionLastRun.value,
           }),
           data_retention: {
             ...dataRetention.value,
             [retentionField]: Number(updated.value),
+          },
+        }
+      }
+
+      const scheduleEntry = Object.entries(RETENTION_SCHEDULE_KEYS).find(([, settingKey]) => settingKey === key)
+      if (scheduleEntry) {
+        const [scheduleField] = scheduleEntry as [keyof RetentionScheduleConfigDTO, string]
+        config.value = {
+          ...(config.value ?? {
+            task_issue_summary: { lookback_hours: TASK_ISSUE_LOOKBACK_DEFAULT },
+            data_retention: dataRetention.value,
+            retention_schedule: retentionSchedule.value,
+            retention_last_run: retentionLastRun.value,
+          }),
+          retention_schedule: {
+            ...retentionSchedule.value,
+            [scheduleField]: updated.value,
           },
         }
       }
@@ -147,6 +198,18 @@ export const useConfigStore = defineStore('config', () => {
           },
         }
       }
+
+      const scheduleEntry = Object.entries(RETENTION_SCHEDULE_KEYS).find(([, settingKey]) => settingKey === key)
+      if (scheduleEntry && config.value) {
+        const [scheduleField] = scheduleEntry as [keyof RetentionScheduleConfigDTO, string]
+        config.value = {
+          ...config.value,
+          retention_schedule: {
+            ...config.value.retention_schedule,
+            [scheduleField]: RETENTION_SCHEDULE_DEFAULTS[scheduleField],
+          },
+        }
+      }
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to delete setting'
       throw err
@@ -170,6 +233,26 @@ export const useConfigStore = defineStore('config', () => {
         category: 'data_retention'
       })
     }
+    await fetchConfig()
+  }
+
+  async function updateRetentionSchedule(values: RetentionScheduleConfigDTO) {
+    await upsertSetting(RETENTION_SCHEDULE_KEYS.enabled, {
+      value: values.enabled,
+      value_type: 'boolean',
+      category: 'data_retention'
+    })
+    await upsertSetting(RETENTION_SCHEDULE_KEYS.frequency, {
+      value: values.frequency,
+      value_type: 'string',
+      category: 'data_retention'
+    })
+    await upsertSetting(RETENTION_SCHEDULE_KEYS.run_at, {
+      value: values.run_at,
+      value_type: 'string',
+      category: 'data_retention'
+    })
+    await fetchConfig()
   }
 
   async function runRetentionCleanup(dryRun = true): Promise<RetentionCleanupResponseDTO> {
@@ -183,12 +266,15 @@ export const useConfigStore = defineStore('config', () => {
     error: readonly(error),
     taskIssueLookbackHours,
     dataRetention,
+    retentionSchedule,
+    retentionLastRun,
     settingsMap,
     fetchConfig,
     upsertSetting,
     deleteSetting,
     updateTaskIssueLookback,
     updateDataRetention,
+    updateRetentionSchedule,
     runRetentionCleanup,
   }
 })

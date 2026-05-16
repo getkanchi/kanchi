@@ -35,7 +35,7 @@
             <span>{{ loadError }}</span>
           </Alert>
 
-          <form class="grid gap-4 md:grid-cols-2" @submit.prevent="saveRetention">
+          <form class="grid gap-4 md:grid-cols-3" @submit.prevent="saveRetention">
             <div v-for="field in retentionFields" :key="field.key" class="space-y-2">
               <Label :for="field.key">{{ field.label }}</Label>
               <Input
@@ -49,14 +49,47 @@
               <p class="text-xs text-text-secondary">{{ field.description }}</p>
             </div>
 
-            <div class="md:col-span-2 flex flex-wrap items-center gap-3 pt-2">
+            <div class="md:col-span-3 grid gap-4 border-t border-border-subtle pt-4 md:grid-cols-3">
+              <label class="flex items-center gap-3 text-sm text-text-primary">
+                <input
+                  v-model="scheduleForm.enabled"
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-border-subtle text-brand-primary focus:ring-brand-primary"
+                  :disabled="isSaving || isLoading"
+                />
+                Automatic cleanup
+              </label>
+              <div class="space-y-2">
+                <Label for="cleanup-frequency">Frequency</Label>
+                <select
+                  id="cleanup-frequency"
+                  v-model="scheduleForm.frequency"
+                  class="w-full rounded-lg border border-border-subtle bg-background-surface px-3 py-2 text-sm text-text-primary focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+                  :disabled="isSaving || isLoading || !scheduleForm.enabled"
+                >
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                </select>
+              </div>
+              <div class="space-y-2">
+                <Label for="cleanup-run-at">Run time (UTC)</Label>
+                <Input
+                  id="cleanup-run-at"
+                  v-model="scheduleForm.run_at"
+                  type="time"
+                  :disabled="isSaving || isLoading || !scheduleForm.enabled"
+                />
+              </div>
+            </div>
+
+            <div class="md:col-span-3 flex flex-wrap items-center gap-3 pt-2">
               <Button type="submit" :disabled="isSaving || isLoading">
                 {{ isSaving ? 'Saving…' : 'Save retention settings' }}
               </Button>
               <Button type="button" variant="outline" :disabled="isSaving || isLoading" @click="resetRetentionForm">
                 Reset
               </Button>
-              <span v-if="saveMessage" class="text-sm text-text-secondary">{{ saveMessage }}</span>
+              <span v-if="saveMessage" :class="['text-sm', saveStatus === 'error' ? 'text-red-500' : 'text-text-secondary']">{{ saveMessage }}</span>
             </div>
           </form>
 
@@ -64,12 +97,15 @@
             <div>
               <h3 class="text-sm font-semibold text-text-primary">Cleanup</h3>
               <p class="mt-1 text-sm text-text-secondary">
-                Preview what would be removed, then run cleanup when you are ready.
+                Preview cleanup using the persisted backend policy, then run cleanup when you are ready.
+              </p>
+              <p class="mt-2 text-xs text-text-secondary">
+                Last automatic cleanup: {{ retentionLastRunSummary }}
               </p>
             </div>
 
             <div class="flex flex-wrap items-center gap-3">
-              <Button variant="outline" :disabled="cleanupRunning" @click="previewCleanup">
+              <Button variant="outline" :disabled="cleanupRunning || hasUnsavedChanges" @click="previewCleanup">
                 {{ cleanupRunning && cleanupMode === 'dry' ? 'Running preview…' : 'Preview cleanup' }}
               </Button>
               <ConfirmationDialog
@@ -82,11 +118,12 @@
                 @confirm="runCleanup"
               >
                 <template #trigger>
-                  <Button :disabled="cleanupRunning">
+                  <Button :disabled="cleanupRunning || hasUnsavedChanges">
                     {{ cleanupRunning && cleanupMode === 'live' ? 'Running cleanup…' : 'Run cleanup now' }}
                   </Button>
                 </template>
               </ConfirmationDialog>
+              <span v-if="hasUnsavedChanges" class="text-sm text-text-secondary">Save changes before previewing cleanup.</span>
             </div>
 
             <Alert v-if="cleanupError" variant="destructive">
@@ -97,6 +134,11 @@
               <p class="text-sm text-text-primary">
                 {{ cleanupResult.dry_run ? 'Preview' : 'Cleanup complete' }} — {{ cleanupResult.total_deleted }} rows
                 {{ cleanupResult.dry_run ? 'would be removed' : 'removed' }}.
+              </p>
+              <p class="text-xs text-text-secondary">
+                Backend policy used: successful task history {{ cleanupResult.policy.task_successful_days }} days,
+                failed task history {{ cleanupResult.policy.task_unsuccessful_days }} days,
+                operational logs {{ cleanupResult.policy.worker_events_days }} days.
               </p>
               <div class="overflow-x-auto">
                 <table class="min-w-full text-sm">
@@ -180,40 +222,25 @@ import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { useConfigStore } from '~/stores/config'
-import type { DataRetentionConfigDTO, RetentionCleanupResponseDTO } from '~/services/apiClient'
+import type { DataRetentionConfigDTO, RetentionCleanupResponseDTO, RetentionScheduleConfigDTO } from '~/services/apiClient'
 
 const configStore = useConfigStore()
 
 const retentionFields: Array<{ key: keyof DataRetentionConfigDTO; label: string; description: string }> = [
   {
     key: 'task_successful_days',
-    label: 'Successful tasks',
+    label: 'Successful task history',
     description: 'How long to keep successful task snapshots, events, progress, and steps.',
   },
   {
     key: 'task_unsuccessful_days',
-    label: 'Unsuccessful tasks',
+    label: 'Failed task history',
     description: 'How long to keep failed, retried, revoked, or orphaned task history.',
   },
   {
     key: 'worker_events_days',
-    label: 'Worker events',
-    description: 'How long to keep worker lifecycle and status events.',
-  },
-  {
-    key: 'workflow_executions_days',
-    label: 'Workflow executions',
-    description: 'How long to keep workflow execution records.',
-  },
-  {
-    key: 'task_daily_stats_days',
-    label: 'Daily task stats',
-    description: 'How long to keep aggregated daily task statistics.',
-  },
-  {
-    key: 'inactive_sessions_days',
-    label: 'Inactive sessions',
-    description: 'How long to keep inactive anonymous sessions before cleanup.',
+    label: 'Operational logs',
+    description: 'How long to keep worker events and workflow execution records.',
   },
 ]
 
@@ -225,8 +252,14 @@ const retentionForm = ref<DataRetentionConfigDTO>({
   task_daily_stats_days: 365,
   inactive_sessions_days: 30,
 })
+const scheduleForm = ref<RetentionScheduleConfigDTO>({
+  enabled: false,
+  frequency: 'daily',
+  run_at: '03:00',
+})
 const isSaving = ref(false)
 const saveMessage = ref('')
+const saveStatus = ref<'success' | 'error' | ''>('')
 const cleanupRunning = ref(false)
 const cleanupMode = ref<'dry' | 'live' | null>(null)
 const cleanupResult = ref<RetentionCleanupResponseDTO | null>(null)
@@ -234,30 +267,63 @@ const cleanupError = ref('')
 
 const isLoading = computed(() => configStore.isLoading)
 const loadError = computed(() => configStore.error)
+const retentionLastRunSummary = computed(() => {
+  const lastRun = configStore.retentionLastRun
+  if (lastRun.status === 'never') {
+    return 'never run'
+  }
+  if (lastRun.status === 'running') {
+    return 'running now'
+  }
+  const finishedAt = lastRun.finished_at ? new Date(lastRun.finished_at).toLocaleString() : 'unknown finish time'
+  if (lastRun.status === 'error') {
+    return `failed at ${finishedAt}${lastRun.error ? `: ${lastRun.error}` : ''}`
+  }
+  return `${lastRun.total_deleted} rows removed at ${finishedAt}`
+})
+const hasUnsavedChanges = computed(() => {
+  return JSON.stringify(retentionForm.value) !== JSON.stringify(configStore.dataRetention)
+    || JSON.stringify(scheduleForm.value) !== JSON.stringify(configStore.retentionSchedule)
+})
 
 function syncFormFromStore() {
   retentionForm.value = { ...configStore.dataRetention }
+  scheduleForm.value = { ...configStore.retentionSchedule }
 }
 
 function resetRetentionForm() {
   syncFormFromStore()
   saveMessage.value = ''
+  saveStatus.value = ''
 }
 
 async function saveRetention() {
   try {
     isSaving.value = true
     saveMessage.value = ''
-    await configStore.updateDataRetention(retentionForm.value)
+    saveStatus.value = ''
+    await configStore.updateDataRetention({
+      ...retentionForm.value,
+      workflow_executions_days: retentionForm.value.worker_events_days,
+    })
+    await configStore.updateRetentionSchedule(scheduleForm.value)
+    syncFormFromStore()
     saveMessage.value = 'Retention settings saved.'
+    saveStatus.value = 'success'
   } catch (err) {
     saveMessage.value = err instanceof Error ? err.message : 'Failed to save retention settings.'
+    saveStatus.value = 'error'
   } finally {
     isSaving.value = false
   }
 }
 
 async function executeCleanup(dryRun: boolean) {
+  if (hasUnsavedChanges.value) {
+    cleanupError.value = 'Save retention settings before previewing or running cleanup.'
+    return
+  }
+
   try {
     cleanupRunning.value = true
     cleanupMode.value = dryRun ? 'dry' : 'live'

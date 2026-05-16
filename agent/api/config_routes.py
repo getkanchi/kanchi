@@ -99,6 +99,9 @@ def create_router(app_state) -> APIRouter:
         retention_service: RetentionService = Depends(get_retention_service)
     ):
         """Run retention cleanup, optionally as a dry-run preview."""
-        return retention_service.cleanup(dry_run=dry_run)
+        try:
+            return retention_service.cleanup(dry_run=dry_run)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     return router

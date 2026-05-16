@@ -11,7 +11,7 @@ from database import (
     UserSessionDB,
     WorkflowExecutionDB,
 )
-from services.retention_service import RetentionService
+from services.retention_service import RetentionService, _cleanup_lock
 from tests.base import DatabaseTestCase
 
 
@@ -60,6 +60,8 @@ class TestRetentionService(DatabaseTestCase):
         counts = {item.key: item.deleted for item in result.results}
 
         self.assertTrue(result.dry_run)
+        self.assertEqual(result.policy.task_successful_days, 14)
+        self.assertEqual(result.policy.task_unsuccessful_days, 30)
         self.assertEqual(counts["task_events_successful"], 1)
         self.assertEqual(counts["task_events_unsuccessful"], 0)
         self.assertEqual(counts["task_progress_successful"], 1)
@@ -89,6 +91,14 @@ class TestRetentionService(DatabaseTestCase):
         self.assertEqual(self.session.query(TaskProgressDB).count(), 1)
         self.assertEqual(self.session.query(UserSessionDB).count(), 1)
         self.assertGreaterEqual(result.total_deleted, 11)
+
+    def test_cleanup_rejects_overlapping_runs(self):
+        self.assertTrue(_cleanup_lock.acquire(blocking=False))
+        try:
+            with self.assertRaises(RuntimeError):
+                self.service.cleanup(dry_run=True)
+        finally:
+            _cleanup_lock.release()
 
 
 if __name__ == "__main__":
