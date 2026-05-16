@@ -268,6 +268,43 @@ class WorkerEvent(BaseModel):
         )
 
 
+class QueueHealthSummary(BaseModel):
+    queue_name: str
+    active_tasks: int = 0
+    recent_failures: int = 0
+    throughput_last_hour: int = 0
+    workers: List[str] = Field(default_factory=list)
+    status: Literal['healthy', 'warning', 'critical'] = 'healthy'
+    summary: str
+
+
+class QueueWorkerNote(BaseModel):
+    entity_type: Literal['queue', 'worker']
+    entity_key: str
+    note: str
+    author: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class WorkerOperationalSummary(BaseModel):
+    hostname: str
+    status: str
+    active_tasks: int = 0
+    processed_tasks: int = 0
+    recent_failures: int = 0
+    active_queues: List[str] = Field(default_factory=list)
+    maintenance_state: Optional[str] = None
+    drain_state: Optional[str] = None
+    summary: str
+
+
+class QueueWorkerSurfaceResponse(BaseModel):
+    queues: List[QueueHealthSummary] = Field(default_factory=list)
+    workers: List[WorkerOperationalSummary] = Field(default_factory=list)
+    notes: List[QueueWorkerNote] = Field(default_factory=list)
+
+
 class ConnectionInfo(BaseModel):
     """WebSocket connection info"""
     status: str

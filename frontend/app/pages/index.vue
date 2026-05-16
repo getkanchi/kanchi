@@ -14,6 +14,14 @@
         />
       </div>
 
+      <div class="mb-6">
+        <QueueWorkerOperationsCard
+          :surface="queueWorkerSurfaceStore.surface"
+          :critical-queues="queueWorkerSurfaceStore.criticalQueues"
+          @save="handleSaveQueueWorkerNote"
+        />
+      </div>
+
       <!-- Failure & Orphaned Tasks Overview -->
       <div class="mb-6 flex flex-col gap-4 failure-insights-section">
         <TaskIssueSummary
@@ -207,6 +215,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { getTaskColumns } from "~/config/tableColumns"
 import DataTable from "~/components/data-table.vue"
 import WorkerStatusSummary from "~/components/WorkerStatusSummary.vue"
+import QueueWorkerOperationsCard from "~/components/QueueWorkerOperationsCard.vue"
 import CommandPalette from "~/components/CommandPalette.vue"
 import TaskIssueSummary from "~/components/TaskIssueSummary.vue"
 import RetryTaskConfirmDialog from "~/components/RetryTaskConfirmDialog.vue"
@@ -224,6 +233,7 @@ import {IconButton} from "~/components/common";
 
 const tasksStore = useTasksStore()
 const workersStore = useWorkersStore()
+const queueWorkerSurfaceStore = useQueueWorkerSurfaceStore()
 const orphanTasksStore = useOrphanTasksStore()
 const failedTasksStore = useFailedTasksStore()
 const configStore = useConfigStore()
@@ -415,6 +425,10 @@ async function handleRerunTask(taskId: string) {
   }
 }
 
+async function handleSaveQueueWorkerNote(payload: { entity_type: 'queue' | 'worker'; entity_key: string; note: string }) {
+  await queueWorkerSurfaceStore.saveNote(payload)
+}
+
 function openRetryDialog(task: TaskEventResponse, type: 'failed' | 'orphan') {
   retryDialogState.value = { task, type }
   retryDialogRef.value?.open()
@@ -562,6 +576,7 @@ watch(() => environmentStore.activeEnvironment, async () => {
     tasksStore.fetchRecentEvents(),
     tasksStore.fetchStats(),
     workersStore.fetchWorkers(),
+    queueWorkerSurfaceStore.fetchSurface(),
     orphanTasksStore.fetchOrphanedTasks(),
     failedTasksStore.fetchFailedTasks({ hours: failedTasksStore.lookbackHours })
   ])
@@ -593,6 +608,7 @@ onMounted(async () => {
     tasksStore.fetchRecentEvents(),
     tasksStore.fetchStats(),
     workersStore.fetchWorkers(),
+    queueWorkerSurfaceStore.fetchSurface(),
     orphanTasksStore.fetchOrphanedTasks(),
     failedTasksStore.fetchFailedTasks({ hours: failedTasksStore.lookbackHours })
   ])
@@ -614,6 +630,7 @@ onMounted(async () => {
     // Only fetch if WebSocket is not connected
     if (!wsStore.isConnected) {
       workersStore.fetchWorkers()
+      queueWorkerSurfaceStore.fetchSurface().catch(() => {})
     }
   }, 30000)
 })

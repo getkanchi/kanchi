@@ -126,6 +126,43 @@ export interface TaskProgressSnapshotResponse {
   history: TaskProgressEventResponse[]
 }
 
+export interface QueueHealthSummaryResponse {
+  queue_name: string
+  active_tasks: number
+  recent_failures: number
+  throughput_last_hour: number
+  workers: string[]
+  status: 'healthy' | 'warning' | 'critical'
+  summary: string
+}
+
+export interface WorkerOperationalSummaryResponse {
+  hostname: string
+  status: string
+  active_tasks: number
+  processed_tasks: number
+  recent_failures: number
+  active_queues: string[]
+  maintenance_state?: string | null
+  drain_state?: string | null
+  summary: string
+}
+
+export interface QueueWorkerNoteResponse {
+  entity_type: 'queue' | 'worker'
+  entity_key: string
+  note: string
+  author?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface QueueWorkerSurfaceResponse {
+  queues: QueueHealthSummaryResponse[]
+  workers: WorkerOperationalSummaryResponse[]
+  notes: QueueWorkerNoteResponse[]
+}
+
 class ApiService {
   private api: Api<unknown>
 
@@ -391,6 +428,23 @@ class ApiService {
 
   async getRecentWorkerEvents(limit = 50): Promise<any> {
     const response = await this.api.api.getRecentWorkerEventsApiWorkersEventsRecentGet({ limit })
+    return response.data
+  }
+
+  async getQueueWorkerSurface(): Promise<QueueWorkerSurfaceResponse> {
+    const response = await this.api.request({
+      path: '/api/worker-operations',
+      method: 'GET'
+    })
+    return response.data
+  }
+
+  async saveQueueWorkerNote(payload: { entity_type: 'queue' | 'worker'; entity_key: string; note: string; author?: string | null }): Promise<QueueWorkerNoteResponse> {
+    const response = await this.api.request({
+      path: '/api/workers/notes',
+      method: 'POST',
+      body: payload
+    })
     return response.data
   }
 
@@ -765,7 +819,9 @@ export type {
   AppConfigSnapshotDTO,
   AppSettingDTO,
   AppSettingInput,
-  TaskIssueConfigDTO
+  TaskIssueConfigDTO,
+  QueueWorkerSurfaceResponse,
+  QueueWorkerNoteResponse
 }
 
 // Re-export session types from auto-generated API
