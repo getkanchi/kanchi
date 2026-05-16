@@ -47,10 +47,10 @@ export const useOrphanTasksStore = defineStore('orphanTasks', () => {
     }
   }
 
-  async function retryOrphanedTask(taskId: string) {
+  async function retryOrphanedTask(taskId: string, policy?: Record<string, unknown>) {
     try {
       error.value = null
-      await apiService.retryTask(taskId)
+      await apiService.retryTask(taskId, policy)
       orphanedTasks.value = orphanedTasks.value.filter(task => task.task_id !== taskId)
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to retry orphaned task'

@@ -132,10 +132,20 @@ export const useTasksStore = defineStore('tasks', () => {
     }
   }
 
-  async function retryTask(taskId: string) {
+  async function getRetryPreview(taskId: string, maxAttempts = 3) {
     try {
       error.value = null
-      const result = await apiService.retryTask(taskId)
+      return await apiService.getRetryPreview(taskId, maxAttempts)
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to preview retry impact'
+      throw err
+    }
+  }
+
+  async function retryTask(taskId: string, policy?: Record<string, unknown>) {
+    try {
+      error.value = null
+      const result = await apiService.retryTask(taskId, policy)
       await fetchRecentEvents()
       return result
     } catch (err) {
@@ -346,6 +356,7 @@ export const useTasksStore = defineStore('tasks', () => {
     fetchStats,
     fetchRecentEvents,
     fetchActiveTasks,
+    getRetryPreview,
     retryTask,
     getTaskEvents,
     getTaskProgress,

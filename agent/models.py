@@ -71,6 +71,7 @@ class TaskEvent(BaseModel):
             traceback=event.get('traceback'),
         )
 
+
     @field_validator('args', mode='before')
     @classmethod
     def validate_args(cls, v):
@@ -131,6 +132,34 @@ class TaskEvent(BaseModel):
 
 
 TaskEvent.model_rebuild()
+
+class RetryTaskRequest(BaseModel):
+    """Operator-selected retry policy for a manual retry."""
+    mode: Literal["immediate", "delayed"] = "immediate"
+    delay_seconds: int = Field(default=0, ge=0, le=86400)
+    max_attempts: int = Field(default=3, ge=1, le=25)
+    operator_comment: Optional[str] = Field(default=None, max_length=500)
+    override_kwargs: Optional[Dict[str, Any]] = None
+
+
+class RetryWarning(BaseModel):
+    """Risk warning emitted before or after a retry action."""
+    code: str
+    severity: Literal["warning", "critical"]
+    message: str
+
+
+class RetryImpactPreview(BaseModel):
+    """Preview of retry-chain impact and policy guardrails."""
+    task_id: str
+    task_name: Optional[str] = None
+    queue: Optional[str] = None
+    retry_count: int = 0
+    retry_chain: List[str] = Field(default_factory=list)
+    max_attempts: int
+    remaining_attempts: int
+    warnings: List[RetryWarning] = Field(default_factory=list)
+    allowed: bool = True
 
 
 class StepDefinition(BaseModel):

@@ -114,11 +114,11 @@ const toggleRowExpansion = (taskId: string | undefined) => {
   }
 }
 
-const handleRetryConfirm = async () => {
+const handleRetryConfirm = async (policy?: Record<string, unknown>) => {
   if (!currentRetryTaskId.value) return
   
   try {
-    const result = await tasksStore.retryTask(currentRetryTaskId.value)
+    const result = await tasksStore.retryTask(currentRetryTaskId.value, policy)
     // Reset current retry task ID
     currentRetryTaskId.value = null
   } catch (error) {
