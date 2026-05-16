@@ -8,9 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException, Header, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from services import TaskService, EnvironmentService, SessionService, AppConfigService, ProgressService
+from services import TaskService, EnvironmentService, SessionService, AppConfigService, ProgressService, SuppressionService
 from database import TaskEventDB
-from models import TaskEvent, TaskProgressSnapshot
+from models import TaskEvent, TaskProgressSnapshot, TaskSuppressionRule, TaskSuppressionRuleCreate, TaskSuppressionMetrics
 from database import ensure_utc_isoformat
 from config import Config
 from security.auth import AuthenticatedUser
@@ -172,7 +172,41 @@ def create_router(app_state) -> APIRouter:
             limit=limit,
             exclude_retried=not include_retried
         )
+        SuppressionService(session).annotate_events(failed_tasks)
         return failed_tasks
+
+    @router.get("/task-suppressions", response_model=List[TaskSuppressionRule])
+    async def list_task_suppressions(
+        include_expired: bool = False,
+        session: Session = Depends(get_db),
+    ):
+        return SuppressionService(session).list_rules(include_expired=include_expired)
+
+    @router.post("/task-suppressions", response_model=TaskSuppressionRule)
+    def create_task_suppression(
+        payload: TaskSuppressionRuleCreate,
+        session: Session = Depends(get_db),
+    ):
+        return SuppressionService(session).create_rule(payload)
+
+    @router.delete("/task-suppressions/{rule_id}", status_code=204)
+    def delete_task_suppression(rule_id: str, session: Session = Depends(get_db)):
+        deleted = SuppressionService(session).delete_rule(rule_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Suppression rule not found")
+        return None
+
+    @router.get("/tasks/failed/suppression-metrics", response_model=TaskSuppressionMetrics)
+    async def get_failed_task_suppression_metrics(
+        hours: Optional[int] = Query(default=None, ge=1, le=168),
+        session: Session = Depends(get_db),
+        active_env = Depends(get_active_env)
+    ):
+        task_service = TaskService(session, active_env=active_env)
+        config_service = AppConfigService(session)
+        lookback_hours = hours if hours is not None else config_service.get_task_issue_lookback_hours()
+        failed_tasks = task_service.get_recent_failed_tasks(hours=lookback_hours, exclude_retried=True)
+        return SuppressionService(session).annotate_events(failed_tasks)
 
 
     @router.post("/tasks/{task_id}/resolve")

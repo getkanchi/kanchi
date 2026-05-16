@@ -5,6 +5,8 @@ import { Api } from '../src/types/api'
 import type {
   TaskStats,
   TaskEventResponse,
+  TaskSuppressionRule,
+  TaskSuppressionRuleCreate,
   WorkerInfo
 } from '../src/types/api'
 
@@ -64,6 +66,9 @@ export interface AppSettingInput {
 export interface TaskIssueConfigDTO {
   lookback_hours: number
 }
+
+export type TaskSuppressionRuleDTO = TaskSuppressionRule
+export type TaskSuppressionRuleInput = TaskSuppressionRuleCreate
 
 export interface DataRetentionConfigDTO {
   task_successful_days: number
@@ -376,6 +381,20 @@ class ApiService {
       query: params
     })
     return response.data
+  }
+
+  async listTaskSuppressions(includeExpired = false): Promise<TaskSuppressionRuleDTO[]> {
+    const response = await this.api.api.listTaskSuppressionsApiTaskSuppressionsGet({ includeExpired })
+    return response.data
+  }
+
+  async createTaskSuppression(payload: TaskSuppressionRuleInput): Promise<TaskSuppressionRuleDTO> {
+    const response = await this.api.api.createTaskSuppressionApiTaskSuppressionsPost(payload)
+    return response.data
+  }
+
+  async deleteTaskSuppression(ruleId: string): Promise<void> {
+    await this.api.api.deleteTaskSuppressionApiTaskSuppressionsRuleIdDelete(ruleId)
   }
 
   // Worker-related endpoints

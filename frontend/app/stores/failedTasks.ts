@@ -1,7 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref, computed, readonly } from 'vue'
 import { useApiService } from '../services/apiClient'
-import type { TaskEventResponse } from '../services/apiClient'
+import type { TaskEventResponse, TaskSuppressionRuleDTO } from '../services/apiClient'
+
+export type SuppressedTaskEvent = TaskEventResponse & {
+  suppressed?: boolean
+  suppression_rule_id?: string | null
+  suppression_reason?: string | null
+  suppression_expires_at?: string | null
+}
 
 const DEFAULT_LOOKBACK_HOURS = 24
 const MIN_LOOKBACK_HOURS = 1
@@ -18,17 +25,20 @@ function parseTimestamp(timestamp?: string | null): number | null {
 export const useFailedTasksStore = defineStore('failedTasks', () => {
   const apiService = useApiService()
 
-  const failedTasks = ref<TaskEventResponse[]>([])
+  const failedTasks = ref<SuppressedTaskEvent[]>([])
+  const suppressionRules = ref<TaskSuppressionRuleDTO[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   const lastFetchedAt = ref<Date | null>(null)
   const lookbackHours = ref(DEFAULT_LOOKBACK_HOURS)
   const lookbackWindowMs = computed(() => lookbackHours.value * 60 * 60 * 1000)
 
-  const totalFailedTasks = computed(() => failedTasks.value.length)
+  const activeFailedTasks = computed(() => failedTasks.value.filter(task => !task.suppressed))
+  const suppressedFailedTasks = computed(() => failedTasks.value.filter(task => task.suppressed))
+  const totalFailedTasks = computed(() => activeFailedTasks.value.length)
   const latestFailedTask = computed(() => failedTasks.value[0] || null)
 
-  function sortTasks(tasks: TaskEventResponse[]): TaskEventResponse[] {
+  function sortTasks(tasks: SuppressedTaskEvent[]): SuppressedTaskEvent[] {
     return [...tasks].sort((a, b) => {
       const aTime = parseTimestamp(a.timestamp) ?? 0
       const bTime = parseTimestamp(b.timestamp) ?? 0
@@ -36,7 +46,7 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
     })
   }
 
-  function setTasks(tasks: TaskEventResponse[]) {
+  function setTasks(tasks: SuppressedTaskEvent[]) {
     failedTasks.value = sortTasks(tasks)
   }
 
@@ -48,7 +58,7 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
     })
   }
 
-  function upsertFailedTask(task: TaskEventResponse) {
+  function upsertFailedTask(task: SuppressedTaskEvent) {
     if (!task.task_id) {
       return
     }
@@ -79,6 +89,43 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
         resolved_at: normalizedResolvedAt,
       } as TaskEventResponse & { resolved?: boolean; resolved_by?: string | null; resolved_at?: string | null }
     })
+  }
+
+  function matchesSuppressionRule(task: SuppressedTaskEvent, rule: TaskSuppressionRuleDTO): boolean {
+    if (rule.task_name !== task.task_name) {
+      return false
+    }
+    if (rule.expires_at) {
+      const expiresAt = parseTimestamp(rule.expires_at)
+      if (expiresAt !== null && expiresAt <= Date.now()) {
+        return false
+      }
+    }
+    if (rule.exception_contains) {
+      return (task.exception ?? '').includes(rule.exception_contains)
+    }
+    return true
+  }
+
+  function annotateSuppression(task: SuppressedTaskEvent): SuppressedTaskEvent {
+    const matchedRule = suppressionRules.value.find(rule => matchesSuppressionRule(task, rule))
+    if (!matchedRule) {
+      return {
+        ...task,
+        suppressed: false,
+        suppression_rule_id: null,
+        suppression_reason: null,
+        suppression_expires_at: null,
+      }
+    }
+
+    return {
+      ...task,
+      suppressed: true,
+      suppression_rule_id: matchedRule.id,
+      suppression_reason: matchedRule.reason,
+      suppression_expires_at: matchedRule.expires_at ?? null,
+    }
   }
 
   function shouldExclude(task: TaskEventResponse): boolean {
@@ -113,7 +160,9 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
         include_retried: options?.includeRetried ?? false
       })
 
-      const filtered = response.filter(task => !shouldExclude(task))
+      const filtered = response
+        .map(task => annotateSuppression(task as SuppressedTaskEvent))
+        .filter(task => !shouldExclude(task))
       setTasks(filtered)
       pruneExpired()
       lastFetchedAt.value = new Date()
@@ -152,7 +201,7 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
     }
   }
 
-  function updateFromLiveEvent(event: TaskEventResponse) {
+  function updateFromLiveEvent(event: SuppressedTaskEvent) {
     const environmentStore = useEnvironmentStore()
     const { matchesEnvironment } = useEnvironmentMatcher()
 
@@ -163,12 +212,14 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
     const eventType = event.event_type
 
     if (eventType === 'task-failed') {
-      if (shouldExclude(event)) {
-        removeFailedTask(event.task_id)
+      const annotatedEvent = annotateSuppression(event)
+
+      if (shouldExclude(annotatedEvent)) {
+        removeFailedTask(annotatedEvent.task_id)
         return
       }
 
-      const timestamp = parseTimestamp(event.timestamp)
+      const timestamp = parseTimestamp(annotatedEvent.timestamp)
       if (timestamp === null) {
         return
       }
@@ -178,7 +229,7 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
         return
       }
 
-      upsertFailedTask(event)
+      upsertFailedTask(annotatedEvent)
       pruneExpired()
       return
     }
@@ -189,8 +240,27 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
     }
   }
 
+  async function fetchSuppressionRules() {
+    suppressionRules.value = await apiService.listTaskSuppressions()
+  }
+
+  async function createSuppressionRule(payload: { task_name: string; reason: string; exception_contains?: string | null; expires_at?: string | null }) {
+    await apiService.createTaskSuppression(payload)
+    await fetchSuppressionRules()
+    await fetchFailedTasks({ hours: lookbackHours.value })
+  }
+
+  async function deleteSuppressionRule(ruleId: string) {
+    await apiService.deleteTaskSuppression(ruleId)
+    await fetchSuppressionRules()
+    await fetchFailedTasks({ hours: lookbackHours.value })
+  }
+
   return {
     failedTasks: readonly(failedTasks),
+    activeFailedTasks,
+    suppressedFailedTasks,
+    suppressionRules: readonly(suppressionRules),
     isLoading: readonly(isLoading),
     error: readonly(error),
     lastFetchedAt: readonly(lastFetchedAt),
@@ -200,6 +270,9 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
     latestFailedTask,
 
     fetchFailedTasks,
+    fetchSuppressionRules,
+    createSuppressionRule,
+    deleteSuppressionRule,
     setLookbackHours,
     updateFromLiveEvent,
     pruneExpired,

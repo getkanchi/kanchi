@@ -10,6 +10,7 @@ from .environment_service import EnvironmentService
 from .session_service import SessionService
 from .auth_service import AuthService
 from .app_config_service import AppConfigService
+from .suppression_service import SuppressionService
 from .retention_service import RetentionService
 
 __all__ = [
@@ -23,5 +24,6 @@ __all__ = [
     'SessionService',
     'AuthService',
     'AppConfigService',
+    'SuppressionService',
     'RetentionService'
 ]
