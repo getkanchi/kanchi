@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from services import TaskService, EnvironmentService, SessionService, AppConfigService, ProgressService
 from database import TaskEventDB
-from models import TaskEvent, TaskProgressSnapshot
+from models import TaskEvent, TaskProgressSnapshot, IncidentSummary
 from database import ensure_utc_isoformat
 from config import Config
 from security.auth import AuthenticatedUser
@@ -174,6 +174,24 @@ def create_router(app_state) -> APIRouter:
         )
         return failed_tasks
 
+
+    @router.get("/incidents/summaries", response_model=List[IncidentSummary])
+    async def get_incident_summaries(
+        hours: Optional[int] = Query(
+            default=None,
+            ge=1,
+            le=168,
+            description="Lookback window in hours (defaults to configured value)"
+        ),
+        limit: int = Query(default=12, ge=1, le=50),
+        session: Session = Depends(get_db),
+        active_env = Depends(get_active_env)
+    ):
+        """Get ranked incident summaries for current failure clusters."""
+        task_service = TaskService(session, active_env=active_env)
+        config_service = AppConfigService(session)
+        lookback_hours = hours if hours is not None else config_service.get_task_issue_lookback_hours()
+        return task_service.get_incident_summaries(hours=lookback_hours, limit=limit)
 
     @router.post("/tasks/{task_id}/resolve")
     async def resolve_task(

@@ -3,6 +3,7 @@
  */
 import { Api } from '../src/types/api'
 import type {
+  IncidentSummary,
   TaskStats,
   TaskEventResponse,
   WorkerInfo
@@ -375,6 +376,11 @@ class ApiService {
       method: 'GET',
       query: params
     })
+    return response.data
+  }
+
+  async getIncidentSummaries(params?: { hours?: number; limit?: number }): Promise<IncidentSummary[]> {
+    const response = await this.api.api.getIncidentSummariesApiIncidentsSummariesGet(params)
     return response.data
   }
 
@@ -759,6 +765,7 @@ export function useApiService(): ApiService {
 }
 
 export type {
+  IncidentSummary,
   TaskStats,
   TaskEventResponse,
   WorkerInfo,

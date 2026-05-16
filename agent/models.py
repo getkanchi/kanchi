@@ -208,6 +208,33 @@ class TaskProgressSnapshot(BaseModel):
     history: List[TaskProgressEvent] = Field(default_factory=list)
 
 
+class IncidentSummary(BaseModel):
+    """Compact failure-cluster summary for dashboard triage."""
+
+    incident_key: str
+    task_name: str
+    failure_count: int
+    unresolved_count: int
+    retried_task_count: int
+    retry_attempt_count: int
+    affected_workers: List[str] = Field(default_factory=list)
+    worker_count: int = 0
+    first_seen: datetime
+    last_seen: datetime
+    latest_task_id: str
+    latest_exception: Optional[str] = None
+    latest_status: str
+    severity: Literal['low', 'medium', 'high', 'critical']
+    urgency_score: int
+    recent_failure_count: int = 0
+
+    model_config = {
+        'json_encoders': {
+            datetime: lambda v: v.isoformat() if v else None
+        }
+    }
+
+
 class WorkerInfo(BaseModel):
     """Worker information model"""
     hostname: str

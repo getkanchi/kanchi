@@ -360,6 +360,7 @@ const props = withDefaults(defineProps<{
   itemActionDisabledIds?: string[]
   hideWhenEmpty?: boolean
   ignoreResolved?: boolean
+  externalSearchQuery?: string | null
 }>(), {
   status: 'info',
   isLoading: false,
@@ -376,6 +377,7 @@ const props = withDefaults(defineProps<{
   itemActionDisabledIds: () => [],
   hideWhenEmpty: false,
   ignoreResolved: false,
+  externalSearchQuery: null,
   showLookbackSelector: false,
   lookbackHours: null,
 })
@@ -610,6 +612,11 @@ watch(() => props.limit, (next) => {
 watch(() => [props.tasks, props.ignoreResolved], () => {
   currentPage.value = 0
 })
+
+watch(() => props.externalSearchQuery, (value) => {
+  searchQuery.value = value ?? ''
+  currentPage.value = 0
+}, { immediate: true })
 
 watch(filteredTasks, () => {
   const maxPage = Math.max(0, Math.ceil(totalFiltered.value / pageSizeSafe.value) - 1)
