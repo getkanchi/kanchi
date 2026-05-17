@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed, readonly } from 'vue'
+import { ref, computed } from 'vue'
 import {
   useApiService,
   type AppConfigSnapshotDTO,
@@ -260,10 +260,10 @@ export const useConfigStore = defineStore('config', () => {
   }
 
   return {
-    config: readonly(config),
-    settings: readonly(settings),
-    isLoading: readonly(isLoading),
-    error: readonly(error),
+    config,
+    settings,
+    isLoading,
+    error,
     taskIssueLookbackHours,
     dataRetention,
     retentionSchedule,

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed, readonly, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from './auth'
 import { useTasksStore } from './tasks'
@@ -232,13 +232,13 @@ export const useWebSocketStore = defineStore('websocket', () => {
   }
 
   return {
-    isConnected: readonly(isConnected),
-    isConnecting: readonly(isConnecting),
-    connectionInfo: readonly(connectionInfo),
-    error: readonly(error),
-    reconnectAttempts: readonly(reconnectAttempts),
-    clientFilters: readonly(clientFilters),
-    clientMode: readonly(clientMode),
+    isConnected,
+    isConnecting,
+    connectionInfo,
+    error,
+    reconnectAttempts,
+    clientFilters,
+    clientMode,
 
     canReconnect,
 

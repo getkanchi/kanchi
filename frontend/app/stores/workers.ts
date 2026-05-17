@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed, readonly } from 'vue'
+import { ref, computed } from 'vue'
 import { useApiService } from '../services/apiClient'
 import type { WorkerInfo } from '../services/apiClient'
 
@@ -119,10 +119,10 @@ export const useWorkersStore = defineStore('workers', () => {
   }
 
   return {
-    workers: readonly(workers),
-    recentWorkerEvents: readonly(recentWorkerEvents),
-    isLoading: readonly(isLoading),
-    error: readonly(error),
+    workers,
+    recentWorkerEvents,
+    isLoading,
+    error,
 
     activeWorkers,
     offlineWorkers,

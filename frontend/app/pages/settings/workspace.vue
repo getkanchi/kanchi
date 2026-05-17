@@ -50,9 +50,13 @@
             </div>
 
             <div class="md:col-span-3 grid gap-4 border-t border-border-subtle pt-4 md:grid-cols-3">
-              <label class="flex items-center gap-3 text-sm text-text-primary">
+              <label
+                for="automatic-cleanup"
+                class="flex items-center gap-3 text-sm text-text-primary"
+              >
                 <input
-                  v-model="scheduleForm.enabled"
+                  id="automatic-cleanup"
+                  v-model="scheduleEnabled"
                   type="checkbox"
                   class="h-4 w-4 rounded border-border-subtle text-brand-primary focus:ring-brand-primary"
                   :disabled="isSaving || isLoading"
@@ -65,20 +69,40 @@
                   id="cleanup-frequency"
                   v-model="scheduleForm.frequency"
                   class="w-full rounded-lg border border-border-subtle bg-background-surface px-3 py-2 text-sm text-text-primary focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
-                  :disabled="isSaving || isLoading || !scheduleForm.enabled"
+                  :disabled="isSaving || isLoading || !scheduleEnabled"
                 >
                   <option value="daily">Daily</option>
                   <option value="weekly">Weekly</option>
                 </select>
               </div>
               <div class="space-y-2">
-                <Label for="cleanup-run-at">Run time (UTC)</Label>
-                <Input
-                  id="cleanup-run-at"
-                  v-model="scheduleForm.run_at"
-                  type="time"
-                  :disabled="isSaving || isLoading || !scheduleForm.enabled"
-                />
+                <Label>Run time (UTC)</Label>
+                <div class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-2">
+                  <div class="space-y-1">
+                    <Label for="cleanup-run-hour" class="text-xs text-text-secondary">Hour</Label>
+                    <select
+                      id="cleanup-run-hour"
+                      v-model="runAtHour"
+                      class="w-full rounded-lg border border-border-subtle bg-background-surface px-3 py-2 text-sm text-text-primary focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+                      :disabled="isSaving || isLoading || !scheduleEnabled"
+                    >
+                      <option v-for="hour in hourOptions" :key="hour" :value="hour">{{ hour }}</option>
+                    </select>
+                  </div>
+                  <span class="pb-2 text-sm font-medium text-text-secondary">:</span>
+                  <div class="space-y-1">
+                    <Label for="cleanup-run-minute" class="text-xs text-text-secondary">Minute</Label>
+                    <select
+                      id="cleanup-run-minute"
+                      v-model="runAtMinute"
+                      class="w-full rounded-lg border border-border-subtle bg-background-surface px-3 py-2 text-sm text-text-primary focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+                      :disabled="isSaving || isLoading || !scheduleEnabled"
+                    >
+                      <option v-for="minute in minuteOptions" :key="minute" :value="minute">{{ minute }}</option>
+                    </select>
+                  </div>
+                </div>
+                <p class="text-xs text-text-secondary">24-hour UTC time: {{ scheduleForm.run_at }}</p>
               </div>
             </div>
 
@@ -93,7 +117,7 @@
             </div>
           </form>
 
-          <div class="rounded-2xl border border-border-subtle/80 bg-background-subtle p-4 space-y-4">
+          <div class="rounded-2xl border border-border-subtle bg-background-subtle p-4 space-y-4">
             <div>
               <h3 class="text-sm font-semibold text-text-primary">Cleanup</h3>
               <p class="mt-1 text-sm text-text-secondary">
@@ -213,7 +237,7 @@
 
 <script setup lang="ts">
 import { ArrowUpRight, Github, Sparkles } from 'lucide-vue-next'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import Alert from '~/components/alert/Alert.vue'
 import ConfirmationDialog from '~/components/ConfirmationDialog.vue'
 import ThemeToggle from '~/components/ThemeToggle.vue'
@@ -244,7 +268,7 @@ const retentionFields: Array<{ key: keyof DataRetentionConfigDTO; label: string;
   },
 ]
 
-const retentionForm = ref<DataRetentionConfigDTO>({
+const retentionForm = reactive<DataRetentionConfigDTO>({
   task_successful_days: 14,
   task_unsuccessful_days: 30,
   worker_events_days: 30,
@@ -252,11 +276,12 @@ const retentionForm = ref<DataRetentionConfigDTO>({
   task_daily_stats_days: 365,
   inactive_sessions_days: 30,
 })
-const scheduleForm = ref<RetentionScheduleConfigDTO>({
+const scheduleForm = reactive<RetentionScheduleConfigDTO>({
   enabled: false,
   frequency: 'daily',
   run_at: '03:00',
 })
+const scheduleEnabled = ref(false)
 const isSaving = ref(false)
 const saveMessage = ref('')
 const saveStatus = ref<'success' | 'error' | ''>('')
@@ -264,9 +289,30 @@ const cleanupRunning = ref(false)
 const cleanupMode = ref<'dry' | 'live' | null>(null)
 const cleanupResult = ref<RetentionCleanupResponseDTO | null>(null)
 const cleanupError = ref('')
+const hourOptions = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, '0'))
+const minuteOptions = Array.from({ length: 60 }, (_, index) => String(index).padStart(2, '0'))
 
 const isLoading = computed(() => configStore.isLoading)
 const loadError = computed(() => configStore.error)
+const runAtParts = computed(() => {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(scheduleForm.run_at ?? '')
+  return {
+    hour: match?.[1] ?? '03',
+    minute: match?.[2] ?? '00',
+  }
+})
+const runAtHour = computed({
+  get: () => runAtParts.value.hour,
+  set: (hour: string) => {
+    scheduleForm.run_at = `${hour}:${runAtParts.value.minute}`
+  },
+})
+const runAtMinute = computed({
+  get: () => runAtParts.value.minute,
+  set: (minute: string) => {
+    scheduleForm.run_at = `${runAtParts.value.hour}:${minute}`
+  },
+})
 const retentionLastRunSummary = computed(() => {
   const lastRun = configStore.retentionLastRun
   if (lastRun.status === 'never') {
@@ -282,13 +328,14 @@ const retentionLastRunSummary = computed(() => {
   return `${lastRun.total_deleted} rows removed at ${finishedAt}`
 })
 const hasUnsavedChanges = computed(() => {
-  return JSON.stringify(retentionForm.value) !== JSON.stringify(configStore.dataRetention)
-    || JSON.stringify(scheduleForm.value) !== JSON.stringify(configStore.retentionSchedule)
+  return JSON.stringify(retentionForm) !== JSON.stringify(configStore.dataRetention)
+    || JSON.stringify({ ...scheduleForm, enabled: scheduleEnabled.value }) !== JSON.stringify(configStore.retentionSchedule)
 })
 
 function syncFormFromStore() {
-  retentionForm.value = { ...configStore.dataRetention }
-  scheduleForm.value = { ...configStore.retentionSchedule }
+  Object.assign(retentionForm, configStore.dataRetention)
+  Object.assign(scheduleForm, configStore.retentionSchedule)
+  scheduleEnabled.value = configStore.retentionSchedule.enabled
 }
 
 function resetRetentionForm() {
@@ -303,10 +350,10 @@ async function saveRetention() {
     saveMessage.value = ''
     saveStatus.value = ''
     await configStore.updateDataRetention({
-      ...retentionForm.value,
-      workflow_executions_days: retentionForm.value.worker_events_days,
+      ...retentionForm,
+      workflow_executions_days: retentionForm.worker_events_days,
     })
-    await configStore.updateRetentionSchedule(scheduleForm.value)
+    await configStore.updateRetentionSchedule({ ...scheduleForm, enabled: scheduleEnabled.value })
     syncFormFromStore()
     saveMessage.value = 'Retention settings saved.'
     saveStatus.value = 'success'
