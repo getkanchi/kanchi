@@ -49,60 +49,93 @@
               <p class="text-xs text-text-secondary">{{ field.description }}</p>
             </div>
 
-            <div class="md:col-span-3 grid gap-4 border-t border-border-subtle pt-4 md:grid-cols-3">
-              <label
-                for="automatic-cleanup"
-                class="flex items-center gap-3 text-sm text-text-primary"
-              >
-                <input
-                  id="automatic-cleanup"
-                  v-model="scheduleEnabled"
-                  type="checkbox"
-                  class="h-4 w-4 rounded border-border-subtle text-brand-primary focus:ring-brand-primary"
-                  :disabled="isSaving || isLoading"
-                />
-                Automatic cleanup
-              </label>
-              <div class="space-y-2">
-                <Label for="cleanup-frequency">Frequency</Label>
-                <select
-                  id="cleanup-frequency"
-                  v-model="scheduleForm.frequency"
-                  class="w-full rounded-lg border border-border-subtle bg-background-surface px-3 py-2 text-sm text-text-primary focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
-                  :disabled="isSaving || isLoading || !scheduleEnabled"
-                >
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                </select>
-              </div>
-              <div class="space-y-2">
-                <Label>Run time (UTC)</Label>
-                <div class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-2">
-                  <div class="space-y-1">
-                    <Label for="cleanup-run-hour" class="text-xs text-text-secondary">Hour</Label>
+            <div class="md:col-span-3 border-t border-border-subtle pt-4">
+              <div class="space-y-4 rounded-lg border border-border-subtle bg-background-subtle p-4">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <label
+                    for="automatic-cleanup"
+                    class="flex items-center gap-3 text-sm font-medium text-text-primary"
+                  >
+                    <input
+                      id="automatic-cleanup"
+                      v-model="scheduleEnabled"
+                      type="checkbox"
+                      class="h-4 w-4 rounded border-border-subtle text-brand-primary focus:ring-brand-primary"
+                      :disabled="isSaving || isLoading"
+                    />
+                    Automatic cleanup
+                  </label>
+                  <p class="text-xs text-text-secondary">{{ scheduleSummary }}</p>
+                </div>
+
+                <div class="grid gap-4 md:grid-cols-4">
+                  <div class="space-y-2">
+                    <Label for="cleanup-schedule">Schedule</Label>
                     <select
-                      id="cleanup-run-hour"
-                      v-model="runAtHour"
+                      id="cleanup-schedule"
+                      v-model="scheduleForm.preset"
                       class="w-full rounded-lg border border-border-subtle bg-background-surface px-3 py-2 text-sm text-text-primary focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
                       :disabled="isSaving || isLoading || !scheduleEnabled"
                     >
-                      <option v-for="hour in hourOptions" :key="hour" :value="hour">{{ hour }}</option>
+                      <option value="hourly">Hourly</option>
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
                     </select>
                   </div>
-                  <span class="pb-2 text-sm font-medium text-text-secondary">:</span>
-                  <div class="space-y-1">
-                    <Label for="cleanup-run-minute" class="text-xs text-text-secondary">Minute</Label>
+
+                  <div v-if="scheduleForm.preset === 'weekly'" class="space-y-2">
+                    <Label for="cleanup-run-weekday">Weekday</Label>
                     <select
-                      id="cleanup-run-minute"
-                      v-model="runAtMinute"
+                      id="cleanup-run-weekday"
+                      v-model.number="scheduleForm.weekday"
                       class="w-full rounded-lg border border-border-subtle bg-background-surface px-3 py-2 text-sm text-text-primary focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
                       :disabled="isSaving || isLoading || !scheduleEnabled"
                     >
-                      <option v-for="minute in minuteOptions" :key="minute" :value="minute">{{ minute }}</option>
+                      <option v-for="day in weekdayOptions" :key="day.value" :value="day.value">{{ day.label }}</option>
+                    </select>
+                  </div>
+
+                  <div v-if="scheduleForm.preset === 'monthly'" class="space-y-2">
+                    <Label for="cleanup-run-month-day">Day of month</Label>
+                    <select
+                      id="cleanup-run-month-day"
+                      v-model.number="scheduleForm.month_day"
+                      class="w-full rounded-lg border border-border-subtle bg-background-surface px-3 py-2 text-sm text-text-primary focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+                      :disabled="isSaving || isLoading || !scheduleEnabled"
+                    >
+                      <option v-for="day in monthDayOptions" :key="day" :value="day">{{ day }}</option>
+                    </select>
+                  </div>
+
+                  <div v-if="scheduleForm.preset !== 'hourly'" class="space-y-2">
+                    <Label for="cleanup-run-hour">Hour</Label>
+                    <select
+                      id="cleanup-run-hour"
+                      v-model.number="scheduleForm.hour"
+                      class="w-full rounded-lg border border-border-subtle bg-background-surface px-3 py-2 text-sm text-text-primary focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+                      :disabled="isSaving || isLoading || !scheduleEnabled"
+                    >
+                      <option v-for="hour in hourOptions" :key="hour" :value="hour">{{ formatTwoDigit(hour) }}</option>
+                    </select>
+                  </div>
+
+                  <div class="space-y-2">
+                    <Label for="cleanup-run-minute">Minute</Label>
+                    <select
+                      id="cleanup-run-minute"
+                      v-model.number="scheduleForm.minute"
+                      class="w-full rounded-lg border border-border-subtle bg-background-surface px-3 py-2 text-sm text-text-primary focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+                      :disabled="isSaving || isLoading || !scheduleEnabled"
+                    >
+                      <option v-for="minute in minuteOptions" :key="minute" :value="minute">{{ formatTwoDigit(minute) }}</option>
                     </select>
                   </div>
                 </div>
-                <p class="text-xs text-text-secondary">24-hour UTC time: {{ scheduleForm.run_at }}</p>
+
+                <p v-if="scheduleForm.preset === 'monthly'" class="text-xs text-text-secondary">
+                  Days past the end of a month run on that month's final day.
+                </p>
               </div>
             </div>
 
@@ -174,7 +207,7 @@
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="result in cleanupResult.results" :key="result.key" class="border-b border-border-subtle/60 last:border-0">
+                    <tr v-for="result in cleanupResult.results" :key="result.key" class="border-b border-border-subtle last:border-0">
                       <td class="py-2 pr-4 text-text-primary">{{ result.label }}</td>
                       <td class="py-2 pr-4 text-text-secondary">{{ result.retention_days }}</td>
                       <td class="py-2 text-text-secondary">{{ result.deleted }}</td>
@@ -278,8 +311,12 @@ const retentionForm = reactive<DataRetentionConfigDTO>({
 })
 const scheduleForm = reactive<RetentionScheduleConfigDTO>({
   enabled: false,
-  frequency: 'daily',
-  run_at: '03:00',
+  preset: 'daily',
+  hour: 3,
+  minute: 0,
+  weekday: 0,
+  month_day: 1,
+  timezone: 'UTC',
 })
 const scheduleEnabled = ref(false)
 const isSaving = ref(false)
@@ -289,29 +326,37 @@ const cleanupRunning = ref(false)
 const cleanupMode = ref<'dry' | 'live' | null>(null)
 const cleanupResult = ref<RetentionCleanupResponseDTO | null>(null)
 const cleanupError = ref('')
-const hourOptions = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, '0'))
-const minuteOptions = Array.from({ length: 60 }, (_, index) => String(index).padStart(2, '0'))
+const savedRetentionSnapshot = ref('')
+const savedScheduleSnapshot = ref('')
+const hourOptions = Array.from({ length: 24 }, (_, index) => index)
+const minuteOptions = Array.from({ length: 60 }, (_, index) => index)
+const monthDayOptions = Array.from({ length: 31 }, (_, index) => index + 1)
+const weekdayOptions = [
+  { value: 0, label: 'Monday' },
+  { value: 1, label: 'Tuesday' },
+  { value: 2, label: 'Wednesday' },
+  { value: 3, label: 'Thursday' },
+  { value: 4, label: 'Friday' },
+  { value: 5, label: 'Saturday' },
+  { value: 6, label: 'Sunday' },
+]
 
 const isLoading = computed(() => configStore.isLoading)
 const loadError = computed(() => configStore.error)
-const runAtParts = computed(() => {
-  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(scheduleForm.run_at ?? '')
-  return {
-    hour: match?.[1] ?? '03',
-    minute: match?.[2] ?? '00',
+const scheduleSummary = computed(() => {
+  const minute = formatTwoDigit(scheduleForm.minute ?? 0)
+  const time = `${formatTwoDigit(scheduleForm.hour ?? 0)}:${minute}`
+  if (scheduleForm.preset === 'hourly') {
+    return `Runs every hour at minute ${minute} UTC.`
   }
-})
-const runAtHour = computed({
-  get: () => runAtParts.value.hour,
-  set: (hour: string) => {
-    scheduleForm.run_at = `${hour}:${runAtParts.value.minute}`
-  },
-})
-const runAtMinute = computed({
-  get: () => runAtParts.value.minute,
-  set: (minute: string) => {
-    scheduleForm.run_at = `${runAtParts.value.hour}:${minute}`
-  },
+  if (scheduleForm.preset === 'weekly') {
+    const weekday = weekdayOptions.find(day => day.value === scheduleForm.weekday)?.label ?? 'Monday'
+    return `Runs every ${weekday} at ${time} UTC.`
+  }
+  if (scheduleForm.preset === 'monthly') {
+    return `Runs on day ${scheduleForm.month_day ?? 1} of each month at ${time} UTC.`
+  }
+  return `Runs daily at ${time} UTC.`
 })
 const retentionLastRunSummary = computed(() => {
   const lastRun = configStore.retentionLastRun
@@ -328,20 +373,79 @@ const retentionLastRunSummary = computed(() => {
   return `${lastRun.total_deleted} rows removed at ${finishedAt}`
 })
 const hasUnsavedChanges = computed(() => {
-  return JSON.stringify(retentionForm) !== JSON.stringify(configStore.dataRetention)
-    || JSON.stringify({ ...scheduleForm, enabled: scheduleEnabled.value }) !== JSON.stringify(configStore.retentionSchedule)
+  return retentionSnapshot() !== savedRetentionSnapshot.value
+    || scheduleSnapshot() !== savedScheduleSnapshot.value
 })
 
 function syncFormFromStore() {
   Object.assign(retentionForm, configStore.dataRetention)
+  retentionForm.workflow_executions_days = retentionForm.worker_events_days
   Object.assign(scheduleForm, configStore.retentionSchedule)
   scheduleEnabled.value = configStore.retentionSchedule.enabled
+  markFormSaved()
 }
 
 function resetRetentionForm() {
   syncFormFromStore()
   saveMessage.value = ''
   saveStatus.value = ''
+}
+
+function formatTwoDigit(value: number) {
+  return String(value).padStart(2, '0')
+}
+
+function normalizeRetentionConfig(config: DataRetentionConfigDTO): Required<DataRetentionConfigDTO> {
+  const workerEventsDays = Number(config.worker_events_days ?? 30)
+  return {
+    task_successful_days: Number(config.task_successful_days ?? 14),
+    task_unsuccessful_days: Number(config.task_unsuccessful_days ?? 30),
+    worker_events_days: workerEventsDays,
+    workflow_executions_days: workerEventsDays,
+    task_daily_stats_days: Number(config.task_daily_stats_days ?? 365),
+    inactive_sessions_days: Number(config.inactive_sessions_days ?? 30),
+  }
+}
+
+function normalizeScheduleConfig(config: RetentionScheduleConfigDTO): Record<string, boolean | number | string> {
+  const enabled = Boolean(config.enabled)
+  const preset = config.preset ?? 'daily'
+  const normalized: Record<string, boolean | number | string> = {
+    enabled,
+  }
+
+  if (!enabled) {
+    return normalized
+  }
+
+  normalized.preset = preset
+  normalized.minute = Number(config.minute ?? 0)
+  normalized.timezone = config.timezone ?? 'UTC'
+
+  if (preset !== 'hourly') {
+    normalized.hour = Number(config.hour ?? 3)
+  }
+  if (preset === 'weekly') {
+    normalized.weekday = Number(config.weekday ?? 0)
+  }
+  if (preset === 'monthly') {
+    normalized.month_day = Number(config.month_day ?? 1)
+  }
+
+  return normalized
+}
+
+function retentionSnapshot() {
+  return JSON.stringify(normalizeRetentionConfig(retentionForm))
+}
+
+function scheduleSnapshot() {
+  return JSON.stringify(normalizeScheduleConfig({ ...scheduleForm, enabled: scheduleEnabled.value }))
+}
+
+function markFormSaved() {
+  savedRetentionSnapshot.value = retentionSnapshot()
+  savedScheduleSnapshot.value = scheduleSnapshot()
 }
 
 async function saveRetention() {
@@ -354,7 +458,7 @@ async function saveRetention() {
       workflow_executions_days: retentionForm.worker_events_days,
     })
     await configStore.updateRetentionSchedule({ ...scheduleForm, enabled: scheduleEnabled.value })
-    syncFormFromStore()
+    markFormSaved()
     saveMessage.value = 'Retention settings saved.'
     saveStatus.value = 'success'
   } catch (err) {
@@ -396,9 +500,5 @@ onMounted(async () => {
     await configStore.fetchConfig()
   }
   syncFormFromStore()
-})
-
-definePageMeta({
-  middleware: [],
 })
 </script>

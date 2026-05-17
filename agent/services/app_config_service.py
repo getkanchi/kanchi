@@ -27,8 +27,12 @@ RETENTION_WORKFLOW_EXECUTIONS_DAYS_KEY = "data_retention.workflow_executions_day
 RETENTION_TASK_DAILY_STATS_DAYS_KEY = "data_retention.task_daily_stats_days"
 RETENTION_INACTIVE_SESSIONS_DAYS_KEY = "data_retention.inactive_sessions_days"
 RETENTION_SCHEDULE_ENABLED_KEY = "data_retention.schedule.enabled"
-RETENTION_SCHEDULE_FREQUENCY_KEY = "data_retention.schedule.frequency"
-RETENTION_SCHEDULE_RUN_AT_KEY = "data_retention.schedule.run_at"
+RETENTION_SCHEDULE_PRESET_KEY = "data_retention.schedule.preset"
+RETENTION_SCHEDULE_HOUR_KEY = "data_retention.schedule.hour"
+RETENTION_SCHEDULE_MINUTE_KEY = "data_retention.schedule.minute"
+RETENTION_SCHEDULE_WEEKDAY_KEY = "data_retention.schedule.weekday"
+RETENTION_SCHEDULE_MONTH_DAY_KEY = "data_retention.schedule.month_day"
+RETENTION_SCHEDULE_TIMEZONE_KEY = "data_retention.schedule.timezone"
 RETENTION_LAST_RUN_KEY = "data_retention.last_run"
 
 DEFAULT_SETTING_DEFINITIONS: Dict[str, Dict[str, Any]] = {
@@ -102,21 +106,57 @@ DEFAULT_SETTING_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "description": "Whether retention cleanup should run automatically.",
         "category": "data_retention",
     },
-    RETENTION_SCHEDULE_FREQUENCY_KEY: {
+    RETENTION_SCHEDULE_PRESET_KEY: {
         "default": "daily",
         "value_type": "string",
-        "label": "Automatic cleanup frequency",
+        "label": "Automatic cleanup schedule",
         "description": "How often automatic cleanup should run.",
         "category": "data_retention",
-        "allowed": {"daily", "weekly"},
+        "allowed": {"hourly", "daily", "weekly", "monthly"},
     },
-    RETENTION_SCHEDULE_RUN_AT_KEY: {
-        "default": "03:00",
-        "value_type": "string",
-        "label": "Automatic cleanup time",
-        "description": "UTC time when automatic cleanup should run.",
+    RETENTION_SCHEDULE_HOUR_KEY: {
+        "default": 3,
+        "value_type": "number",
+        "label": "Automatic cleanup hour",
+        "description": "UTC hour when automatic cleanup should run.",
         "category": "data_retention",
-        "pattern": r"^([01]\d|2[0-3]):[0-5]\d$",
+        "min": 0,
+        "max": 23,
+    },
+    RETENTION_SCHEDULE_MINUTE_KEY: {
+        "default": 0,
+        "value_type": "number",
+        "label": "Automatic cleanup minute",
+        "description": "UTC minute when automatic cleanup should run.",
+        "category": "data_retention",
+        "min": 0,
+        "max": 59,
+    },
+    RETENTION_SCHEDULE_WEEKDAY_KEY: {
+        "default": 0,
+        "value_type": "number",
+        "label": "Automatic cleanup weekday",
+        "description": "UTC weekday for weekly automatic cleanup. Monday is 0.",
+        "category": "data_retention",
+        "min": 0,
+        "max": 6,
+    },
+    RETENTION_SCHEDULE_MONTH_DAY_KEY: {
+        "default": 1,
+        "value_type": "number",
+        "label": "Automatic cleanup day of month",
+        "description": "UTC day of month for monthly automatic cleanup.",
+        "category": "data_retention",
+        "min": 1,
+        "max": 31,
+    },
+    RETENTION_SCHEDULE_TIMEZONE_KEY: {
+        "default": "UTC",
+        "value_type": "string",
+        "label": "Automatic cleanup timezone",
+        "description": "Timezone used for automatic cleanup schedules.",
+        "category": "data_retention",
+        "allowed": {"UTC"},
     },
     RETENTION_LAST_RUN_KEY: {
         "default": {"status": "never", "total_deleted": 0, "dry_run": False, "results": []},
@@ -341,7 +381,7 @@ class AppConfigService:
     def get_data_retention_config(self) -> DataRetentionConfig:
         """Return normalized data retention configuration."""
         self.ensure_defaults()
-        return DataRetentionConfig(
+        policy = DataRetentionConfig(
             task_successful_days=self._get_bounded_number_setting(RETENTION_TASK_SUCCESSFUL_DAYS_KEY),
             task_unsuccessful_days=self._get_bounded_number_setting(RETENTION_TASK_UNSUCCESSFUL_DAYS_KEY),
             worker_events_days=self._get_bounded_number_setting(RETENTION_WORKER_EVENTS_DAYS_KEY),
@@ -349,6 +389,18 @@ class AppConfigService:
             task_daily_stats_days=self._get_bounded_number_setting(RETENTION_TASK_DAILY_STATS_DAYS_KEY),
             inactive_sessions_days=self._get_bounded_number_setting(RETENTION_INACTIVE_SESSIONS_DAYS_KEY),
         )
+        logger.info(
+            "Data retention policy loaded: task_successful_days=%s "
+            "task_unsuccessful_days=%s worker_events_days=%s workflow_executions_days=%s "
+            "task_daily_stats_days=%s inactive_sessions_days=%s",
+            policy.task_successful_days,
+            policy.task_unsuccessful_days,
+            policy.worker_events_days,
+            policy.workflow_executions_days,
+            policy.task_daily_stats_days,
+            policy.inactive_sessions_days,
+        )
+        return policy
 
     def get_retention_schedule_config(self) -> RetentionScheduleConfig:
         """Return normalized automatic retention cleanup schedule."""
@@ -359,15 +411,35 @@ class AppConfigService:
         except ValueError:
             enabled = False
 
-        frequency = str(self.get_setting_value(RETENTION_SCHEDULE_FREQUENCY_KEY, "daily"))
-        if frequency not in {"daily", "weekly"}:
-            frequency = "daily"
+        preset = str(self.get_setting_value(RETENTION_SCHEDULE_PRESET_KEY, "daily"))
+        if preset not in {"hourly", "daily", "weekly", "monthly"}:
+            preset = "daily"
 
-        run_at = str(self.get_setting_value(RETENTION_SCHEDULE_RUN_AT_KEY, "03:00"))
-        if not re.match(r"^([01]\d|2[0-3]):[0-5]\d$", run_at):
-            run_at = "03:00"
+        timezone_value = str(self.get_setting_value(RETENTION_SCHEDULE_TIMEZONE_KEY, "UTC"))
+        if timezone_value != "UTC":
+            timezone_value = "UTC"
 
-        return RetentionScheduleConfig(enabled=enabled, frequency=frequency, run_at=run_at)
+        schedule = RetentionScheduleConfig(
+            enabled=enabled,
+            preset=preset,
+            hour=self._get_bounded_number_setting(RETENTION_SCHEDULE_HOUR_KEY),
+            minute=self._get_bounded_number_setting(RETENTION_SCHEDULE_MINUTE_KEY),
+            weekday=self._get_bounded_number_setting(RETENTION_SCHEDULE_WEEKDAY_KEY),
+            month_day=self._get_bounded_number_setting(RETENTION_SCHEDULE_MONTH_DAY_KEY),
+            timezone=timezone_value,
+        )
+        logger.info(
+            "Retention schedule loaded: enabled=%s preset=%s hour=%s minute=%s "
+            "weekday=%s month_day=%s timezone=%s",
+            schedule.enabled,
+            schedule.preset,
+            schedule.hour,
+            schedule.minute,
+            schedule.weekday,
+            schedule.month_day,
+            schedule.timezone,
+        )
+        return schedule
 
     def get_retention_last_run(self) -> RetentionLastRun:
         """Return the last automatic retention cleanup status."""
@@ -382,6 +454,16 @@ class AppConfigService:
 
     def set_retention_last_run(self, last_run: RetentionLastRun) -> AppSetting:
         """Persist the last automatic retention cleanup status."""
+        logger.info(
+            "Persisting retention last run: status=%s started_at=%s finished_at=%s "
+            "total_deleted=%s dry_run=%s error=%s",
+            last_run.status,
+            last_run.started_at.isoformat() if last_run.started_at else None,
+            last_run.finished_at.isoformat() if last_run.finished_at else None,
+            last_run.total_deleted,
+            last_run.dry_run,
+            last_run.error,
+        )
         return self.upsert_setting(
             RETENTION_LAST_RUN_KEY,
             AppSettingUpdate(

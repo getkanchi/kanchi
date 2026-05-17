@@ -556,16 +556,43 @@ export interface RetentionScheduleConfig {
    */
   enabled?: boolean;
   /**
-   * Frequency
+   * Preset
    * @default "daily"
    */
-  frequency?: "daily" | "weekly";
+  preset?: "hourly" | "daily" | "weekly" | "monthly";
   /**
-   * Run At
-   * @default "03:00"
-   * @pattern ^([01]\d|2[0-3]):[0-5]\d$
+   * Hour
+   * @min 0
+   * @max 23
+   * @default 3
    */
-  run_at?: string;
+  hour?: number;
+  /**
+   * Minute
+   * @min 0
+   * @max 59
+   * @default 0
+   */
+  minute?: number;
+  /**
+   * Weekday
+   * @min 0
+   * @max 6
+   * @default 0
+   */
+  weekday?: number;
+  /**
+   * Month Day
+   * @min 1
+   * @max 31
+   * @default 1
+   */
+  month_day?: number;
+  /**
+   * Timezone
+   * @default "UTC"
+   */
+  timezone?: "UTC";
 }
 
 /**

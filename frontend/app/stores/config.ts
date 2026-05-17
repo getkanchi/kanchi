@@ -31,13 +31,21 @@ const RETENTION_KEYS = {
 } as const
 const RETENTION_SCHEDULE_KEYS = {
   enabled: 'data_retention.schedule.enabled',
-  frequency: 'data_retention.schedule.frequency',
-  run_at: 'data_retention.schedule.run_at',
+  preset: 'data_retention.schedule.preset',
+  hour: 'data_retention.schedule.hour',
+  minute: 'data_retention.schedule.minute',
+  weekday: 'data_retention.schedule.weekday',
+  month_day: 'data_retention.schedule.month_day',
+  timezone: 'data_retention.schedule.timezone',
 } as const
 const RETENTION_SCHEDULE_DEFAULTS: RetentionScheduleConfigDTO = {
   enabled: false,
-  frequency: 'daily',
-  run_at: '03:00',
+  preset: 'daily',
+  hour: 3,
+  minute: 0,
+  weekday: 0,
+  month_day: 1,
+  timezone: 'UTC',
 }
 const RETENTION_LAST_RUN_DEFAULTS: RetentionLastRunDTO = {
   status: 'never',
@@ -86,8 +94,12 @@ export const useConfigStore = defineStore('config', () => {
   const retentionSchedule = computed<RetentionScheduleConfigDTO>(() => {
     return config.value?.retention_schedule ?? {
       enabled: Boolean(settingsMap.value[RETENTION_SCHEDULE_KEYS.enabled]?.value ?? RETENTION_SCHEDULE_DEFAULTS.enabled),
-      frequency: (settingsMap.value[RETENTION_SCHEDULE_KEYS.frequency]?.value as 'daily' | 'weekly' | undefined) ?? RETENTION_SCHEDULE_DEFAULTS.frequency,
-      run_at: String(settingsMap.value[RETENTION_SCHEDULE_KEYS.run_at]?.value ?? RETENTION_SCHEDULE_DEFAULTS.run_at),
+      preset: (settingsMap.value[RETENTION_SCHEDULE_KEYS.preset]?.value as 'hourly' | 'daily' | 'weekly' | 'monthly' | undefined) ?? RETENTION_SCHEDULE_DEFAULTS.preset,
+      hour: Number(settingsMap.value[RETENTION_SCHEDULE_KEYS.hour]?.value ?? RETENTION_SCHEDULE_DEFAULTS.hour),
+      minute: Number(settingsMap.value[RETENTION_SCHEDULE_KEYS.minute]?.value ?? RETENTION_SCHEDULE_DEFAULTS.minute),
+      weekday: Number(settingsMap.value[RETENTION_SCHEDULE_KEYS.weekday]?.value ?? RETENTION_SCHEDULE_DEFAULTS.weekday),
+      month_day: Number(settingsMap.value[RETENTION_SCHEDULE_KEYS.month_day]?.value ?? RETENTION_SCHEDULE_DEFAULTS.month_day),
+      timezone: String(settingsMap.value[RETENTION_SCHEDULE_KEYS.timezone]?.value ?? RETENTION_SCHEDULE_DEFAULTS.timezone) as 'UTC',
     }
   })
 
@@ -155,6 +167,9 @@ export const useConfigStore = defineStore('config', () => {
       const scheduleEntry = Object.entries(RETENTION_SCHEDULE_KEYS).find(([, settingKey]) => settingKey === key)
       if (scheduleEntry) {
         const [scheduleField] = scheduleEntry as [keyof RetentionScheduleConfigDTO, string]
+        const value = ['hour', 'minute', 'weekday', 'month_day'].includes(scheduleField)
+          ? Number(updated.value)
+          : updated.value
         config.value = {
           ...(config.value ?? {
             task_issue_summary: { lookback_hours: TASK_ISSUE_LOOKBACK_DEFAULT },
@@ -164,7 +179,7 @@ export const useConfigStore = defineStore('config', () => {
           }),
           retention_schedule: {
             ...retentionSchedule.value,
-            [scheduleField]: updated.value,
+            [scheduleField]: value,
           },
         }
       }
@@ -242,13 +257,33 @@ export const useConfigStore = defineStore('config', () => {
       value_type: 'boolean',
       category: 'data_retention'
     })
-    await upsertSetting(RETENTION_SCHEDULE_KEYS.frequency, {
-      value: values.frequency,
+    await upsertSetting(RETENTION_SCHEDULE_KEYS.preset, {
+      value: values.preset,
       value_type: 'string',
       category: 'data_retention'
     })
-    await upsertSetting(RETENTION_SCHEDULE_KEYS.run_at, {
-      value: values.run_at,
+    await upsertSetting(RETENTION_SCHEDULE_KEYS.hour, {
+      value: Number(values.hour),
+      value_type: 'number',
+      category: 'data_retention'
+    })
+    await upsertSetting(RETENTION_SCHEDULE_KEYS.minute, {
+      value: Number(values.minute),
+      value_type: 'number',
+      category: 'data_retention'
+    })
+    await upsertSetting(RETENTION_SCHEDULE_KEYS.weekday, {
+      value: Number(values.weekday),
+      value_type: 'number',
+      category: 'data_retention'
+    })
+    await upsertSetting(RETENTION_SCHEDULE_KEYS.month_day, {
+      value: Number(values.month_day),
+      value_type: 'number',
+      category: 'data_retention'
+    })
+    await upsertSetting(RETENTION_SCHEDULE_KEYS.timezone, {
+      value: values.timezone ?? 'UTC',
       value_type: 'string',
       category: 'data_retention'
     })

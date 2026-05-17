@@ -472,8 +472,12 @@ class DataRetentionConfig(BaseModel):
 class RetentionScheduleConfig(BaseModel):
     """Automatic retention cleanup schedule."""
     enabled: bool = False
-    frequency: Literal["daily", "weekly"] = "daily"
-    run_at: str = Field(default="03:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    preset: Literal["hourly", "daily", "weekly", "monthly"] = "daily"
+    hour: int = Field(default=3, ge=0, le=23)
+    minute: int = Field(default=0, ge=0, le=59)
+    weekday: int = Field(default=0, ge=0, le=6)
+    month_day: int = Field(default=1, ge=1, le=31)
+    timezone: Literal["UTC"] = "UTC"
 
 
 class RetentionCleanupResult(BaseModel):

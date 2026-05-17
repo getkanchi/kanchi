@@ -6,8 +6,11 @@ from services.app_config_service import (
     RETENTION_TASK_SUCCESSFUL_DAYS_KEY,
     RETENTION_TASK_UNSUCCESSFUL_DAYS_KEY,
     RETENTION_SCHEDULE_ENABLED_KEY,
-    RETENTION_SCHEDULE_FREQUENCY_KEY,
-    RETENTION_SCHEDULE_RUN_AT_KEY,
+    RETENTION_SCHEDULE_HOUR_KEY,
+    RETENTION_SCHEDULE_MINUTE_KEY,
+    RETENTION_SCHEDULE_MONTH_DAY_KEY,
+    RETENTION_SCHEDULE_PRESET_KEY,
+    RETENTION_SCHEDULE_WEEKDAY_KEY,
 )
 from models import AppSettingUpdate, RetentionLastRun
 from tests.base import DatabaseTestCase
@@ -66,37 +69,67 @@ class TestAppConfigService(DatabaseTestCase):
     def test_get_retention_schedule_uses_defaults_and_overrides(self):
         defaults = self.service.get_retention_schedule_config()
         self.assertFalse(defaults.enabled)
-        self.assertEqual(defaults.frequency, "daily")
-        self.assertEqual(defaults.run_at, "03:00")
+        self.assertEqual(defaults.preset, "daily")
+        self.assertEqual(defaults.hour, 3)
+        self.assertEqual(defaults.minute, 0)
+        self.assertEqual(defaults.weekday, 0)
+        self.assertEqual(defaults.month_day, 1)
+        self.assertEqual(defaults.timezone, "UTC")
 
         self.service.upsert_setting(
             RETENTION_SCHEDULE_ENABLED_KEY,
             AppSettingUpdate(value=True, value_type="boolean"),
         )
         self.service.upsert_setting(
-            RETENTION_SCHEDULE_FREQUENCY_KEY,
+            RETENTION_SCHEDULE_PRESET_KEY,
             AppSettingUpdate(value="weekly", value_type="string"),
         )
         self.service.upsert_setting(
-            RETENTION_SCHEDULE_RUN_AT_KEY,
-            AppSettingUpdate(value="04:30", value_type="string"),
+            RETENTION_SCHEDULE_HOUR_KEY,
+            AppSettingUpdate(value=4, value_type="number"),
+        )
+        self.service.upsert_setting(
+            RETENTION_SCHEDULE_MINUTE_KEY,
+            AppSettingUpdate(value=30, value_type="number"),
+        )
+        self.service.upsert_setting(
+            RETENTION_SCHEDULE_WEEKDAY_KEY,
+            AppSettingUpdate(value=2, value_type="number"),
+        )
+        self.service.upsert_setting(
+            RETENTION_SCHEDULE_MONTH_DAY_KEY,
+            AppSettingUpdate(value=16, value_type="number"),
         )
 
         updated = self.service.get_retention_schedule_config()
         self.assertTrue(updated.enabled)
-        self.assertEqual(updated.frequency, "weekly")
-        self.assertEqual(updated.run_at, "04:30")
+        self.assertEqual(updated.preset, "weekly")
+        self.assertEqual(updated.hour, 4)
+        self.assertEqual(updated.minute, 30)
+        self.assertEqual(updated.weekday, 2)
+        self.assertEqual(updated.month_day, 16)
+
+    def test_automatic_retention_cleanup_defaults_to_disabled_for_new_users(self):
+        setting = (
+            self.session.query(AppSettingDB)
+            .filter_by(key=RETENTION_SCHEDULE_ENABLED_KEY)
+            .first()
+        )
+        self.assertIsNotNone(setting)
+        self.assertIs(setting.value, False)
+        self.assertEqual(setting.value_type, "boolean")
+        self.assertFalse(self.service.get_retention_schedule_config().enabled)
 
     def test_retention_schedule_rejects_invalid_values(self):
         with self.assertRaises(ValueError):
             self.service.upsert_setting(
-                RETENTION_SCHEDULE_FREQUENCY_KEY,
-                AppSettingUpdate(value="hourly", value_type="string"),
+                RETENTION_SCHEDULE_PRESET_KEY,
+                AppSettingUpdate(value="yearly", value_type="string"),
             )
         with self.assertRaises(ValueError):
             self.service.upsert_setting(
-                RETENTION_SCHEDULE_RUN_AT_KEY,
-                AppSettingUpdate(value="25:00", value_type="string"),
+                RETENTION_SCHEDULE_HOUR_KEY,
+                AppSettingUpdate(value=24, value_type="number"),
             )
 
     def test_retention_last_run_round_trips(self):
