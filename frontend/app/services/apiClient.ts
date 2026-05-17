@@ -3,8 +3,15 @@
  */
 import { Api } from '../src/types/api'
 import type {
+  AppConfigSnapshot,
+  DataRetentionConfig,
+  RetentionCleanupResponse,
+  RetentionCleanupResult,
+  RetentionLastRun,
+  RetentionScheduleConfig,
   TaskStats,
   TaskEventResponse,
+  TaskIssueConfig,
   WorkerInfo
 } from '../src/types/api'
 
@@ -61,55 +68,13 @@ export interface AppSettingInput {
   category?: string | null
 }
 
-export interface TaskIssueConfigDTO {
-  lookback_hours: number
-}
-
-export interface DataRetentionConfigDTO {
-  task_successful_days: number
-  task_unsuccessful_days: number
-  worker_events_days: number
-  workflow_executions_days: number
-  task_daily_stats_days: number
-  inactive_sessions_days: number
-}
-
-export interface RetentionCleanupResultDTO {
-  key: string
-  label: string
-  retention_days: number
-  deleted: number
-}
-
-export interface RetentionCleanupResponseDTO {
-  dry_run: boolean
-  total_deleted: number
-  policy: DataRetentionConfigDTO
-  results: RetentionCleanupResultDTO[]
-}
-
-export interface RetentionScheduleConfigDTO {
-  enabled: boolean
-  frequency: 'daily' | 'weekly'
-  run_at: string
-}
-
-export interface RetentionLastRunDTO {
-  status: 'never' | 'success' | 'error' | 'running'
-  started_at?: string | null
-  finished_at?: string | null
-  total_deleted: number
-  dry_run: boolean
-  error?: string | null
-  results: RetentionCleanupResultDTO[]
-}
-
-export interface AppConfigSnapshotDTO {
-  task_issue_summary: TaskIssueConfigDTO
-  data_retention: DataRetentionConfigDTO
-  retention_schedule: RetentionScheduleConfigDTO
-  retention_last_run: RetentionLastRunDTO
-}
+export type TaskIssueConfigDTO = TaskIssueConfig
+export type DataRetentionConfigDTO = DataRetentionConfig
+export type RetentionCleanupResultDTO = RetentionCleanupResult
+export type RetentionCleanupResponseDTO = RetentionCleanupResponse
+export type RetentionScheduleConfigDTO = RetentionScheduleConfig
+export type RetentionLastRunDTO = RetentionLastRun
+export type AppConfigSnapshotDTO = AppConfigSnapshot
 
 export interface TaskStepDefinition {
   key: string

@@ -24,7 +24,11 @@ const props = withDefaults(defineProps<Props>(), {
 const [model, modifiers] = defineModel<string | number>({
   set(value) {
     if (modifiers.number) {
-      return value === '' ? '' : Number(value)
+      if (value === '') {
+        return ''
+      }
+      const parsedValue = Number.parseFloat(String(value))
+      return Number.isNaN(parsedValue) ? value : parsedValue
     }
     return value
   },

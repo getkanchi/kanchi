@@ -51,15 +51,15 @@
 
             <div class="md:col-span-3 grid gap-4 border-t border-border-subtle pt-4 md:grid-cols-3">
               <label
+                for="automatic-cleanup"
                 class="flex items-center gap-3 text-sm text-text-primary"
-                @click.prevent="toggleScheduleEnabled"
               >
                 <input
-                  :checked="scheduleEnabled"
+                  id="automatic-cleanup"
+                  v-model="scheduleEnabled"
                   type="checkbox"
                   class="h-4 w-4 rounded border-border-subtle text-brand-primary focus:ring-brand-primary"
                   :disabled="isSaving || isLoading"
-                  readonly
                 />
                 Automatic cleanup
               </label>
@@ -301,13 +301,6 @@ function resetRetentionForm() {
   syncFormFromStore()
   saveMessage.value = ''
   saveStatus.value = ''
-}
-
-function toggleScheduleEnabled() {
-  if (isSaving.value || isLoading.value) {
-    return
-  }
-  scheduleEnabled.value = !scheduleEnabled.value
 }
 
 async function saveRetention() {
