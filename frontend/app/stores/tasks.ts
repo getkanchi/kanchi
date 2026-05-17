@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed, readonly } from 'vue'
+import { ref, computed } from 'vue'
 import { useApiService } from '../services/apiClient'
 import type {
   TaskStats,
@@ -325,17 +325,17 @@ export const useTasksStore = defineStore('tasks', () => {
   }
 
   return {
-    stats: readonly(stats),
-    events: readonly(events),
-    activeTasks: readonly(activeTasks),
-    progressSnapshots: readonly(progressSnapshots),
-    pagination: readonly(pagination),
-    isLoading: readonly(isLoading),
-    error: readonly(error),
-    filters: readonly(filters),
-    paginationParams: readonly(paginationParams),
-    isLiveMode: readonly(isLiveMode),
-    lastRefreshTime: readonly(lastRefreshTime),
+    stats,
+    events,
+    activeTasks,
+    progressSnapshots,
+    pagination,
+    isLoading,
+    error,
+    filters,
+    paginationParams,
+    isLiveMode,
+    lastRefreshTime,
 
     hasNextPage,
     hasPrevPage,

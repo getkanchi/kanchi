@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+import logging
+import threading
 from typing import Callable, List
 
 from sqlalchemy import and_, not_, select
@@ -23,6 +25,9 @@ from database import (
 )
 from models import DataRetentionConfig, RetentionCleanupResponse, RetentionCleanupResult
 from services.app_config_service import AppConfigService
+
+logger = logging.getLogger(__name__)
+_cleanup_lock = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -44,33 +49,69 @@ class RetentionService:
         return self.config_service.get_data_retention_config()
 
     def cleanup(self, *, dry_run: bool = False) -> RetentionCleanupResponse:
-        policy = self.get_policy()
-        now = datetime.now(timezone.utc)
-        results: List[RetentionCleanupResult] = []
+        if not _cleanup_lock.acquire(blocking=False):
+            raise RuntimeError("Retention cleanup is already running")
 
-        for target in RETENTION_TARGETS:
-            retention_days = target.retention_days(policy)
-            cutoff = now - timedelta(days=retention_days)
-            deleted = target.apply(self.session, cutoff, dry_run)
-            results.append(
-                RetentionCleanupResult(
-                    key=target.key,
-                    label=target.label,
-                    retention_days=retention_days,
-                    deleted=deleted,
-                )
+        try:
+            policy = self.get_policy()
+            now = datetime.now(timezone.utc)
+            results: List[RetentionCleanupResult] = []
+            logger.info(
+                "Retention cleanup started: dry_run=%s now=%s "
+                "task_successful_days=%s task_unsuccessful_days=%s worker_events_days=%s "
+                "workflow_executions_days=%s task_daily_stats_days=%s inactive_sessions_days=%s",
+                dry_run,
+                now.isoformat(),
+                policy.task_successful_days,
+                policy.task_unsuccessful_days,
+                policy.worker_events_days,
+                policy.workflow_executions_days,
+                policy.task_daily_stats_days,
+                policy.inactive_sessions_days,
             )
 
-        if dry_run:
-            self.session.rollback()
-        else:
-            self.session.commit()
+            for target in RETENTION_TARGETS:
+                retention_days = target.retention_days(policy)
+                cutoff = now - timedelta(days=retention_days)
+                deleted = target.apply(self.session, cutoff, dry_run)
+                logger.info(
+                    "Retention cleanup target processed: key=%s label=%s dry_run=%s "
+                    "retention_days=%s cutoff=%s rows=%s",
+                    target.key,
+                    target.label,
+                    dry_run,
+                    retention_days,
+                    cutoff.isoformat(),
+                    deleted,
+                )
+                results.append(
+                    RetentionCleanupResult(
+                        key=target.key,
+                        label=target.label,
+                        retention_days=retention_days,
+                        deleted=deleted,
+                    )
+                )
 
-        return RetentionCleanupResponse(
-            dry_run=dry_run,
-            total_deleted=sum(item.deleted for item in results),
-            results=results,
-        )
+            if dry_run:
+                self.session.rollback()
+            else:
+                self.session.commit()
+
+            response = RetentionCleanupResponse(
+                dry_run=dry_run,
+                total_deleted=sum(item.deleted for item in results),
+                policy=policy,
+                results=results,
+            )
+            logger.info(
+                "Retention cleanup completed: dry_run=%s total_deleted=%s",
+                response.dry_run,
+                response.total_deleted,
+            )
+            return response
+        finally:
+            _cleanup_lock.release()
 
 
 def _delete_by_datetime(model, column_name: str):
