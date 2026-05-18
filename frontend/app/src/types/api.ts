@@ -239,7 +239,7 @@ export interface BulkTaskActionRequest {
    */
   task_ids?: string[];
   /** Action */
-  action: "retry" | "resolve" | "unresolve" | "annotate";
+  action: "retry" | "resolve" | "unresolve";
   /**
    * Dry Run
    * @default true
@@ -247,14 +247,12 @@ export interface BulkTaskActionRequest {
   dry_run?: boolean;
   /** Operator */
   operator?: string | null;
-  /** Comment */
-  comment?: string | null;
 }
 
 /** BulkTaskActionResult */
 export interface BulkTaskActionResult {
   /** Action */
-  action: "retry" | "resolve" | "unresolve" | "annotate";
+  action: "retry" | "resolve" | "unresolve";
   /** Dry Run */
   dry_run: boolean;
   /** Requested Count */

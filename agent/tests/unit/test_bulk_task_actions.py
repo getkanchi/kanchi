@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
 
-from database import TaskAnnotationDB
 from services.task_service import TaskService
 from models import BulkTaskActionRequest
 from tests.base import DatabaseTestCase
@@ -52,32 +51,3 @@ class TestBulkTaskActions(DatabaseTestCase):
         self.assertEqual(result.success_count, 1)
         self.assertEqual(result.failure_count, 1)
         self.assertTrue(TaskService(self.session).get_task_resolution("failed-1").resolved)
-
-    def test_annotate_requires_comment(self):
-        self.create_task_event_db(task_id="failed-1", event_type="task-failed")
-
-        result = TaskService(self.session).preview_bulk_task_action(BulkTaskActionRequest(
-            action="annotate",
-            dry_run=True,
-            task_ids=["failed-1"],
-        ))
-
-        self.assertEqual(result.executable_count, 0)
-        self.assertEqual(result.results[0].status, "skipped")
-
-    def test_execute_annotate_persists_annotation(self):
-        self.create_task_event_db(task_id="failed-1", event_type="task-failed")
-
-        result = TaskService(self.session).execute_bulk_task_action(BulkTaskActionRequest(
-            action="annotate",
-            dry_run=False,
-            task_ids=["failed-1"],
-            comment="Operator note",
-            operator="operator@example.test",
-        ))
-
-        self.assertEqual(result.success_count, 1)
-        annotations = self.session.query(TaskAnnotationDB).filter_by(task_id="failed-1").all()
-        self.assertEqual(len(annotations), 1)
-        self.assertEqual(annotations[0].comment, "Operator note")
-        self.assertEqual(annotations[0].operator, "operator@example.test")

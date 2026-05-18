@@ -93,14 +93,7 @@
             <option value="resolve">Resolve</option>
             <option value="unresolve">Unresolve</option>
             <option value="retry">Retry</option>
-            <option value="annotate">Annotate</option>
           </Select>
-          <input
-            v-if="bulkAction === 'annotate'"
-            v-model="bulkComment"
-            class="h-8 rounded-md border border-border bg-background-base px-2 text-sm text-text-primary placeholder:text-text-muted"
-            placeholder="Operator note"
-          />
           <Button variant="outline" size="xs" :disabled="isBulkBusy" @click="previewBulkAction">
             Preview
           </Button>
@@ -513,8 +506,7 @@ const bulkTaskActionsStore = useBulkTaskActionsStore()
 
 const expandedTaskIds = ref(new Set<string>())
 const selectedTaskIds = ref(new Set<string>())
-const bulkAction = ref<'retry' | 'resolve' | 'unresolve' | 'annotate'>('resolve')
-const bulkComment = ref('')
+const bulkAction = ref<'retry' | 'resolve' | 'unresolve'>('resolve')
 const bulkDialogOpen = ref(false)
 const searchQuery = ref('')
 const activeFilters = ref<ParsedFilter[]>([])
@@ -755,7 +747,7 @@ watch(filteredTasks, () => {
   }
 })
 
-watch([bulkAction, bulkComment], () => {
+watch(bulkAction, () => {
   bulkTaskActionsStore.reset()
 })
 
@@ -790,7 +782,6 @@ const bulkPayload = (dryRun: boolean) => ({
   task_ids: Array.from(selectedTaskIds.value),
   action: bulkAction.value,
   dry_run: dryRun,
-  comment: bulkComment.value || null,
 })
 
 const previewBulkAction = async () => {

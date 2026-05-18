@@ -136,10 +136,9 @@ TaskEvent.model_rebuild()
 class BulkTaskActionRequest(BaseModel):
     """Dry-run or execute a guarded action across selected tasks."""
     task_ids: List[str] = Field(default_factory=list, min_length=1, max_length=100)
-    action: Literal["retry", "resolve", "unresolve", "annotate"]
+    action: Literal["retry", "resolve", "unresolve"]
     dry_run: bool = True
     operator: Optional[str] = Field(default=None, max_length=120)
-    comment: Optional[str] = Field(default=None, max_length=500)
 
 
 class BulkTaskActionItemResult(BaseModel):
@@ -150,7 +149,7 @@ class BulkTaskActionItemResult(BaseModel):
 
 
 class BulkTaskActionResult(BaseModel):
-    action: Literal["retry", "resolve", "unresolve", "annotate"]
+    action: Literal["retry", "resolve", "unresolve"]
     dry_run: bool
     requested_count: int
     executable_count: int

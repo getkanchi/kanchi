@@ -11,7 +11,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 
-from database import TaskEventDB, RetryRelationshipDB, TaskLatestDB, TaskResolutionDB, TaskAnnotationDB
+from database import TaskEventDB, RetryRelationshipDB, TaskLatestDB, TaskResolutionDB
 from models import TaskEvent, BulkTaskActionRequest, BulkTaskActionResult, BulkTaskActionItemResult
 from constants import TaskState, EventType, STATE_TO_EVENT_MAP, ACTIVE_EVENT_TYPES
 from services.utils import EnvironmentFilter, GenericFilter, parse_filter_string
@@ -889,10 +889,6 @@ class TaskService:
             if request.action == "unresolve" and not (resolution and resolution.resolved):
                 results.append(BulkTaskActionItemResult(task_id=task_id, status="skipped", message="Task is not currently resolved."))
                 continue
-            if request.action == "annotate" and not request.comment:
-                results.append(BulkTaskActionItemResult(task_id=task_id, status="skipped", message="Annotation requires an operator comment."))
-                continue
-
             executable_count += 1
             results.append(BulkTaskActionItemResult(task_id=task_id, status="pending", message=f"Ready to {request.action}."))
 
@@ -925,9 +921,6 @@ class TaskService:
                 elif request.action == "unresolve":
                     self.clear_task_resolution(item.task_id)
                     message = "Task resolution cleared."
-                elif request.action == "annotate":
-                    self.record_task_annotation(item.task_id, request.comment or "", request.operator)
-                    message = "Annotation recorded."
                 else:
                     message = "Retry execution is handled by the API layer."
                 executed.append(BulkTaskActionItemResult(task_id=item.task_id, status="success", message=message))
@@ -945,22 +938,6 @@ class TaskService:
             warnings=preview.warnings,
             results=executed,
         )
-
-    def record_task_annotation(self, task_id: str, comment: str, operator: Optional[str] = None) -> TaskAnnotationDB:
-        """Persist an operator annotation for a task."""
-        annotation = TaskAnnotationDB(
-            task_id=task_id,
-            comment=comment,
-            operator=operator,
-        )
-        self.session.add(annotation)
-        self.session.commit()
-        logger.info(
-            "Task annotation recorded task_id=%s operator=%s",
-            task_id,
-            operator or "unknown",
-        )
-        return annotation
 
     def _update_task_latest_resolution(
         self,
