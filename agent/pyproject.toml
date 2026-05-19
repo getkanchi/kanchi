@@ -17,9 +17,8 @@ watchfiles = "1.1.1"
 pydantic = "2.12.5"
 sqlalchemy = "2.0.46"
 greenlet = "3.3.1" # Necessary for python 3.14 + sqlalchemy
-alembic = "1.18.3"
-psycopg = {extras = ["binary"], version = "3.3.2"}
-pymysql = "1.1.2"
+pymysql = {version = "1.1.2", optional = true}
+psycopg = {extras = ["binary"], version = "3.3.2", optional = true}
 asyncpg = {version = "0.31.0", optional = true}
 mysqlclient = {version = "2.2.7", optional = true}
 aiohttp = "3.13.3"
@@ -48,7 +47,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.black]
 line-length = 100
-target-version = ['py38', 'py39', 'py310', 'py311']
+target-version = ['py314']
 
 [tool.ruff]
 line-length = 100
@@ -63,7 +62,7 @@ select = [
 ]
 
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.14"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
