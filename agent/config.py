@@ -74,6 +74,7 @@ class Config:
     # Performance settings
     max_clients: int = int(os.getenv('MAX_WS_CLIENTS', 100))
     event_buffer_size: int = int(os.getenv('EVENT_BUFFER_SIZE', 1000))
+    task_action_max_selection: int = int(os.getenv('TASK_ACTION_MAX_SELECTION', 100))
 
     # CORS / Hosts
     allowed_origins: List[str] = field(default_factory=lambda: _split_csv(os.getenv('ALLOWED_ORIGINS')))

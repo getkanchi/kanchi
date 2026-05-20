@@ -175,7 +175,7 @@ export function getOrphanTaskColumns(options?: {
             e.stopPropagation() // Prevent row expansion
             options.onRetryClick?.(taskId)
           },
-          title: 'Retry Task'
+          title: 'Rerun Task'
         }, () => [
           h(RefreshCw, {
             class: [

@@ -132,16 +132,20 @@ export const useTasksStore = defineStore('tasks', () => {
     }
   }
 
-  async function retryTask(taskId: string) {
+  async function rerunTask(taskId: string) {
     try {
       error.value = null
-      const result = await apiService.retryTask(taskId)
+      const result = await apiService.rerunTask(taskId)
       await fetchRecentEvents()
       return result
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to retry task'
+      error.value = err instanceof Error ? err.message : 'Failed to rerun task'
       throw err
     }
+  }
+
+  async function retryTask(taskId: string) {
+    return rerunTask(taskId)
   }
 
   async function getTaskEvents(taskId: string): Promise<TaskEventResponse[]> {
@@ -346,6 +350,7 @@ export const useTasksStore = defineStore('tasks', () => {
     fetchStats,
     fetchRecentEvents,
     fetchActiveTasks,
+    rerunTask,
     retryTask,
     getTaskEvents,
     getTaskProgress,

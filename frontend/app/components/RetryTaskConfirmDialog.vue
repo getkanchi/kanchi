@@ -62,8 +62,8 @@ defineExpose({ open })
 <template>
   <ConfirmationDialog
     ref="confirmationDialogRef"
-    title="Retry Task"
-    confirm-text="Retry Task"
+    title="Rerun Task"
+    confirm-text="Rerun Task"
     cancel-text="Cancel"
     :is-loading="isLoading"
     @confirm="handleConfirm"

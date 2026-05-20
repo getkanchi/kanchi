@@ -11,7 +11,13 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 
-from database import TaskEventDB, RetryRelationshipDB, TaskLatestDB, TaskResolutionDB
+from database import (
+    TaskEventDB,
+    RetryRelationshipDB,
+    TaskLatestDB,
+    TaskResolutionDB,
+    TaskRerunRelationshipDB,
+)
 from models import TaskEvent
 from constants import TaskState, EventType, STATE_TO_EVENT_MAP, ACTIVE_EVENT_TYPES
 from services.utils import EnvironmentFilter, GenericFilter, parse_filter_string
@@ -94,12 +100,18 @@ class TaskService:
 
         if events:
             self._bulk_enrich_with_retry_info([events[0]])
+            self._bulk_enrich_with_rerun_info([events[0]])
             for i in range(1, len(events)):
                 events[i].retry_of = events[0].retry_of
                 events[i].retried_by = events[0].retried_by
                 events[i].is_retry = events[0].is_retry
                 events[i].has_retries = events[0].has_retries
                 events[i].retry_count = events[0].retry_count
+                events[i].rerun_of = events[0].rerun_of
+                events[i].rerun_by = events[0].rerun_by
+                events[i].is_rerun = events[0].is_rerun
+                events[i].has_reruns = events[0].has_reruns
+                events[i].rerun_count = events[0].rerun_count
 
         self._attach_resolution_info(events)
         return events
@@ -204,6 +216,7 @@ class TaskService:
 
         events = [self._db_to_task_event(event_db) for event_db in active_events_db]
         self._bulk_enrich_with_retry_info(events)
+        self._bulk_enrich_with_rerun_info(events)
         self._attach_resolution_info(events)
 
         return events
@@ -258,6 +271,7 @@ class TaskService:
 
         orphaned_events = [self._db_to_task_event(e) for e in orphaned_events_db]
         self._bulk_enrich_with_retry_info(orphaned_events)
+        self._bulk_enrich_with_rerun_info(orphaned_events)
         self._attach_resolution_info(orphaned_events)
 
         if not orphaned_events:
@@ -356,6 +370,7 @@ class TaskService:
 
         events = [self._db_to_task_event(event_db) for event_db in events_db]
         self._bulk_enrich_with_retry_info(events)
+        self._bulk_enrich_with_rerun_info(events)
         self._attach_resolution_info(events)
 
         return events
@@ -975,6 +990,64 @@ class TaskService:
             else:
                 self._set_default_retry_info(event)
 
+    def _bulk_enrich_with_rerun_info(self, events: List[TaskEvent]):
+        """
+        Bulk enrich multiple task events with manual rerun lineage.
+
+        Manual reruns are intentionally tracked separately from Celery/workflow
+        retry relationships, but the frontend needs the same one-level linking
+        behavior for task detail and table rows.
+        """
+        if not events:
+            return
+
+        task_ids = [event.task_id for event in events if event.task_id]
+        if not task_ids:
+            return
+
+        rels = (
+            self.session.query(TaskRerunRelationshipDB)
+            .filter(
+                or_(
+                    TaskRerunRelationshipDB.original_task_id.in_(task_ids),
+                    TaskRerunRelationshipDB.rerun_task_id.in_(task_ids),
+                )
+            )
+            .order_by(TaskRerunRelationshipDB.created_at.asc())
+            .all()
+        )
+
+        by_rerun_id = {rel.rerun_task_id: rel for rel in rels}
+        by_original_id: Dict[str, List[TaskRerunRelationshipDB]] = {}
+        related_ids = set()
+
+        for rel in rels:
+            by_original_id.setdefault(rel.original_task_id, []).append(rel)
+            if rel.rerun_task_id in task_ids:
+                related_ids.add(rel.original_task_id)
+            if rel.original_task_id in task_ids:
+                related_ids.add(rel.rerun_task_id)
+
+        related_tasks = self._fetch_related_tasks(related_ids) if related_ids else {}
+
+        for event in events:
+            rerun_rel = by_rerun_id.get(event.task_id)
+            if rerun_rel:
+                event.is_rerun = True
+                event.rerun_of = related_tasks.get(rerun_rel.original_task_id)
+            else:
+                event.is_rerun = False
+                event.rerun_of = None
+
+            child_rels = by_original_id.get(event.task_id, [])
+            event.rerun_by = [
+                related_tasks[rel.rerun_task_id]
+                for rel in child_rels
+                if rel.rerun_task_id in related_tasks
+            ]
+            event.has_reruns = bool(event.rerun_by)
+            event.rerun_count = len(child_rels)
+
     def _fetch_related_tasks(self, task_ids: set) -> Dict[str, TaskEvent]:
         """
         Fetch latest events for related tasks in bulk.
@@ -1155,6 +1228,7 @@ class TaskService:
 
         events = [self._db_to_task_event(event_db) for event_db in events_db]
         self._bulk_enrich_with_retry_info(events)
+        self._bulk_enrich_with_rerun_info(events)
         self._attach_resolution_info(events)
 
         return events, total_events
@@ -1221,6 +1295,7 @@ class TaskService:
 
         events = [self._db_to_task_event(event_db) for event_db in events_db]
         self._bulk_enrich_with_retry_info(events)
+        self._bulk_enrich_with_rerun_info(events)
         self._attach_resolution_info(events)
         return events, total_events
 

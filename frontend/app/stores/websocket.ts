@@ -6,6 +6,7 @@ import { useTasksStore } from './tasks'
 import { useWorkersStore } from './workers'
 import { useOrphanTasksStore } from './orphanTasks'
 import { useFailedTasksStore } from './failedTasks'
+import { useTaskActionsStore } from './taskActions'
 
 export interface WebSocketMessage {
   type: string
@@ -24,6 +25,7 @@ export const useWebSocketStore = defineStore('websocket', () => {
   const workersStore = useWorkersStore()
   const orphanTasksStore = useOrphanTasksStore()
   const failedTasksStore = useFailedTasksStore()
+  const taskActionsStore = useTaskActionsStore()
 
   const ws = ref<WebSocket | null>(null)
   const isConnected = ref(false)
@@ -167,9 +169,13 @@ export const useWebSocketStore = defineStore('websocket', () => {
           tasksStore.handleLiveEvent(message)
           orphanTasksStore.updateFromLiveEvent(message)
           failedTasksStore.updateFromLiveEvent(message)
+          taskActionsStore.handleTaskLifecycleEvent(message)
         }
         else if (eventType === 'kanchi-task-progress' || eventType === 'kanchi-task-steps') {
           tasksStore.handleProgressLiveEvent(message)
+        }
+        else if (eventType === 'kanchi-task-action') {
+          taskActionsStore.handleLiveEvent(message)
         }
         else if (eventType.startsWith('worker-')) {
           workersStore.updateFromLiveEvent(message)

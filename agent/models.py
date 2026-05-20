@@ -34,6 +34,11 @@ class TaskEvent(BaseModel):
     is_retry: bool = False
     has_retries: bool = False
     retry_count: int = 0
+    rerun_of: Optional['TaskEvent'] = None
+    rerun_by: List['TaskEvent'] = Field(default_factory=list)
+    is_rerun: bool = False
+    has_reruns: bool = False
+    rerun_count: int = 0
     is_orphan: bool = False
     orphaned_at: Optional[datetime] = None
     resolved: bool = False
@@ -206,6 +211,152 @@ class TaskProgressSnapshot(BaseModel):
     latest: Optional[TaskProgressEvent] = None
     steps: List[StepDefinition] = Field(default_factory=list)
     history: List[TaskProgressEvent] = Field(default_factory=list)
+
+
+class TaskActionType(str, Enum):
+    """Supported user-initiated task actions."""
+
+    RERUN = "rerun"
+    RESOLVE = "resolve"
+    UNRESOLVE = "unresolve"
+
+
+class TaskActionStatus(str, Enum):
+    """Overall persisted status for a task action."""
+
+    RUNNING = "running"
+    COMPLETED = "completed"
+    PARTIAL_SUCCESS = "partial_success"
+    FAILED = "failed"
+
+
+class TaskActionItemOutcome(str, Enum):
+    """Per-task outcome for a task action item."""
+
+    PENDING = "pending"
+    CHANGED = "changed"
+    NOOP = "noop"
+    CREATED = "created"
+    SKIPPED_UNAVAILABLE = "skipped_unavailable"
+    FAILED = "failed"
+
+
+class RerunUnavailableReason(str, Enum):
+    """Reasons a task cannot be manually rerun."""
+
+    TASK_NOT_FOUND = "task_not_found"
+    MISSING_TASK_NAME = "missing_task_name"
+    TRUNCATED_PAYLOAD = "truncated_payload"
+    UNPARSEABLE_PAYLOAD = "unparseable_payload"
+    MONITOR_UNAVAILABLE = "monitor_unavailable"
+
+
+class TaskActionCreateRequest(BaseModel):
+    """Create and execute a task action."""
+
+    action_type: TaskActionType
+    task_ids: List[str] = Field(min_length=1)
+
+
+class RerunPreflightRequest(BaseModel):
+    """Preflight manual rerun availability for selected tasks."""
+
+    task_ids: List[str] = Field(min_length=1)
+
+
+class RerunPreflightItem(BaseModel):
+    """Per-task rerun preflight result."""
+
+    task_id: str
+    task_name: Optional[str] = None
+    ready: bool = False
+    reason_code: Optional[str] = None
+    reason: Optional[str] = None
+    task: Optional[TaskEvent] = None
+
+
+class RerunPreflightResponse(BaseModel):
+    """Rerun preflight summary."""
+
+    total: int
+    ready_count: int
+    unavailable_count: int
+    max_selection_size: int
+    items: List[RerunPreflightItem] = Field(default_factory=list)
+
+
+class TaskActionItem(BaseModel):
+    """Per-task action item response."""
+
+    id: int
+    action_id: str
+    original_task_id: str
+    original_task_name: Optional[str] = None
+    outcome: TaskActionItemOutcome
+    reason_code: Optional[str] = None
+    reason: Optional[str] = None
+    rerun_task_id: Optional[str] = None
+    rerun_task_name: Optional[str] = None
+    rerun_task: Optional[TaskEvent] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {
+        'from_attributes': True,
+        'json_encoders': {
+            datetime: lambda v: v.isoformat() if v else None
+        }
+    }
+
+
+class TaskActionSummary(BaseModel):
+    """Compact persisted task action summary."""
+
+    id: str
+    action_type: TaskActionType
+    status: TaskActionStatus
+    initiated_by_user_id: Optional[str] = None
+    initiated_by: Optional[str] = None
+    initiated_session_id: Optional[str] = None
+    created_at: datetime
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    original_task_ids: List[str] = Field(default_factory=list)
+    selection_size: int = 0
+    item_total: int = 0
+    item_changed: int = 0
+    item_noop: int = 0
+    item_created: int = 0
+    item_skipped: int = 0
+    item_failed: int = 0
+    summary: Dict[str, Any] = Field(default_factory=dict)
+
+    model_config = {
+        'from_attributes': True,
+        'json_encoders': {
+            datetime: lambda v: v.isoformat() if v else None
+        }
+    }
+
+
+class TaskActionDetail(TaskActionSummary):
+    """Task action with item rows and live rerun lifecycle summary."""
+
+    items: List[TaskActionItem] = Field(default_factory=list)
+    rerun_lifecycle_counts: Dict[str, int] = Field(default_factory=dict)
+
+
+class TaskActionListResponse(BaseModel):
+    """Paginated task action list response."""
+
+    data: List[TaskActionSummary]
+    max_selection_size: int
+
+
+class TaskActionWebSocketEvent(TaskActionDetail):
+    """WebSocket message for task action updates."""
+
+    event_type: Literal["kanchi-task-action"] = "kanchi-task-action"
 
 
 class WorkerInfo(BaseModel):

@@ -104,8 +104,10 @@ def create_app() -> FastAPI:
     from api.auth_routes import create_router as create_auth_router
     from api.metrics_routes import create_router as create_metrics_router
     from api.config_routes import create_router as create_config_router
+    from api.task_action_routes import create_router as create_task_action_router
 
     app.include_router(create_task_router(app_state))
+    app.include_router(create_task_action_router(app_state))
     app.include_router(create_worker_router(app_state))
     app.include_router(create_websocket_router(app_state))
     app.include_router(create_log_router(app_state))

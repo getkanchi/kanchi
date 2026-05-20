@@ -12,6 +12,7 @@ from .auth_service import AuthService
 from .app_config_service import AppConfigService
 from .retention_service import RetentionService
 from .retention_scheduler_service import RetentionSchedulerService
+from .task_action_service import TaskActionService
 
 __all__ = [
     'TaskService',
@@ -25,5 +26,6 @@ __all__ = [
     'AuthService',
     'AppConfigService',
     'RetentionService',
-    'RetentionSchedulerService'
+    'RetentionSchedulerService',
+    'TaskActionService'
 ]

@@ -213,7 +213,7 @@
                 v-for="(failure, idx) in (showAllFailures ? failures : failures.slice(0, 3))"
                 :key="failure.task_id"
                 :failure="failure"
-                @retry="handleRetryFailure"
+                @rerun="handleRerunFailure"
               />
 
               <Button
@@ -269,13 +269,16 @@
     </SheetContent>
   </Sheet>
 
-  <!-- Retry Confirmation Dialog -->
-  <RetryTaskConfirmDialog
-    ref="retryDialogRef"
-    :task="currentRetryTaskId ? failures.find(f => f.task_id === currentRetryTaskId) || null : null"
-    :is-loading="isRetrying && !!currentRetryTaskId"
-    @confirm="handleRetryConfirm"
-    @cancel="handleRetryCancel"
+  <RerunConfirmDialog
+    v-model:open="rerunDialogOpen"
+    :task-ids="currentRerunTaskId ? [currentRerunTaskId] : []"
+    :tasks="currentRerunTask ? [currentRerunTask] : []"
+    :preflight="rerunPreflight"
+    :is-loading="taskActionsStore.isCreating && !!currentRerunTaskId"
+    :is-preflighting="taskActionsStore.isPreflighting"
+    @preflight="handleRerunPreflight"
+    @confirm="handleRerunConfirm"
+    @cancel="handleRerunCancel"
   />
 </template>
 
@@ -289,8 +292,8 @@ import Tag from '~/components/common/Tag.vue'
 import { Badge } from '~/components/ui/badge'
 import IconButton from '~/components/common/IconButton.vue'
 import FailureCard from '~/components/FailureCard.vue'
-import RetryTaskConfirmDialog from '~/components/RetryTaskConfirmDialog.vue'
-import type { TaskRegistryResponse, TaskRegistryStats, TaskTimelineResponse, TaskRegistryUpdate, TaskEventResponse } from '~/services/apiClient'
+import RerunConfirmDialog from '~/components/tasks/RerunConfirmDialog.vue'
+import type { RerunPreflightResponseDTO, TaskRegistryResponse, TaskRegistryStats, TaskTimelineResponse, TaskRegistryUpdate, TaskEventResponse } from '~/services/apiClient'
 
 interface Props {
   isOpen: boolean
@@ -301,7 +304,7 @@ const props = defineProps<Props>()
 const emit = defineEmits(['close', 'update'])
 
 const taskRegistryStore = useTaskRegistryStore()
-const tasksStore = useTasksStore()
+const taskActionsStore = useTaskActionsStore()
 const { useApiService } = await import('~/services/apiClient')
 const apiService = useApiService()
 
@@ -312,10 +315,14 @@ const failures = ref<TaskEventResponse[]>([])
 const failuresExpanded = ref(true)
 const showAllFailures = ref(false)
 
-// Retry dialog state
-const currentRetryTaskId = ref<string | null>(null)
-const retryDialogRef = ref<InstanceType<typeof RetryTaskConfirmDialog> | null>(null)
-const isRetrying = computed(() => tasksStore.isLoading)
+// Rerun dialog state
+const currentRerunTaskId = ref<string | null>(null)
+const rerunDialogOpen = ref(false)
+const rerunPreflight = ref<RerunPreflightResponseDTO | null>(null)
+const currentRerunTask = computed(() => {
+  if (!currentRerunTaskId.value) return null
+  return failures.value.find(failure => failure.task_id === currentRerunTaskId.value) ?? null
+})
 
 // Edit mode state
 const isEditing = ref(false)
@@ -439,24 +446,34 @@ function formatDate(dateStr: string) {
   })
 }
 
-function handleRetryFailure(taskId: string) {
-  currentRetryTaskId.value = taskId
-  retryDialogRef.value?.open()
+function handleRerunFailure(taskId: string) {
+  currentRerunTaskId.value = taskId
+  rerunPreflight.value = null
+  rerunDialogOpen.value = true
 }
 
-async function handleRetryConfirm() {
-  if (!currentRetryTaskId.value) return
+async function handleRerunPreflight() {
+  if (!currentRerunTaskId.value) return
+  rerunPreflight.value = await taskActionsStore.preflightRerun([currentRerunTaskId.value])
+}
+
+async function handleRerunConfirm() {
+  if (!currentRerunTaskId.value) return
 
   try {
-    await tasksStore.retryTask(currentRetryTaskId.value)
-    currentRetryTaskId.value = null
+    await taskActionsStore.createAction('rerun', [currentRerunTaskId.value])
+    currentRerunTaskId.value = null
+    rerunDialogOpen.value = false
+    rerunPreflight.value = null
   } catch (error) {
-    console.error('Failed to retry task:', error)
-    currentRetryTaskId.value = null
+    console.error('Failed to rerun task:', error)
+    currentRerunTaskId.value = null
+    rerunPreflight.value = null
   }
 }
 
-function handleRetryCancel() {
-  currentRetryTaskId.value = null
+function handleRerunCancel() {
+  currentRerunTaskId.value = null
+  rerunPreflight.value = null
 }
 </script>

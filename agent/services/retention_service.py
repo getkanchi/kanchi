@@ -8,11 +8,13 @@ import logging
 import threading
 from typing import Callable, List
 
-from sqlalchemy import and_, not_, select
+from sqlalchemy import and_, not_, or_, select
 from sqlalchemy.orm import Session
 
 from constants import EventType
 from database import (
+    TaskActionDB,
+    TaskActionItemDB,
     TaskDailyStatsDB,
     TaskEventDB,
     TaskLatestDB,
@@ -172,6 +174,32 @@ def _expired_task_latest_cleanup(successful: bool):
     return apply
 
 
+def _orphaned_task_action_items_cleanup(session: Session, cutoff: datetime, dry_run: bool) -> int:
+    live_task_ids = select(TaskLatestDB.task_id)
+    query = session.query(TaskActionItemDB).filter(
+        TaskActionItemDB.created_at < cutoff,
+        TaskActionItemDB.original_task_id.notin_(live_task_ids),
+        or_(
+            TaskActionItemDB.rerun_task_id.is_(None),
+            TaskActionItemDB.rerun_task_id.notin_(live_task_ids),
+        ),
+    )
+    if dry_run:
+        return query.count()
+    return query.delete(synchronize_session=False)
+
+
+def _empty_task_actions_cleanup(session: Session, cutoff: datetime, dry_run: bool) -> int:
+    action_ids_with_items = select(TaskActionItemDB.action_id)
+    query = session.query(TaskActionDB).filter(
+        TaskActionDB.created_at < cutoff,
+        TaskActionDB.id.notin_(action_ids_with_items),
+    )
+    if dry_run:
+        return query.count()
+    return query.delete(synchronize_session=False)
+
+
 RETENTION_TARGETS: List[RetentionTarget] = [
     RetentionTarget(
         key="task_events_successful",
@@ -232,6 +260,18 @@ RETENTION_TARGETS: List[RetentionTarget] = [
         label="Unsuccessful task snapshots",
         retention_days=lambda policy: policy.task_unsuccessful_days,
         apply=_expired_task_latest_cleanup(False),
+    ),
+    RetentionTarget(
+        key="task_action_items",
+        label="Task action history items",
+        retention_days=lambda policy: policy.task_unsuccessful_days,
+        apply=_orphaned_task_action_items_cleanup,
+    ),
+    RetentionTarget(
+        key="task_actions",
+        label="Task action history",
+        retention_days=lambda policy: policy.task_unsuccessful_days,
+        apply=_empty_task_actions_cleanup,
     ),
     RetentionTarget(
         key="worker_events",

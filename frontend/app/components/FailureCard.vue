@@ -12,7 +12,7 @@
           :icon="RefreshCw"
           size="xs"
           variant="ghost"
-          @click.stop="handleRetry"
+          @click.stop="handleRerun"
         />
         <button @click.stop="expanded = !expanded" class="p-1 hover:bg-background-hover rounded transition-colors">
           <ChevronRight v-if="!expanded" class="h-3 w-3 text-text-muted" />
@@ -70,7 +70,7 @@ interface Props {
 
 const props = defineProps<Props>()
 const emit = defineEmits<{
-  retry: [taskId: string]
+  rerun: [taskId: string]
 }>()
 
 const expanded = ref(false)
@@ -107,7 +107,7 @@ function formatValue(value: any): string {
   return String(value)
 }
 
-function handleRetry() {
-  emit('retry', props.failure.task_id)
+function handleRerun() {
+  emit('rerun', props.failure.task_id)
 }
 </script>

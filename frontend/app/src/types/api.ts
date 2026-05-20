@@ -39,7 +39,7 @@ export interface ActionConfig {
   /** Config Id */
   config_id?: string | null;
   /** Params */
-  params?: Record<string, any>;
+  params?: object;
   /**
    * Continue On Failure
    * @default true
@@ -59,7 +59,7 @@ export interface ActionConfigCreateRequest {
   /** Action Type */
   action_type: string;
   /** Config */
-  config: Record<string, any>;
+  config: object;
 }
 
 /**
@@ -76,7 +76,7 @@ export interface ActionConfigDefinition {
   /** Action Type */
   action_type: string;
   /** Config */
-  config: Record<string, any>;
+  config: object;
   /** Created At */
   created_at?: string | null;
   /** Updated At */
@@ -102,7 +102,7 @@ export interface ActionConfigUpdateRequest {
   /** Description */
   description?: string | null;
   /** Config */
-  config?: Record<string, any> | null;
+  config?: object | null;
 }
 
 /**
@@ -432,7 +432,7 @@ export interface LogEntry {
   /** Timestamp */
   timestamp?: string | null;
   /** Context */
-  context?: Record<string, any> | null;
+  context?: object | null;
 }
 
 /**
@@ -696,7 +696,7 @@ export interface TaskEvent {
   /** Args */
   args?: any[];
   /** Kwargs */
-  kwargs?: Record<string, any>;
+  kwargs?: object;
   /**
    * Retries
    * @default 0
@@ -752,6 +752,24 @@ export interface TaskEvent {
    * @default 0
    */
   retry_count?: number;
+  rerun_of?: TaskEvent | null;
+  /** Rerun By */
+  rerun_by?: TaskEvent[];
+  /**
+   * Is Rerun
+   * @default false
+   */
+  is_rerun?: boolean;
+  /**
+   * Has Reruns
+   * @default false
+   */
+  has_reruns?: boolean;
+  /**
+   * Rerun Count
+   * @default 0
+   */
+  rerun_count?: number;
   /**
    * Is Orphan
    * @default false
@@ -805,7 +823,7 @@ export interface TaskProgressEvent {
   /** Message */
   message?: string | null;
   /** Meta */
-  meta?: Record<string, any> | null;
+  meta?: object | null;
   /**
    * Event Type
    * @default "kanchi-task-progress"
@@ -978,7 +996,7 @@ export interface TriggerConfig {
   /** Type */
   type: string;
   /** Config */
-  config?: Record<string, any>;
+  config?: object;
 }
 
 /**
@@ -1008,7 +1026,7 @@ export interface UserSessionResponse {
   /** Active Environment Id */
   active_environment_id?: string | null;
   /** Preferences */
-  preferences?: Record<string, any>;
+  preferences?: object;
   /**
    * Created At
    * @format date-time
@@ -1029,7 +1047,7 @@ export interface UserSessionUpdate {
   /** Active Environment Id */
   active_environment_id?: string | null;
   /** Preferences */
-  preferences?: Record<string, any> | null;
+  preferences?: object | null;
 }
 
 /** ValidationError */
@@ -1188,7 +1206,7 @@ export interface WorkflowExecutionRecord {
   /** Trigger Type */
   trigger_type: string;
   /** Trigger Event */
-  trigger_event: Record<string, any>;
+  trigger_event: object;
   /** Status */
   status:
     | "pending"
@@ -1198,7 +1216,7 @@ export interface WorkflowExecutionRecord {
     | "rate_limited"
     | "circuit_open";
   /** Actions Executed */
-  actions_executed?: Record<string, any>[] | null;
+  actions_executed?: object[] | null;
   /** Error Message */
   error_message?: string | null;
   /** Stack Trace */
@@ -1210,7 +1228,7 @@ export interface WorkflowExecutionRecord {
   /** Duration Ms */
   duration_ms?: number | null;
   /** Workflow Snapshot */
-  workflow_snapshot?: Record<string, any> | null;
+  workflow_snapshot?: object | null;
   /** Circuit Breaker Key */
   circuit_breaker_key?: string | null;
 }
@@ -1475,7 +1493,7 @@ export class Api<
       },
       params: RequestParams = {},
     ) =>
-      this.request<Record<string, any>, HTTPValidationError>({
+      this.request<object, HTTPValidationError>({
         path: `/api/events/recent`,
         method: "GET",
         query: query,
@@ -1950,7 +1968,7 @@ export class Api<
       },
       params: RequestParams = {},
     ) =>
-      this.request<Record<string, any>, HTTPValidationError>({
+      this.request<object, HTTPValidationError>({
         path: `/api/registry/tasks/${taskName}/trend`,
         method: "GET",
         query: query,
@@ -2372,7 +2390,7 @@ export class Api<
      */
     testWorkflowApiWorkflowsWorkflowIdTestPost: (
       workflowId: string,
-      data: Record<string, any>,
+      data: object,
       params: RequestParams = {},
     ) =>
       this.request<any, HTTPValidationError>({
