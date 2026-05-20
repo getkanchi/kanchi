@@ -321,6 +321,13 @@ class TaskActionItemDB(Base):
     reason = Column(Text)
     rerun_task_id = Column(String(255), index=True)
     rerun_task_name = Column(String(255))
+    attempted_task_id = Column(String(255), index=True)
+    submitted_args = Column(JSON)
+    submitted_kwargs = Column(JSON)
+    rerun_kind = Column(String(50), index=True)
+    skip_category = Column(String(50), index=True)
+    review_fingerprint = Column(String(128))
+    target_queue = Column(String(255))
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 

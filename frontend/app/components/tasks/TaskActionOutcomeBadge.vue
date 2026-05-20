@@ -23,6 +23,10 @@ const meta = computed(() => {
       return { label: 'Created', variant: 'success' as const }
     case 'skipped_unavailable':
       return { label: 'Skipped', variant: 'pending' as const }
+    case 'user_skipped':
+      return { label: 'User skipped', variant: 'pending' as const }
+    case 'blocked_skipped':
+      return { label: 'Blocked', variant: 'pending' as const }
     case 'failed':
       return { label: 'Failed', variant: 'failed' as const }
     case 'pending':

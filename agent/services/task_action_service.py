@@ -4,6 +4,7 @@ from __future__ import annotations
 
 # ruff: noqa: UP006, UP007
 import ast
+import hashlib
 import json
 import logging
 import uuid
@@ -22,8 +23,15 @@ from database import (
     TaskResolutionDB,
 )
 from models import (
+    RerunInputBaseline,
+    RerunInputIssue,
+    RerunKind,
     RerunPreflightItem,
     RerunPreflightResponse,
+    RerunReviewState,
+    RerunSubmissionTarget,
+    RerunSubmitDecision,
+    RerunSubmitItem,
     RerunUnavailableReason,
     TaskActionDetail,
     TaskActionItem,
@@ -36,7 +44,7 @@ from models import (
 )
 from services.task_service import TaskService
 from services.utils import EnvironmentFilter
-from utils.payload_sanitizer import contains_placeholder
+from utils.payload_sanitizer import contains_placeholder, find_placeholder_paths
 
 logger = logging.getLogger(__name__)
 
@@ -70,13 +78,118 @@ class TaskActionService:
 
         items = [self._preflight_rerun_item(task_id) for task_id in ids]
         ready_count = sum(1 for item in items if item.ready)
+        replayable_count = sum(
+            1 for item in items if item.review_state == RerunReviewState.REPLAYABLE
+        )
+        repairable_count = sum(
+            1 for item in items if item.review_state == RerunReviewState.REPAIRABLE
+        )
+        blocked_count = sum(
+            1 for item in items if item.review_state == RerunReviewState.BLOCKED
+        )
         return RerunPreflightResponse(
             total=len(items),
             ready_count=ready_count,
             unavailable_count=len(items) - ready_count,
+            replayable_count=replayable_count,
+            repairable_count=repairable_count,
+            blocked_count=blocked_count,
             max_selection_size=self.max_selection_size,
             items=items,
         )
+
+    def submit_rerun_review(
+        self,
+        *,
+        items: Sequence[RerunSubmitItem],
+        initiated_by: Optional[str] = None,
+        initiated_by_user_id: Optional[str] = None,
+        initiated_session_id: Optional[str] = None,
+    ) -> TaskActionDetail:
+        submit_items = list(items)
+        ids = self._normalize_task_ids([item.task_id for item in submit_items])
+        self._validate_selection_size(ids)
+
+        if len(ids) != len(submit_items):
+            raise TaskActionValidationError("Each rerun review item must reference a unique task.")
+
+        preflight_items = {
+            item.task_id: self._preflight_rerun_item(item.task_id)
+            for item in submit_items
+        }
+        prepared = []
+        submit_count = 0
+
+        for item in submit_items:
+            preflight = preflight_items[item.task_id]
+            if not preflight.fingerprint or item.fingerprint != preflight.fingerprint:
+                raise TaskActionValidationError(
+                    f"This review for task {item.task_id} is out of date. Refresh and review again."
+                )
+
+            if item.decision == RerunSubmitDecision.BLOCKED_SKIP:
+                if preflight.review_state != RerunReviewState.BLOCKED:
+                    raise TaskActionValidationError(
+                        f"Task {item.task_id} can still be reviewed, so Kanchi cannot "
+                        "skip it as unavailable."
+                    )
+                prepared.append((item, preflight, None, None, None))
+                continue
+
+            if item.decision == RerunSubmitDecision.USER_SKIP:
+                if len(submit_items) == 1:
+                    raise TaskActionValidationError(
+                        "A single task that needs input cannot be skipped; cancel the "
+                        "review instead."
+                    )
+                if preflight.review_state != RerunReviewState.REPAIRABLE:
+                    raise TaskActionValidationError(
+                        f"Only tasks that need input can be skipped by you. Task "
+                        f"{item.task_id} does not need input."
+                    )
+                prepared.append((item, preflight, None, None, None))
+                continue
+
+            if item.decision != RerunSubmitDecision.SUBMIT:
+                raise TaskActionValidationError("This rerun decision is not supported.")
+
+            if preflight.review_state == RerunReviewState.BLOCKED:
+                raise TaskActionValidationError(
+                    f"Task {item.task_id} cannot be rerun from the captured data."
+                )
+
+            args, kwargs = self._validate_rerun_inputs(item)
+            rerun_kind = self._classify_rerun_kind(preflight, args, kwargs)
+            prepared.append((item, preflight, args, kwargs, rerun_kind))
+            submit_count += 1
+
+        if submit_count == 0:
+            raise TaskActionValidationError("No selected tasks are ready to rerun.")
+
+        now = datetime.now(timezone.utc)
+        action = TaskActionDB(
+            id=str(uuid.uuid4()),
+            action_type=TaskActionType.RERUN.value,
+            status=TaskActionStatus.RUNNING.value,
+            initiated_by_user_id=initiated_by_user_id,
+            initiated_by=initiated_by or "anonymous",
+            initiated_session_id=initiated_session_id,
+            created_at=now,
+            started_at=now,
+            original_task_ids=ids,
+            selection_size=len(ids),
+            item_total=len(ids),
+            summary={},
+        )
+        self.session.add(action)
+        self.session.flush()
+
+        self._execute_rerun_submit_items(action, prepared, initiated_by=initiated_by)
+        self._finalize_action(action)
+        self.session.commit()
+        detail = self.get_action(action.id)
+        self._broadcast(detail)
+        return detail
 
     def create_action(
         self,
@@ -182,7 +295,7 @@ class TaskActionService:
                     original_task_id=task_id,
                     outcome=TaskActionItemOutcome.FAILED,
                     reason_code="task_not_found",
-                    reason="Task not found.",
+                    reason="Kanchi could not find this task.",
                 )
                 continue
 
@@ -265,20 +378,12 @@ class TaskActionService:
                 continue
 
             latest = self._find_latest_row(task_id)
-            args, kwargs = self._resolve_call_signature(latest)
-            queue_name = latest.queue or latest.routing_key or "default"
+            args = list(preflight.baseline.args)
+            kwargs = dict(preflight.baseline.kwargs)
+            queue_name = preflight.target.queue or preflight.target.routing_key or "default"
             rerun_task_id = str(uuid.uuid4())
-            relationship = None
 
             try:
-                relationship = TaskRerunRelationshipDB(
-                    original_task_id=task_id,
-                    rerun_task_id=rerun_task_id,
-                    action_id=action.id,
-                    created_by=initiated_by,
-                )
-                self.session.add(relationship)
-                self.session.flush()
                 self.monitor_instance.app.send_task(
                     latest.task_name,
                     args=args,
@@ -286,6 +391,13 @@ class TaskActionService:
                     queue=queue_name,
                     task_id=rerun_task_id,
                 )
+                self.session.add(TaskRerunRelationshipDB(
+                    original_task_id=task_id,
+                    rerun_task_id=rerun_task_id,
+                    action_id=action.id,
+                    created_by=initiated_by,
+                ))
+                self.session.flush()
                 self._add_item(
                     action,
                     original_task_id=task_id,
@@ -293,11 +405,15 @@ class TaskActionService:
                     outcome=TaskActionItemOutcome.CREATED,
                     rerun_task_id=rerun_task_id,
                     rerun_task_name=latest.task_name,
+                    attempted_task_id=rerun_task_id,
+                    submitted_args=args,
+                    submitted_kwargs=kwargs,
+                    rerun_kind=RerunKind.REPLAY,
+                    review_fingerprint=preflight.fingerprint,
+                    target_queue=queue_name,
                 )
             except Exception as exc:  # pylint: disable=broad-except
                 logger.error("Failed to rerun task %s: %s", task_id, exc, exc_info=True)
-                if relationship is not None:
-                    self.session.delete(relationship)
                 self._add_item(
                     action,
                     original_task_id=task_id,
@@ -305,66 +421,331 @@ class TaskActionService:
                     outcome=TaskActionItemOutcome.FAILED,
                     reason_code="send_failed",
                     reason=str(exc),
+                    attempted_task_id=rerun_task_id,
+                    submitted_args=args,
+                    submitted_kwargs=kwargs,
+                    rerun_kind=RerunKind.REPLAY,
+                    review_fingerprint=preflight.fingerprint,
+                    target_queue=queue_name,
+                )
+
+    def _execute_rerun_submit_items(
+        self,
+        action: TaskActionDB,
+        prepared_items,
+        *,
+        initiated_by: Optional[str],
+    ) -> None:
+        for item, preflight, args, kwargs, rerun_kind in prepared_items:
+            if item.decision == RerunSubmitDecision.USER_SKIP:
+                self._add_item(
+                    action,
+                    original_task_id=item.task_id,
+                    original_task_name=preflight.task_name,
+                    outcome=TaskActionItemOutcome.USER_SKIPPED,
+                    reason_code="user_skipped",
+                    reason="Repairable task was intentionally skipped.",
+                    skip_category="user_skipped",
+                    review_fingerprint=preflight.fingerprint,
+                )
+                continue
+
+            if item.decision == RerunSubmitDecision.BLOCKED_SKIP:
+                self._add_item(
+                    action,
+                    original_task_id=item.task_id,
+                    original_task_name=preflight.task_name,
+                    outcome=TaskActionItemOutcome.BLOCKED_SKIPPED,
+                    reason_code=preflight.reason_code,
+                    reason=preflight.reason or "Task is blocked from manual rerun.",
+                    skip_category="blocked_skipped",
+                    review_fingerprint=preflight.fingerprint,
+                )
+                continue
+
+            if not self._find_latest_row(item.task_id):
+                self._add_item(
+                    action,
+                    original_task_id=item.task_id,
+                    original_task_name=preflight.task_name,
+                    outcome=TaskActionItemOutcome.FAILED,
+                    reason_code="task_not_found",
+                    reason="Kanchi could not find this task before sending the rerun.",
+                    submitted_args=args,
+                    submitted_kwargs=kwargs,
+                    rerun_kind=rerun_kind,
+                    review_fingerprint=preflight.fingerprint,
+                )
+                continue
+
+            queue_name = preflight.target.queue or preflight.target.routing_key or "default"
+            attempted_task_id = str(uuid.uuid4())
+            try:
+                self.monitor_instance.app.send_task(
+                    preflight.target.task_name,
+                    args=args,
+                    kwargs=kwargs,
+                    queue=queue_name,
+                    task_id=attempted_task_id,
+                )
+                self.session.add(TaskRerunRelationshipDB(
+                    original_task_id=item.task_id,
+                    rerun_task_id=attempted_task_id,
+                    action_id=action.id,
+                    created_by=initiated_by,
+                ))
+                self.session.flush()
+                self._add_item(
+                    action,
+                    original_task_id=item.task_id,
+                    original_task_name=preflight.task_name,
+                    outcome=TaskActionItemOutcome.CREATED,
+                    rerun_task_id=attempted_task_id,
+                    rerun_task_name=preflight.target.task_name,
+                    attempted_task_id=attempted_task_id,
+                    submitted_args=args,
+                    submitted_kwargs=kwargs,
+                    rerun_kind=rerun_kind,
+                    review_fingerprint=preflight.fingerprint,
+                    target_queue=queue_name,
+                )
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.error("Failed to rerun task %s: %s", item.task_id, exc, exc_info=True)
+                self._add_item(
+                    action,
+                    original_task_id=item.task_id,
+                    original_task_name=preflight.task_name,
+                    outcome=TaskActionItemOutcome.FAILED,
+                    reason_code="send_failed",
+                    reason=str(exc),
+                    attempted_task_id=attempted_task_id,
+                    submitted_args=args,
+                    submitted_kwargs=kwargs,
+                    rerun_kind=rerun_kind,
+                    review_fingerprint=preflight.fingerprint,
+                    target_queue=queue_name,
                 )
 
     def _preflight_rerun_item(self, task_id: str) -> RerunPreflightItem:
         latest = self._find_latest_row(task_id)
         if not latest:
-            return RerunPreflightItem(
+            item = RerunPreflightItem(
                 task_id=task_id,
                 ready=False,
+                review_state=RerunReviewState.BLOCKED,
                 reason_code=RerunUnavailableReason.TASK_NOT_FOUND.value,
-                reason="Task not found.",
+                reason="Kanchi could not find this task.",
             )
+            item.fingerprint = self._fingerprint_preflight_item(item)
+            return item
 
         if not latest.task_name or latest.task_name == "unknown":
-            return RerunPreflightItem(
+            item = RerunPreflightItem(
                 task_id=task_id,
                 task_name=latest.task_name,
                 ready=False,
+                review_state=RerunReviewState.BLOCKED,
                 reason_code=RerunUnavailableReason.MISSING_TASK_NAME.value,
                 reason="Kanchi does not have the original task name.",
                 task=self._row_to_task_event(latest),
+                target=self._build_submission_target(latest),
             )
+            item.fingerprint = self._fingerprint_preflight_item(item)
+            return item
 
         if not self.monitor_instance or not getattr(self.monitor_instance, "app", None):
-            return RerunPreflightItem(
+            item = RerunPreflightItem(
                 task_id=task_id,
                 task_name=latest.task_name,
                 ready=False,
+                review_state=RerunReviewState.BLOCKED,
                 reason_code=RerunUnavailableReason.MONITOR_UNAVAILABLE.value,
                 reason="Celery monitor is not available.",
                 task=self._row_to_task_event(latest),
+                target=self._build_submission_target(latest),
             )
+            item.fingerprint = self._fingerprint_preflight_item(item)
+            return item
 
+        required_replacements: List[RerunInputIssue] = []
         try:
-            args, kwargs = self._resolve_call_signature(latest)
+            baseline = self._resolve_rerun_baseline(latest)
         except ValueError:
-            return RerunPreflightItem(
-                task_id=task_id,
-                task_name=latest.task_name,
-                ready=False,
+            baseline = RerunInputBaseline(
+                args=[],
+                kwargs={},
+                source="unparseable_observed_task_inputs",
+                source_version=self._row_source_version(latest),
+            )
+            required_replacements.append(RerunInputIssue(
+                path="$",
                 reason_code=RerunUnavailableReason.UNPARSEABLE_PAYLOAD.value,
-                reason="Kanchi could not reconstruct the task arguments.",
-                task=self._row_to_task_event(latest),
-            )
+                message="Kanchi could not read the captured task inputs.",
+            ))
 
-        if contains_placeholder(args) or contains_placeholder(kwargs):
-            return RerunPreflightItem(
+        for path in find_placeholder_paths({
+            "args": baseline.args,
+            "kwargs": baseline.kwargs,
+        }):
+            required_replacements.append(RerunInputIssue(
+                path=path,
+                reason_code=RerunUnavailableReason.TRUNCATED_PAYLOAD.value,
+                message=(
+                    "Replace the truncated value, or set it to JSON null if that is "
+                    "intentional."
+                ),
+            ))
+
+        if required_replacements:
+            item = RerunPreflightItem(
                 task_id=task_id,
                 task_name=latest.task_name,
                 ready=False,
-                reason_code=RerunUnavailableReason.TRUNCATED_PAYLOAD.value,
-                reason="Captured task arguments were truncated before reaching Kanchi.",
+                review_state=RerunReviewState.REPAIRABLE,
+                reason_code=required_replacements[0].reason_code,
+                reason="Some captured inputs need your review before Kanchi can rerun this task.",
                 task=self._row_to_task_event(latest),
+                baseline=baseline,
+                target=self._build_submission_target(latest),
+                required_replacements=required_replacements,
             )
+            item.fingerprint = self._fingerprint_preflight_item(item)
+            return item
 
-        return RerunPreflightItem(
+        item = RerunPreflightItem(
             task_id=task_id,
             task_name=latest.task_name,
             ready=True,
+            review_state=RerunReviewState.REPLAYABLE,
             task=self._row_to_task_event(latest),
+            baseline=baseline,
+            target=self._build_submission_target(latest),
         )
+        item.fingerprint = self._fingerprint_preflight_item(item)
+        return item
+
+    def _build_submission_target(self, row) -> RerunSubmissionTarget:
+        return RerunSubmissionTarget(
+            task_name=getattr(row, "task_name", None),
+            queue=getattr(row, "queue", None) or getattr(row, "routing_key", None) or "default",
+            routing_key=getattr(row, "routing_key", None) or "default",
+            exchange=getattr(row, "exchange", None) or "",
+        )
+
+    def _resolve_rerun_baseline(self, row) -> RerunInputBaseline:
+        submitted_item = (
+            self.session.query(TaskActionItemDB)
+            .filter(
+                TaskActionItemDB.rerun_task_id == row.task_id,
+                TaskActionItemDB.outcome == TaskActionItemOutcome.CREATED.value,
+                TaskActionItemDB.submitted_args.isnot(None),
+                TaskActionItemDB.submitted_kwargs.isnot(None),
+            )
+            .order_by(TaskActionItemDB.created_at.desc(), TaskActionItemDB.id.desc())
+            .first()
+        )
+        if submitted_item:
+            return RerunInputBaseline(
+                args=self._as_args_list(submitted_item.submitted_args),
+                kwargs=self._as_kwargs_dict(submitted_item.submitted_kwargs),
+                source="submitted_rerun_inputs",
+                source_version=f"task_action_item:{submitted_item.id}:{submitted_item.updated_at}",
+            )
+
+        args, kwargs = self._resolve_call_signature(row)
+        return RerunInputBaseline(
+            args=list(args),
+            kwargs=dict(kwargs),
+            source="observed_task_inputs",
+            source_version=self._row_source_version(row),
+        )
+
+    def _row_source_version(self, row) -> str:
+        row_id = getattr(row, "event_id", None) or getattr(row, "id", None) or ""
+        timestamp = getattr(row, "timestamp", None)
+        return f"{row.__class__.__name__}:{row_id}:{timestamp}"
+
+    def _fingerprint_preflight_item(self, item: RerunPreflightItem) -> str:
+        payload = {
+            "task_id": item.task_id,
+            "task_name": item.task_name,
+            "review_state": item.review_state.value,
+            "target": item.target.model_dump(),
+            "baseline": item.baseline.model_dump(),
+            "required_replacements": [
+                issue.model_dump() for issue in item.required_replacements
+            ],
+        }
+        encoded = json.dumps(payload, sort_keys=True, default=str, separators=(",", ":"))
+        return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+    def _validate_rerun_inputs(self, item: RerunSubmitItem) -> Tuple[List[Any], Dict[str, Any]]:
+        if item.args is None or item.kwargs is None:
+            raise TaskActionValidationError(
+                f"Task {item.task_id} needs both positional and keyword arguments."
+            )
+        if not isinstance(item.args, list):
+            raise TaskActionValidationError(
+                f"Task {item.task_id} positional arguments must be a JSON array."
+            )
+        if not isinstance(item.kwargs, dict):
+            raise TaskActionValidationError(
+                f"Task {item.task_id} keyword arguments must be a JSON object."
+            )
+
+        args = self._json_round_trip(
+            item.args,
+            f"Task {item.task_id} positional arguments",
+        )
+        kwargs = self._json_round_trip(
+            item.kwargs,
+            f"Task {item.task_id} keyword arguments",
+        )
+        if not isinstance(args, list) or not isinstance(kwargs, dict):
+            raise TaskActionValidationError(
+                f"Task {item.task_id} needs positional arguments as an array and "
+                "keyword arguments as an object."
+            )
+        if contains_placeholder(args) or contains_placeholder(kwargs):
+            raise TaskActionValidationError(
+                f"Task {item.task_id} still has values that need replacement."
+            )
+        return args, kwargs
+
+    def _json_round_trip(self, value: Any, label: str) -> Any:
+        try:
+            return json.loads(json.dumps(value, allow_nan=False))
+        except (TypeError, ValueError) as exc:
+            raise TaskActionValidationError(f"{label} must be JSON-compatible.") from exc
+
+    def _classify_rerun_kind(
+        self,
+        preflight: RerunPreflightItem,
+        args: List[Any],
+        kwargs: Dict[str, Any],
+    ) -> RerunKind:
+        if preflight.review_state == RerunReviewState.REPAIRABLE:
+            return RerunKind.REPAIRED_OVERRIDE
+
+        baseline_args = self._json_round_trip(preflight.baseline.args, "Baseline args")
+        baseline_kwargs = self._json_round_trip(preflight.baseline.kwargs, "Baseline kwargs")
+        if baseline_args == args and baseline_kwargs == kwargs:
+            return RerunKind.REPLAY
+        return RerunKind.EDITED_OVERRIDE
+
+    def _as_args_list(self, value: Any) -> List[Any]:
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return value
+        if isinstance(value, tuple):
+            return list(value)
+        return [value]
+
+    def _as_kwargs_dict(self, value: Any) -> Dict[str, Any]:
+        if isinstance(value, dict):
+            return value
+        return {}
 
     def _normalize_task_ids(self, task_ids: Sequence[str]) -> List[str]:
         normalized: List[str] = []
@@ -531,6 +912,13 @@ class TaskActionService:
         reason: Optional[str] = None,
         rerun_task_id: Optional[str] = None,
         rerun_task_name: Optional[str] = None,
+        attempted_task_id: Optional[str] = None,
+        submitted_args: Optional[List[Any]] = None,
+        submitted_kwargs: Optional[Dict[str, Any]] = None,
+        rerun_kind: Optional[RerunKind] = None,
+        skip_category: Optional[str] = None,
+        review_fingerprint: Optional[str] = None,
+        target_queue: Optional[str] = None,
     ) -> TaskActionItemDB:
         item = TaskActionItemDB(
             action_id=action.id,
@@ -541,6 +929,13 @@ class TaskActionService:
             reason=reason,
             rerun_task_id=rerun_task_id,
             rerun_task_name=rerun_task_name,
+            attempted_task_id=attempted_task_id,
+            submitted_args=submitted_args,
+            submitted_kwargs=submitted_kwargs,
+            rerun_kind=rerun_kind.value if isinstance(rerun_kind, RerunKind) else rerun_kind,
+            skip_category=skip_category,
+            review_fingerprint=review_fingerprint,
+            target_queue=target_queue,
         )
         self.session.add(item)
         self.session.flush()
@@ -557,12 +952,22 @@ class TaskActionService:
             counts[item.outcome] = counts.get(item.outcome, 0) + 1
 
         failed = counts.get(TaskActionItemOutcome.FAILED.value, 0)
-        skipped = counts.get(TaskActionItemOutcome.SKIPPED_UNAVAILABLE.value, 0)
+        legacy_skipped = counts.get(TaskActionItemOutcome.SKIPPED_UNAVAILABLE.value, 0)
+        user_skipped = counts.get(TaskActionItemOutcome.USER_SKIPPED.value, 0)
+        blocked_skipped = counts.get(TaskActionItemOutcome.BLOCKED_SKIPPED.value, 0)
+        skipped = legacy_skipped + user_skipped + blocked_skipped
         successful = (
             counts.get(TaskActionItemOutcome.CHANGED.value, 0) +
             counts.get(TaskActionItemOutcome.NOOP.value, 0) +
             counts.get(TaskActionItemOutcome.CREATED.value, 0)
         )
+        rerun_kinds: Dict[str, int] = {}
+        skip_categories: Dict[str, int] = {}
+        for item in items:
+            if item.rerun_kind:
+                rerun_kinds[item.rerun_kind] = rerun_kinds.get(item.rerun_kind, 0) + 1
+            if item.skip_category:
+                skip_categories[item.skip_category] = skip_categories.get(item.skip_category, 0) + 1
 
         action.item_total = len(items)
         action.item_changed = counts.get(TaskActionItemOutcome.CHANGED.value, 0)
@@ -574,9 +979,19 @@ class TaskActionService:
         action.summary = {
             "outcomes": counts,
             "created_reruns": action.item_created,
+            "rerun_kinds": rerun_kinds,
+            "skip_categories": skip_categories,
+            "user_skipped": user_skipped,
+            "blocked_skipped": blocked_skipped,
+            "send_failed": sum(
+                1
+                for item in items
+                if item.outcome == TaskActionItemOutcome.FAILED.value
+                and item.reason_code == "send_failed"
+            ),
         }
 
-        if failed == 0 and skipped == 0:
+        if failed == 0 and legacy_skipped == 0 and blocked_skipped == 0:
             action.status = TaskActionStatus.COMPLETED.value
         elif successful > 0:
             action.status = TaskActionStatus.PARTIAL_SUCCESS.value
@@ -621,6 +1036,13 @@ class TaskActionService:
             rerun_task_id=item.rerun_task_id,
             rerun_task_name=item.rerun_task_name,
             rerun_task=rerun_task,
+            attempted_task_id=item.attempted_task_id,
+            submitted_args=item.submitted_args,
+            submitted_kwargs=item.submitted_kwargs,
+            rerun_kind=RerunKind(item.rerun_kind) if item.rerun_kind else None,
+            skip_category=item.skip_category,
+            review_fingerprint=item.review_fingerprint,
+            target_queue=item.target_queue,
             created_at=item.created_at,
             updated_at=item.updated_at,
         )

@@ -31,9 +31,9 @@ const emit = defineEmits<{
 
 const open = ref(false)
 const actions: Array<{ value: BulkTaskAction; label: string; icon: any }> = [
+  { value: 'rerun', label: 'Rerun', icon: RefreshCw },
   { value: 'resolve', label: 'Resolve', icon: CheckCircle2 },
   { value: 'unresolve', label: 'Unresolve', icon: Undo2 },
-  { value: 'rerun', label: 'Rerun', icon: RefreshCw },
 ]
 
 const selectedAction = computed(() =>

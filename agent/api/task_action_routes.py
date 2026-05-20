@@ -12,6 +12,7 @@ from config import Config
 from models import (
     RerunPreflightRequest,
     RerunPreflightResponse,
+    RerunSubmitRequest,
     TaskActionCreateRequest,
     TaskActionDetail,
     TaskActionListResponse,
@@ -77,6 +78,22 @@ def create_router(app_state) -> APIRouter:
         return {"initiated_by_user_id": None, "initiated_by": "anonymous"}
 
     @router.post(
+        "/task-actions/rerun/preflight",
+        response_model=RerunPreflightResponse,
+        include_in_schema=False,
+    )
+    async def preflight_rerun_review(
+        payload: RerunPreflightRequest,
+        session: Session = Depends(get_db),
+        active_env=Depends(get_active_env),
+    ):
+        service = build_service(session, active_env)
+        try:
+            return service.preflight_rerun(payload.task_ids)
+        except TaskActionValidationError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @router.post(
         "/task-actions/preflight",
         response_model=RerunPreflightResponse,
         include_in_schema=False,
@@ -89,6 +106,28 @@ def create_router(app_state) -> APIRouter:
         service = build_service(session, active_env)
         try:
             return service.preflight_rerun(payload.task_ids)
+        except TaskActionValidationError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @router.post(
+        "/task-actions/rerun",
+        response_model=TaskActionDetail,
+        include_in_schema=False,
+    )
+    async def submit_rerun_review(
+        payload: RerunSubmitRequest,
+        session: Session = Depends(get_db),
+        x_session_id: Optional[str] = Header(None),
+        current_user: Optional[AuthenticatedUser] = Depends(optional_user_dep),
+        active_env=Depends(get_active_env),
+    ):
+        service = build_service(session, active_env)
+        try:
+            return service.submit_rerun_review(
+                items=payload.items,
+                initiated_session_id=x_session_id,
+                **actor(current_user),
+            )
         except TaskActionValidationError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 

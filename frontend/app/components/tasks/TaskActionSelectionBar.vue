@@ -51,7 +51,7 @@ const executeLabel = computed(() => {
       </p>
       <BulkActionCombobox
         :model-value="action"
-        :disabled="isLoading"
+        :disabled="selectedCount === 0 || isLoading"
         @update:model-value="emit('update:action', $event)"
       />
       <Button
@@ -64,7 +64,7 @@ const executeLabel = computed(() => {
         <RefreshCw v-if="isLoading" class="h-3.5 w-3.5 animate-spin" />
         {{ executeLabel }}
       </Button>
-      <Button variant="ghost" size="icon" :disabled="isLoading" @click="emit('clear')">
+      <Button variant="ghost" size="icon" :disabled="selectedCount === 0 || isLoading" @click="emit('clear')">
         <X class="h-4 w-4" />
       </Button>
     </div>
