@@ -48,6 +48,16 @@
           />
         </div>
         <div class="flex flex-wrap items-center justify-end gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            class="gap-1.5"
+            :class="bulkMode ? 'bg-background-selected' : ''"
+            @click="toggleBulkMode"
+          >
+            <CheckSquare class="h-4 w-4" />
+            Bulk
+          </Button>
             <Tabs
               :model-value="activeLookbackString"
               :disabled="isUpdatingLookback"
@@ -81,9 +91,25 @@
     </div>
 
     <div v-if="!isCollapsed">
+      <TaskActionSelectionBar
+        v-if="bulkMode && selectedCount > 0"
+        v-model:action="bulkAction"
+        :selected-count="selectedCount"
+        :max-selection-size="taskActionsStore.maxSelectionSize"
+        :is-loading="taskActionsStore.isCreating || taskActionsStore.isPreflighting"
+        @execute="executeBulkAction"
+        @clear="clearSelection"
+      />
       <Table>
         <TableHeader>
           <TableRow class="border-border-subtle">
+            <TableHead v-if="bulkMode" class="w-10 pl-4 pr-0">
+              <Checkbox
+                :checked="headerChecked"
+                aria-label="Select visible tasks"
+                @update:checked="toggleVisibleSelection"
+              />
+            </TableHead>
             <TableHead class="w-12" />
             <TableHead>Task Name</TableHead>
             <TableHead>Status</TableHead>
@@ -99,6 +125,13 @@
                 class="border-border-subtle cursor-pointer hover:bg-background-hover-subtle transition-colors duration-150"
                 @click="toggleTaskExpansion(task.task_id)"
               >
+                <TableCell v-if="bulkMode" class="w-10 pl-4 pr-0" @click.stop>
+                  <Checkbox
+                    :checked="selectedTaskIds.has(task.task_id)"
+                    :aria-label="`Select task ${task.task_id}`"
+                    @update:checked="setTaskSelected(task.task_id, $event)"
+                  />
+                </TableCell>
                 <TableCell class="w-12">
                   <ChevronRight
                     v-if="!expandedTaskIds.has(task.task_id)"
@@ -159,7 +192,7 @@
                 v-if="expandedTaskIds.has(task.task_id)"
                 class="bg-background-raised border-border-subtle cursor-default"
               >
-                <TableCell :colspan="summaryColumnCount + 1" class="p-0">
+                <TableCell :colspan="summaryColumnCount + 1 + (bulkMode ? 1 : 0)" class="p-0">
                   <TaskDetailsSection
                     :task-name="task.task_name || 'Task'"
                     :status-label="statusLabel(task)"
@@ -223,7 +256,7 @@
           </template>
           <template v-else>
             <TableRow class="border-border-subtle">
-              <TableCell :colspan="summaryColumnCount + 1" class="p-8">
+              <TableCell :colspan="summaryColumnCount + 1 + (bulkMode ? 1 : 0)" class="p-8">
                 <div class="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border-subtle px-6 py-8 text-center">
                   <svg class="h-10 w-10 text-text-muted/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 3a9 9 0 100 18 9 9 0 000-18z" />
@@ -309,6 +342,18 @@
         </div>
       </div>
     </div>
+
+    <RerunConfirmDialog
+      v-model:open="rerunDialogOpen"
+      :task-ids="Array.from(selectedTaskIds)"
+      :tasks="selectedTasks"
+      :preflight="rerunPreflight"
+      :is-loading="taskActionsStore.isCreating"
+      :is-preflighting="taskActionsStore.isPreflighting"
+      @preflight="preflightSelectedRerun"
+      @confirm="confirmSelectedRerun"
+      @cancel="rerunPreflight = null"
+    />
   </div>
 </template>
 
@@ -320,6 +365,7 @@ import CopyButton from '~/components/CopyButton.vue'
 import StatusDot from '~/components/StatusDot.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '~/components/ui/checkbox'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Table,
@@ -333,10 +379,14 @@ import SearchInput from '~/components/SearchInput.vue'
 import PythonValueViewer from '~/components/PythonValueViewer.vue'
 import { IconButton, Select } from '~/components/common'
 import TaskDetailsSection from '~/components/common/TaskDetailsSection.vue'
-import { ChevronDown, ChevronRight, Loader2, AlertTriangle, ChevronsLeft, ChevronLeft, ChevronsRight, CheckCircle2 } from 'lucide-vue-next'
+import { ChevronDown, ChevronRight, Loader2, AlertTriangle, ChevronsLeft, ChevronLeft, ChevronsRight, CheckCircle2, CheckSquare } from 'lucide-vue-next'
 import type { TaskEventResponse } from '~/services/apiClient'
+import type { RerunPreflightResponseDTO } from '~/services/apiClient'
 import { useTaskStatus } from '~/composables/useTaskStatus'
 import type { ParsedFilter } from '~/composables/useFilterParser'
+import TaskActionSelectionBar from '~/components/tasks/TaskActionSelectionBar.vue'
+import RerunConfirmDialog from '~/components/tasks/RerunConfirmDialog.vue'
+import type { BulkTaskAction } from '~/components/common/BulkActionCombobox.vue'
 
 const props = withDefaults(defineProps<{
   title: string
@@ -387,6 +437,7 @@ const emit = defineEmits<{
 
 const { eventTypeToStatus, getStatusVariant, formatStatus } = useTaskStatus()
 const configStore = useConfigStore()
+const taskActionsStore = useTaskActionsStore()
 
 const expandedTaskIds = ref(new Set<string>())
 const searchQuery = ref('')
@@ -394,6 +445,11 @@ const activeFilters = ref<ParsedFilter[]>([])
 const pageSize = ref(props.limit)
 const currentPage = ref(0)
 const isCollapsed = ref(true)
+const bulkMode = ref(false)
+const selectedTaskIds = ref(new Set<string>())
+const bulkAction = ref<BulkTaskAction>('resolve')
+const rerunDialogOpen = ref(false)
+const rerunPreflight = ref<RerunPreflightResponseDTO | null>(null)
 
 const summaryColumnCount = 5
 
@@ -526,6 +582,16 @@ const paginatedTasks = computed(() => {
 })
 
 const displayedTasks = computed(() => paginatedTasks.value)
+const visibleTaskIds = computed(() => displayedTasks.value.map(task => task.task_id).filter(Boolean))
+const selectedCount = computed(() => selectedTaskIds.value.size)
+const selectedTasks = computed(() => props.tasks.filter(task => selectedTaskIds.value.has(task.task_id)))
+const headerChecked = computed(() => {
+  if (visibleTaskIds.value.length === 0) return false
+  const selectedVisible = visibleTaskIds.value.filter(id => selectedTaskIds.value.has(id)).length
+  if (selectedVisible === 0) return false
+  if (selectedVisible === visibleTaskIds.value.length) return true
+  return 'indeterminate'
+})
 
 const recentCount = computed(() => {
   if (!props.recentField || props.recentWindowMinutes === undefined) return 0
@@ -662,6 +728,62 @@ const goToLastPage = () => {
 
 const toggleCollapsed = () => {
   isCollapsed.value = !isCollapsed.value
+}
+
+const clearSelection = () => {
+  selectedTaskIds.value = new Set()
+}
+
+const toggleBulkMode = () => {
+  bulkMode.value = !bulkMode.value
+  if (!bulkMode.value) {
+    clearSelection()
+  }
+}
+
+const setTaskSelected = (taskId: string, checked: boolean | 'indeterminate') => {
+  const next = new Set(selectedTaskIds.value)
+  if (checked === true) {
+    if (next.size >= taskActionsStore.maxSelectionSize && !next.has(taskId)) return
+    next.add(taskId)
+  } else {
+    next.delete(taskId)
+  }
+  selectedTaskIds.value = next
+}
+
+const toggleVisibleSelection = (checked: boolean | 'indeterminate') => {
+  const next = new Set(selectedTaskIds.value)
+  if (checked === true) {
+    for (const taskId of visibleTaskIds.value) {
+      if (next.size >= taskActionsStore.maxSelectionSize && !next.has(taskId)) break
+      next.add(taskId)
+    }
+  } else {
+    visibleTaskIds.value.forEach(taskId => next.delete(taskId))
+  }
+  selectedTaskIds.value = next
+}
+
+const executeBulkAction = async () => {
+  if (selectedTaskIds.value.size === 0) return
+  if (bulkAction.value === 'rerun') {
+    rerunDialogOpen.value = true
+    return
+  }
+  await taskActionsStore.createAction(bulkAction.value, Array.from(selectedTaskIds.value))
+  clearSelection()
+}
+
+const preflightSelectedRerun = async () => {
+  rerunPreflight.value = await taskActionsStore.preflightRerun(Array.from(selectedTaskIds.value))
+}
+
+const confirmSelectedRerun = async () => {
+  await taskActionsStore.createAction('rerun', Array.from(selectedTaskIds.value))
+  rerunDialogOpen.value = false
+  rerunPreflight.value = null
+  clearSelection()
 }
 
 const handleLookbackSelect = async (hours: number) => {

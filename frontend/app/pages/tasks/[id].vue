@@ -59,8 +59,8 @@
           <Button
             variant="outline"
             size="sm"
-            :loading="isRetrying"
-            :disabled="isRetrying || !task"
+            :loading="taskActionsStore.isCreating"
+            :disabled="taskActionsStore.isCreating || !task"
             @click="openRetryDialog"
           >
             <RefreshCw class="h-4 w-4" />
@@ -199,6 +199,41 @@
                     <NuxtLink :to="`/tasks/${task.retry_of.task_id}`" class="text-xs font-mono text-primary hover:text-primary-hover">
                       {{ task.retry_of.task_id }}
                     </NuxtLink>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Rerun Lineage -->
+              <div v-if="taskWithRerun.is_rerun || taskWithRerun.has_reruns" class="border border-primary-border rounded-md p-5 bg-primary-bg/20">
+                <h2 class="text-sm font-medium text-primary mb-4">Rerun Lineage</h2>
+
+                <div class="space-y-3 text-xs">
+                  <div v-if="taskWithRerun.is_rerun" class="flex justify-between py-2 border-b border-border">
+                    <span class="text-text-muted">Is Rerun</span>
+                    <Badge variant="success" class="text-xs">Yes</Badge>
+                  </div>
+                  <div class="flex justify-between py-2 border-b border-border">
+                    <span class="text-text-muted">Rerun Count</span>
+                    <span class="text-text-primary font-medium tabular-nums">{{ taskWithRerun.rerun_count || 0 }}</span>
+                  </div>
+                  <div v-if="taskWithRerun.rerun_of" class="py-2 border-b border-border">
+                    <div class="text-text-muted mb-2">Rerun Of</div>
+                    <NuxtLink :to="`/tasks/${taskWithRerun.rerun_of.task_id}`" class="text-xs font-mono text-primary hover:text-primary-hover">
+                      {{ taskWithRerun.rerun_of.task_id }}
+                    </NuxtLink>
+                  </div>
+                  <div v-if="taskWithRerun.rerun_by?.length" class="py-2">
+                    <div class="text-text-muted mb-2">Rerun Tasks</div>
+                    <div class="space-y-1">
+                      <NuxtLink
+                        v-for="rerun in taskWithRerun.rerun_by"
+                        :key="rerun.task_id"
+                        :to="`/tasks/${rerun.task_id}`"
+                        class="block text-xs font-mono text-primary hover:text-primary-hover"
+                      >
+                        {{ rerun.task_id }}
+                      </NuxtLink>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -380,13 +415,19 @@
     </NuxtLink>
   </div>
 
-  <!-- Retry Confirmation Dialog -->
-  <RetryTaskConfirmDialog
-    ref="retryDialogRef"
-    :task="task"
-    :is-loading="isRetrying"
-    @confirm="handleRetryConfirm"
+  <RerunConfirmDialog
+    v-model:open="rerunDialogOpen"
+    :task-ids="task ? [task.task_id] : []"
+    :tasks="task ? [task] : []"
+    :preflight="rerunPreflight"
+    :is-loading="taskActionsStore.isCreating"
+    :is-preflighting="taskActionsStore.isPreflighting"
+    @preflight="preflightRerun"
+    @confirm="handleRerunConfirm"
+    @cancel="rerunPreflight = null"
   />
+
+  <TaskActionActivityDrawer />
 </template>
 
 <script setup lang="ts">
@@ -398,15 +439,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs'
 import TimeDisplay from '~/components/TimeDisplay.vue'
 import UuidDisplay from '~/components/UuidDisplay.vue'
 import PayloadTruncationNotice from '~/components/PayloadTruncationNotice.vue'
-import RetryTaskConfirmDialog from '~/components/RetryTaskConfirmDialog.vue'
+import RerunConfirmDialog from '~/components/tasks/RerunConfirmDialog.vue'
+import TaskActionActivityDrawer from '~/components/tasks/TaskActionActivityDrawer.vue'
 import TaskProgressSteps from '~/components/tasks/TaskProgressSteps.vue'
-import type { TaskEventResponse } from '~/services/apiClient'
+import type { RerunPreflightResponseDTO, TaskEventResponse } from '~/services/apiClient'
 import { useCopy } from '~/composables/useCopy'
 
 const route = useRoute()
 const tasksStore = useTasksStore()
-const isRetrying = computed(() => tasksStore.isLoading)
-const retryDialogRef = ref<InstanceType<typeof RetryTaskConfirmDialog> | null>(null)
+const taskActionsStore = useTaskActionsStore()
+const rerunDialogOpen = ref(false)
+const rerunPreflight = ref<RerunPreflightResponseDTO | null>(null)
 
 const task = ref<TaskEventResponse | null>(null)
 const allEvents = ref<TaskEventResponse[]>([])
@@ -431,6 +474,7 @@ const taskId = computed(() => route.params.id as string)
 const progressSnapshot = computed(() => tasksStore.getProgressSnapshot(taskId.value))
 const currentProgress = computed(() => progressSnapshot.value?.latest?.progress ?? null)
 const currentMessage = computed(() => progressSnapshot.value?.latest?.message ?? '')
+const taskWithRerun = computed(() => (task.value || {}) as any)
 
 const shareUrl = computed(() => {
   if (typeof window === 'undefined') return ''
@@ -500,14 +544,22 @@ onMounted(async () => {
 })
 
 const openRetryDialog = () => {
-  retryDialogRef.value?.open()
+  rerunPreflight.value = null
+  rerunDialogOpen.value = true
 }
 
-const handleRetryConfirm = async () => {
+const preflightRerun = async () => {
+  if (!task.value?.task_id) return
+  rerunPreflight.value = await taskActionsStore.preflightRerun([task.value.task_id])
+}
+
+const handleRerunConfirm = async () => {
   if (!task.value?.task_id) return
 
   try {
-    await tasksStore.retryTask(task.value.task_id)
+    await taskActionsStore.createAction('rerun', [task.value.task_id])
+    rerunDialogOpen.value = false
+    rerunPreflight.value = null
     await fetchTaskData()
   } catch (error) {
     console.error('Failed to rerun task:', error)

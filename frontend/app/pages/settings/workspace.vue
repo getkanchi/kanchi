@@ -56,12 +56,12 @@
                     for="automatic-cleanup"
                     class="flex items-center gap-3 text-sm font-medium text-text-primary"
                   >
-                    <input
+                    <Checkbox
                       id="automatic-cleanup"
-                      v-model="scheduleEnabled"
-                      type="checkbox"
-                      class="h-4 w-4 rounded border-border-subtle text-brand-primary focus:ring-brand-primary"
+                      :checked="scheduleEnabled"
+                      class="mt-0.5"
                       :disabled="isSaving || isLoading"
+                      @update:checked="scheduleEnabled = $event === true"
                     />
                     Automatic cleanup
                   </label>
@@ -276,6 +276,7 @@ import ConfirmationDialog from '~/components/ConfirmationDialog.vue'
 import ThemeToggle from '~/components/ThemeToggle.vue'
 import WorkflowSlackConfigPanel from '~/components/workflows/WorkflowSlackConfigPanel.vue'
 import { Button } from '~/components/ui/button'
+import { Checkbox } from '~/components/ui/checkbox'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { useConfigStore } from '~/stores/config'

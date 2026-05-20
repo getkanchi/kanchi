@@ -110,6 +110,74 @@ export interface TaskProgressSnapshotResponse {
   history: TaskProgressEventResponse[]
 }
 
+export type TaskActionType = 'rerun' | 'resolve' | 'unresolve'
+export type TaskActionStatus = 'running' | 'completed' | 'partial_success' | 'failed'
+export type TaskActionItemOutcome = 'pending' | 'changed' | 'noop' | 'created' | 'skipped_unavailable' | 'failed'
+
+export interface RerunPreflightItemDTO {
+  task_id: string
+  task_name?: string | null
+  ready: boolean
+  reason_code?: string | null
+  reason?: string | null
+  task?: TaskEventResponse | null
+}
+
+export interface RerunPreflightResponseDTO {
+  total: number
+  ready_count: number
+  unavailable_count: number
+  max_selection_size: number
+  items: RerunPreflightItemDTO[]
+}
+
+export interface TaskActionItemDTO {
+  id: number
+  action_id: string
+  original_task_id: string
+  original_task_name?: string | null
+  outcome: TaskActionItemOutcome
+  reason_code?: string | null
+  reason?: string | null
+  rerun_task_id?: string | null
+  rerun_task_name?: string | null
+  rerun_task?: TaskEventResponse | null
+  created_at: string
+  updated_at: string
+}
+
+export interface TaskActionSummaryDTO {
+  id: string
+  action_type: TaskActionType
+  status: TaskActionStatus
+  initiated_by_user_id?: string | null
+  initiated_by?: string | null
+  initiated_session_id?: string | null
+  created_at: string
+  started_at?: string | null
+  completed_at?: string | null
+  original_task_ids: string[]
+  selection_size: number
+  item_total: number
+  item_changed: number
+  item_noop: number
+  item_created: number
+  item_skipped: number
+  item_failed: number
+  summary?: Record<string, any>
+}
+
+export interface TaskActionDetailDTO extends TaskActionSummaryDTO {
+  items: TaskActionItemDTO[]
+  rerun_lifecycle_counts: Record<string, number>
+  event_type?: 'kanchi-task-action'
+}
+
+export interface TaskActionListResponseDTO {
+  data: TaskActionSummaryDTO[]
+  max_selection_size: number
+}
+
 class ApiService {
   private api: Api<unknown>
 
@@ -327,7 +395,69 @@ class ApiService {
   }
 
   async retryTask(taskId: string): Promise<any> {
-    const response = await this.api.api.retryTaskApiTasksTaskIdRetryPost(taskId)
+    const response = await this.rerunTask(taskId)
+    return response
+  }
+
+  async preflightTaskActionRerun(taskIds: string[]): Promise<RerunPreflightResponseDTO> {
+    const response = await this.api.request({
+      path: '/api/task-actions/preflight',
+      method: 'POST',
+      body: { task_ids: taskIds }
+    })
+    return response.data
+  }
+
+  async createTaskAction(actionType: TaskActionType, taskIds: string[]): Promise<TaskActionDetailDTO> {
+    const response = await this.api.request({
+      path: '/api/task-actions',
+      method: 'POST',
+      body: {
+        action_type: actionType,
+        task_ids: taskIds
+      }
+    })
+    return response.data
+  }
+
+  async listTaskActions(params?: { limit?: number }): Promise<TaskActionListResponseDTO> {
+    const response = await this.api.request({
+      path: '/api/task-actions',
+      method: 'GET',
+      query: params
+    })
+    return response.data
+  }
+
+  async getTaskAction(actionId: string): Promise<TaskActionDetailDTO> {
+    const response = await this.api.request({
+      path: `/api/task-actions/${encodeURIComponent(actionId)}`,
+      method: 'GET'
+    })
+    return response.data
+  }
+
+  async getTaskActionConfig(): Promise<{ max_selection_size: number }> {
+    const response = await this.api.request({
+      path: '/api/task-actions/config',
+      method: 'GET'
+    })
+    return response.data
+  }
+
+  async preflightTaskRerun(taskId: string): Promise<RerunPreflightResponseDTO> {
+    const response = await this.api.request({
+      path: `/api/tasks/${encodeURIComponent(taskId)}/rerun/preflight`,
+      method: 'POST'
+    })
+    return response.data
+  }
+
+  async rerunTask(taskId: string): Promise<TaskActionDetailDTO> {
+    const response = await this.api.request({
+      path: `/api/tasks/${encodeURIComponent(taskId)}/rerun`,
+      method: 'POST'
+    })
     return response.data
   }
 

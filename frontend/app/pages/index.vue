@@ -84,7 +84,7 @@
                 class="h-3.5 w-3.5 animate-spin"
               />
               <RefreshCw v-else class="h-3.5 w-3.5" />
-              Retry
+              Rerun
             </Button>
             </div>
           </template>
@@ -124,7 +124,7 @@
                 class="h-3.5 w-3.5 animate-spin"
               />
               <RefreshCw v-else class="h-3.5 w-3.5" />
-              Retry
+              Rerun
             </Button>
             <Button
               variant="ghost"
@@ -193,13 +193,19 @@
         />
       </div>
 
-      <RetryTaskConfirmDialog
-        ref="retryDialogRef"
-        :task="retryDialogTask"
+      <RerunConfirmDialog
+        v-model:open="rerunDialogOpen"
+        :task-ids="retryDialogTask ? [retryDialogTask.task_id] : []"
+        :tasks="retryDialogTask ? [retryDialogTask] : []"
+        :preflight="rerunPreflight"
         :is-loading="isRetryingTask"
+        :is-preflighting="taskActionsStore.isPreflighting"
+        @preflight="preflightRetry"
         @confirm="confirmRetry"
         @cancel="cancelRetry"
       />
+
+      <TaskActionActivityDrawer />
 </template>
 
 <script setup lang="ts">
@@ -209,7 +215,8 @@ import DataTable from "~/components/data-table.vue"
 import WorkerStatusSummary from "~/components/WorkerStatusSummary.vue"
 import CommandPalette from "~/components/CommandPalette.vue"
 import TaskIssueSummary from "~/components/TaskIssueSummary.vue"
-import RetryTaskConfirmDialog from "~/components/RetryTaskConfirmDialog.vue"
+import TaskActionActivityDrawer from "~/components/tasks/TaskActionActivityDrawer.vue"
+import RerunConfirmDialog from "~/components/tasks/RerunConfirmDialog.vue"
 import { Button } from '~/components/ui/button'
 import { Badge } from '~/components/ui/badge'
 import TimeDisplay from '~/components/TimeDisplay.vue'
@@ -218,7 +225,7 @@ import type { ParsedFilter } from '~/composables/useFilterParser'
 import type { TimeRange } from '~/components/TimeRangeFilter.vue'
 import { useUrlQuerySync } from '~/composables/useUrlQuerySync'
 import type { UrlQueryState } from '~/composables/useUrlQuerySync'
-import type { TaskEventResponse } from '~/services/apiClient'
+import type { RerunPreflightResponseDTO, TaskEventResponse } from '~/services/apiClient'
 import {ChevronRight, RefreshCw, Check, Loader2} from 'lucide-vue-next'
 import {IconButton} from "~/components/common";
 
@@ -229,6 +236,7 @@ const failedTasksStore = useFailedTasksStore()
 const configStore = useConfigStore()
 const wsStore = useWebSocketStore()
 const environmentStore = useEnvironmentStore()
+const taskActionsStore = useTaskActionsStore()
 
 // Time range state
 const timeRange = ref<TimeRange>({ start: null, end: null })
@@ -305,9 +313,10 @@ const formatLookbackLabel = (hours: number) => {
 const failedTasksTitle = computed(() => `Failed tasks (${formatLookbackLabel(failedTasksLookbackHours.value)})`)
 const failedTasksEmptyTitle = computed(() => `No failed tasks detected in the last ${formatLookbackLabel(failedTasksLookbackHours.value)}`)
 
-const retryDialogRef = ref<InstanceType<typeof RetryTaskConfirmDialog> | null>(null)
 const retryDialogState = ref<{ task: TaskEventResponse; type: 'failed' | 'orphan' } | null>(null)
 const isRetryingTask = ref(false)
+const rerunDialogOpen = ref(false)
+const rerunPreflight = ref<RerunPreflightResponseDTO | null>(null)
 
 const retryDialogTask = computed(() => retryDialogState.value?.task ?? null)
 
@@ -407,17 +416,20 @@ function handleClearTimeRange() {
 
 async function handleRerunTask(taskId: string) {
   try {
-    await tasksStore.retryTask(taskId)
-    // Task list will be refreshed automatically by the store
+    const events = await tasksStore.getTaskEvents(taskId)
+    const task = events[events.length - 1]
+    if (task) {
+      openRetryDialog(task, 'failed')
+    }
   } catch (error) {
-    console.error('Failed to retry task:', error)
-    // You might want to show a toast notification here
+    console.error('Failed to rerun task:', error)
   }
 }
 
 function openRetryDialog(task: TaskEventResponse, type: 'failed' | 'orphan') {
   retryDialogState.value = { task, type }
-  retryDialogRef.value?.open()
+  rerunPreflight.value = null
+  rerunDialogOpen.value = true
 }
 
 function handleFailedRetryAction(task: TaskEventResponse) {
@@ -431,16 +443,14 @@ function handleOrphanRetryAction(task: TaskEventResponse) {
 async function confirmRetry() {
   if (!retryDialogState.value) return
   isRetryingTask.value = true
-  const { task, type } = retryDialogState.value
+  const { task } = retryDialogState.value
   try {
-    if (type === 'orphan') {
-      await orphanTasksStore.retryOrphanedTask(task.task_id)
-    } else {
-      await tasksStore.retryTask(task.task_id)
-    }
+    await taskActionsStore.createAction('rerun', [task.task_id])
     retryDialogState.value = null
+    rerunDialogOpen.value = false
+    rerunPreflight.value = null
   } catch (error) {
-    console.error('Failed to retry task:', error)
+    console.error('Failed to rerun task:', error)
   } finally {
     isRetryingTask.value = false
   }
@@ -448,6 +458,12 @@ async function confirmRetry() {
 
 function cancelRetry() {
   retryDialogState.value = null
+  rerunPreflight.value = null
+}
+
+async function preflightRetry() {
+  if (!retryDialogTask.value) return
+  rerunPreflight.value = await taskActionsStore.preflightRerun([retryDialogTask.value.task_id])
 }
 
 async function handleResolveAction(task: TaskEventResponse, source: 'failed' | 'orphan') {
@@ -563,7 +579,9 @@ watch(() => environmentStore.activeEnvironment, async () => {
     tasksStore.fetchStats(),
     workersStore.fetchWorkers(),
     orphanTasksStore.fetchOrphanedTasks(),
-    failedTasksStore.fetchFailedTasks({ hours: failedTasksStore.lookbackHours })
+    failedTasksStore.fetchFailedTasks({ hours: failedTasksStore.lookbackHours }),
+    taskActionsStore.fetchConfig().catch(() => {}),
+    taskActionsStore.fetchActions().catch(() => {})
   ])
 })
 
