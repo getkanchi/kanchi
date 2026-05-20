@@ -30,14 +30,13 @@ import { Select } from '~/components/common'
 import PythonValueViewer from "~/components/PythonValueViewer.vue";
 import TimeDisplay from "~/components/TimeDisplay.vue";
 import { Checkbox } from '~/components/ui/checkbox'
-import { Switch } from '~/components/ui/switch'
 import type { ParsedFilter } from '~/composables/useFilterParser'
 import type { TimeRange } from '~/components/TimeRangeFilter.vue'
 import TaskDetailsSection from '~/components/common/TaskDetailsSection.vue'
 import TaskProgressSteps from '~/components/tasks/TaskProgressSteps.vue'
 import TaskActionSelectionBar from '~/components/tasks/TaskActionSelectionBar.vue'
 import TaskActionActivityButton from '~/components/tasks/TaskActionActivityButton.vue'
-import RerunConfirmDialog from '~/components/tasks/RerunConfirmDialog.vue'
+import RerunReviewDrawer from '~/components/tasks/RerunReviewDrawer.vue'
 import type { BulkTaskAction } from '~/components/common/BulkActionCombobox.vue'
 import type { RerunPreflightResponseDTO } from '~/services/apiClient'
 
@@ -77,9 +76,8 @@ const taskActionsStore = useTaskActionsStore()
 const currentRetryTaskId = ref<string | null>(null)
 const singleRerunDialogOpen = ref(false)
 const singleRerunPreflight = ref<RerunPreflightResponseDTO | null>(null)
-const bulkMode = ref(false)
 const selectedTaskIds = ref(new Set<string>())
-const bulkAction = ref<BulkTaskAction>('resolve')
+const bulkAction = ref<BulkTaskAction>('rerun')
 const rerunDialogOpen = ref(false)
 const rerunPreflight = ref<RerunPreflightResponseDTO | null>(null)
 
@@ -144,13 +142,6 @@ const clearSelection = () => {
   selectedTaskIds.value = new Set()
 }
 
-const setBulkMode = (checked: boolean) => {
-  bulkMode.value = checked
-  if (!checked) {
-    clearSelection()
-  }
-}
-
 const setTaskSelected = (taskId: string | undefined, checked: boolean | 'indeterminate') => {
   if (!taskId) return
   const next = new Set(selectedTaskIds.value)
@@ -211,8 +202,7 @@ const executeBulkAction = async () => {
   clearSelection()
 }
 
-const confirmSelectedRerun = async () => {
-  await taskActionsStore.createAction('rerun', Array.from(selectedTaskIds.value))
+const handleSelectedRerunSubmitted = () => {
   rerunDialogOpen.value = false
   rerunPreflight.value = null
   clearSelection()
@@ -223,9 +213,7 @@ const preflightSingleRerun = async () => {
   singleRerunPreflight.value = await taskActionsStore.preflightRerun([currentRetryTaskId.value])
 }
 
-const confirmSingleRerun = async () => {
-  if (!currentRetryTaskId.value) return
-  await taskActionsStore.createAction('rerun', [currentRetryTaskId.value])
+const handleSingleRerunSubmitted = () => {
   singleRerunDialogOpen.value = false
   singleRerunPreflight.value = null
   currentRetryTaskId.value = null
@@ -308,14 +296,6 @@ const getProgressMessage = (snapshot: any) => snapshot?.latest?.message || ''
       
       <div class="ml-4 flex shrink-0 items-center gap-2">
         <TaskActionActivityButton />
-        <div class="inline-flex h-9 items-center gap-2 text-sm font-medium text-text-secondary">
-          <span class="font-medium">Bulk</span>
-          <Switch
-            aria-label="Bulk mode"
-            :model-value="bulkMode"
-            @update:model-value="setBulkMode"
-          />
-        </div>
 
         <!-- Live mode indicator badge -->
         <Badge
@@ -339,7 +319,6 @@ const getProgressMessage = (snapshot: any) => snapshot?.latest?.message || ''
     </div>
 
     <TaskActionSelectionBar
-      v-if="bulkMode && selectedCount > 0"
       v-model:action="bulkAction"
       :selected-count="selectedCount"
       :max-selection-size="taskActionsStore.maxSelectionSize"
@@ -351,7 +330,7 @@ const getProgressMessage = (snapshot: any) => snapshot?.latest?.message || ''
     <Table>
       <TableHeader>
         <TableRow class="border-border-subtle" v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-          <TableHead v-if="bulkMode" class="w-10 pl-4 pr-0">
+          <TableHead class="w-10 pl-4 pr-0">
             <Checkbox
               :checked="headerChecked"
               aria-label="Select visible tasks"
@@ -392,7 +371,7 @@ const getProgressMessage = (snapshot: any) => snapshot?.latest?.message || ''
               class="border-border-subtle cursor-pointer hover:bg-background-hover-subtle transition-colors duration-150"
               @click="toggleRowExpansion(row.original.task_id)"
             >
-              <TableCell v-if="bulkMode" class="w-10 pl-4 pr-0" @click.stop>
+              <TableCell class="w-10 pl-4 pr-0" @click.stop>
                 <Checkbox
                   :checked="selectedTaskIds.has(row.original.task_id)"
                   :aria-label="`Select task ${row.original.task_id}`"
@@ -414,7 +393,7 @@ const getProgressMessage = (snapshot: any) => snapshot?.latest?.message || ''
             
             
             <TableRow class="bg-background-raised border-border-subtle cursor-default">
-              <TableCell :colspan="columns.length + 1 + (bulkMode ? 1 : 0)" class="p-0">
+              <TableCell :colspan="columns.length + 2" class="p-0">
                 <Transition
                   enter-active-class="transition-[opacity,transform,max-height] duration-250 ease-out"
                   enter-from-class="opacity-0 -translate-y-1 max-h-[0px]"
@@ -526,7 +505,7 @@ const getProgressMessage = (snapshot: any) => snapshot?.latest?.message || ''
         </template>
         <template v-else>
           <TableRow class="border-border-subtle">
-            <TableCell :colspan="columns.length + 1 + (bulkMode ? 1 : 0)" class="h-24 text-center">
+            <TableCell :colspan="columns.length + 2" class="h-24 text-center">
               No results.
             </TableCell>
           </TableRow>
@@ -605,7 +584,7 @@ const getProgressMessage = (snapshot: any) => snapshot?.latest?.message || ''
     </div>
   </div>
 
-  <RerunConfirmDialog
+  <RerunReviewDrawer
     v-model:open="singleRerunDialogOpen"
     :task-ids="currentRetryTaskId ? [currentRetryTaskId] : []"
     :tasks="currentRerunTask ? [currentRerunTask] : []"
@@ -613,11 +592,11 @@ const getProgressMessage = (snapshot: any) => snapshot?.latest?.message || ''
     :is-loading="taskActionsStore.isCreating"
     :is-preflighting="taskActionsStore.isPreflighting"
     @preflight="preflightSingleRerun"
-    @confirm="confirmSingleRerun"
+    @submitted="handleSingleRerunSubmitted"
     @cancel="cancelSingleRerun"
   />
 
-  <RerunConfirmDialog
+  <RerunReviewDrawer
     v-model:open="rerunDialogOpen"
     :task-ids="Array.from(selectedTaskIds)"
     :tasks="selectedTasks"
@@ -625,7 +604,7 @@ const getProgressMessage = (snapshot: any) => snapshot?.latest?.message || ''
     :is-loading="taskActionsStore.isCreating"
     :is-preflighting="taskActionsStore.isPreflighting"
     @preflight="preflightSelectedRerun"
-    @confirm="confirmSelectedRerun"
+    @submitted="handleSelectedRerunSubmitted"
     @cancel="rerunPreflight = null"
   />
 </template>

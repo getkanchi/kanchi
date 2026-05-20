@@ -193,7 +193,7 @@
         />
       </div>
 
-      <RerunConfirmDialog
+      <RerunReviewDrawer
         v-model:open="rerunDialogOpen"
         :task-ids="retryDialogTask ? [retryDialogTask.task_id] : []"
         :tasks="retryDialogTask ? [retryDialogTask] : []"
@@ -201,7 +201,7 @@
         :is-loading="isRetryingTask"
         :is-preflighting="taskActionsStore.isPreflighting"
         @preflight="preflightRetry"
-        @confirm="confirmRetry"
+        @submitted="handleRerunSubmitted"
         @cancel="cancelRetry"
       />
 
@@ -216,7 +216,7 @@ import WorkerStatusSummary from "~/components/WorkerStatusSummary.vue"
 import CommandPalette from "~/components/CommandPalette.vue"
 import TaskIssueSummary from "~/components/TaskIssueSummary.vue"
 import TaskActionActivityDrawer from "~/components/tasks/TaskActionActivityDrawer.vue"
-import RerunConfirmDialog from "~/components/tasks/RerunConfirmDialog.vue"
+import RerunReviewDrawer from "~/components/tasks/RerunReviewDrawer.vue"
 import { Button } from '~/components/ui/button'
 import { Badge } from '~/components/ui/badge'
 import TimeDisplay from '~/components/TimeDisplay.vue'
@@ -314,7 +314,7 @@ const failedTasksTitle = computed(() => `Failed tasks (${formatLookbackLabel(fai
 const failedTasksEmptyTitle = computed(() => `No failed tasks detected in the last ${formatLookbackLabel(failedTasksLookbackHours.value)}`)
 
 const retryDialogState = ref<{ task: TaskEventResponse; type: 'failed' | 'orphan' } | null>(null)
-const isRetryingTask = ref(false)
+const isRetryingTask = computed(() => taskActionsStore.isCreating && Boolean(retryDialogState.value))
 const rerunDialogOpen = ref(false)
 const rerunPreflight = ref<RerunPreflightResponseDTO | null>(null)
 
@@ -440,20 +440,10 @@ function handleOrphanRetryAction(task: TaskEventResponse) {
   openRetryDialog(task, 'orphan')
 }
 
-async function confirmRetry() {
-  if (!retryDialogState.value) return
-  isRetryingTask.value = true
-  const { task } = retryDialogState.value
-  try {
-    await taskActionsStore.createAction('rerun', [task.task_id])
-    retryDialogState.value = null
-    rerunDialogOpen.value = false
-    rerunPreflight.value = null
-  } catch (error) {
-    console.error('Failed to rerun task:', error)
-  } finally {
-    isRetryingTask.value = false
-  }
+function handleRerunSubmitted() {
+  retryDialogState.value = null
+  rerunDialogOpen.value = false
+  rerunPreflight.value = null
 }
 
 function cancelRetry() {

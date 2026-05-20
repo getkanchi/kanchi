@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useApiService } from '../services/apiClient'
 import type {
   RerunPreflightResponseDTO,
+  RerunSubmitItemDTO,
   TaskActionDetailDTO,
   TaskActionListResponseDTO,
   TaskActionSummaryDTO,
@@ -130,6 +131,22 @@ export const useTaskActionsStore = defineStore('taskActions', () => {
     }
   }
 
+  async function submitRerunReview(items: RerunSubmitItemDTO[]): Promise<TaskActionDetailDTO> {
+    try {
+      isCreating.value = true
+      error.value = null
+      const detail = await apiService.submitRerunReview(items)
+      upsertSummary(detail)
+      focusAction(detail.id, { detail, autoOpen: true })
+      return detail
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to submit rerun review'
+      throw err
+    } finally {
+      isCreating.value = false
+    }
+  }
+
   function focusAction(
     actionId: string,
     options: { detail?: TaskActionDetailDTO; autoOpen?: boolean } = {}
@@ -215,6 +232,7 @@ export const useTaskActionsStore = defineStore('taskActions', () => {
     fetchAction,
     preflightRerun,
     createAction,
+    submitRerunReview,
     focusAction,
     openDrawer,
     closeDrawer,

@@ -1,13 +1,28 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { ChevronRight, Search, X } from 'lucide-vue-next'
+import { Check, ChevronRight, ChevronsUpDown, Search, X } from 'lucide-vue-next'
 import TaskName from '~/components/TaskName.vue'
 import UuidDisplay from '~/components/UuidDisplay.vue'
+import CopyButton from '~/components/CopyButton.vue'
+import DataMetricStrip from '~/components/common/DataMetricStrip.vue'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandList,
+} from '~/components/ui/command'
 import { Input } from '~/components/ui/input'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '~/components/ui/popover'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '~/components/ui/sheet'
 import { useLogger } from '~/services/logger'
+import { cn } from '~/lib/utils'
 import TaskActionOutcomeBadge from './TaskActionOutcomeBadge.vue'
 import type { TaskEventResponse } from '~/services/apiClient'
 
@@ -16,15 +31,33 @@ const logger = useLogger()
 const { eventTypeToStatus, getStatusVariant, formatStatus } = useTaskStatus()
 const query = ref('')
 const outcomeFilter = ref<'all' | 'failed' | 'skipped' | 'running'>('all')
+const outcomeFilterOpen = ref(false)
 
 const focused = computed(() => taskActionsStore.focusedAction)
+const outcomeFilterOptions = computed(() => {
+  const options: Array<{ value: 'all' | 'failed' | 'skipped' | 'running'; label: string }> = [
+    { value: 'all', label: 'All outcomes' },
+    { value: 'failed', label: 'Failed only' },
+    { value: 'skipped', label: 'Skipped only' },
+  ]
+  if (focused.value?.action_type === 'rerun') {
+    options.push({ value: 'running', label: 'Still running' })
+  }
+  return options
+})
+const selectedOutcomeFilter = computed(() =>
+  outcomeFilterOptions.value.find(option => option.value === outcomeFilter.value) ?? outcomeFilterOptions.value[0]
+)
 
 const filteredItems = computed(() => {
   const items = focused.value?.items || []
   const normalized = query.value.trim().toLowerCase()
   return items.filter(item => {
     if (outcomeFilter.value === 'failed' && item.outcome !== 'failed') return false
-    if (outcomeFilter.value === 'skipped' && item.outcome !== 'skipped_unavailable') return false
+    if (
+      outcomeFilter.value === 'skipped'
+      && !['skipped_unavailable', 'user_skipped', 'blocked_skipped'].includes(item.outcome)
+    ) return false
     if (outcomeFilter.value === 'running') {
       const eventType = item.rerun_task?.event_type || ''
       if (!item.rerun_task_id || ['task-succeeded', 'task-failed', 'task-revoked', 'task-retried'].includes(eventType)) {
@@ -42,8 +75,8 @@ const filteredItems = computed(() => {
 })
 
 const title = computed(() => {
-  if (!focused.value) return 'Task action activity'
-  if (focused.value.action_type === 'rerun') return 'Rerun activity'
+  if (!focused.value) return 'Recent actions'
+  if (focused.value.action_type === 'rerun') return 'Rerun history'
   if (focused.value.action_type === 'unresolve') return 'Unresolve activity'
   return 'Resolve activity'
 })
@@ -51,6 +84,19 @@ const title = computed(() => {
 const lifecycleCounts = computed(() =>
   Object.entries(focused.value?.rerun_lifecycle_counts || {})
 )
+const activityMetrics = computed(() => {
+  if (!focused.value) return []
+  return [
+    { label: 'Items', value: focused.value.item_total },
+    {
+      label: focused.value.action_type === 'rerun' ? 'Sent' : 'Changed',
+      value: focused.value.item_created + focused.value.item_changed,
+      tone: 'success' as const,
+    },
+    { label: 'Skipped', value: focused.value.item_skipped, tone: 'warning' as const },
+    { label: 'Failed', value: focused.value.item_failed, tone: 'error' as const },
+  ]
+})
 
 function taskStatusMeta(task: TaskEventResponse | null | undefined) {
   if (!task) {
@@ -71,6 +117,51 @@ function eventTypeStatusMeta(eventType: string) {
   }
 }
 
+function actionTypeLabel(type: string) {
+  if (type === 'rerun') return 'Rerun'
+  if (type === 'unresolve') return 'Unresolve'
+  return 'Resolve'
+}
+
+function rerunKindLabel(kind: string | null | undefined) {
+  switch (kind) {
+    case 'edited_override':
+      return 'Sent with edits'
+    case 'repaired_override':
+      return 'Sent after repair'
+    case 'replay':
+      return 'Sent as-is'
+    default:
+      return null
+  }
+}
+
+function submittedInputsText(item: any) {
+  return JSON.stringify({ args: item.submitted_args || [], kwargs: item.submitted_kwargs || {} }, null, 2)
+}
+
+function submittedSnippetText(item: any) {
+  const queue = item.target_queue || 'default'
+  return `app.send_task(${pythonLiteral(item.rerun_task_name)}, args=${pythonLiteral(item.submitted_args)}, kwargs=${pythonLiteral(item.submitted_kwargs)}, queue=${pythonLiteral(queue)})`
+}
+
+function selectOutcomeFilter(value: 'all' | 'failed' | 'skipped' | 'running') {
+  outcomeFilter.value = value
+  outcomeFilterOpen.value = false
+}
+
+function pythonLiteral(value: any): string {
+  if (value === null) return 'None'
+  if (typeof value === 'boolean') return value ? 'True' : 'False'
+  if (typeof value === 'string') return JSON.stringify(value)
+  if (typeof value === 'number') return String(value)
+  if (Array.isArray(value)) return `[${value.map(pythonLiteral).join(', ')}]`
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value).map(([key, val]) => `${JSON.stringify(key)}: ${pythonLiteral(val)}`).join(', ')}}`
+  }
+  return JSON.stringify(value)
+}
+
 watch(() => taskActionsStore.isDrawerOpen, async (open) => {
   if (open && taskActionsStore.actions.length === 0) {
     try {
@@ -78,6 +169,12 @@ watch(() => taskActionsStore.isDrawerOpen, async (open) => {
     } catch (error) {
       logger.error('Failed to fetch task actions when opening activity drawer', { error })
     }
+  }
+})
+
+watch(() => focused.value?.action_type, (actionType) => {
+  if (actionType !== 'rerun' && outcomeFilter.value === 'running') {
+    outcomeFilter.value = 'all'
   }
 })
 </script>
@@ -109,7 +206,7 @@ watch(() => taskActionsStore.isDrawerOpen, async (open) => {
               @click="taskActionsStore.focusAction(action.id)"
             >
               <div class="flex items-center justify-between gap-2">
-                <span class="text-sm font-medium capitalize text-text-primary">{{ action.action_type }}</span>
+                <span class="text-sm font-medium text-text-primary">{{ actionTypeLabel(action.action_type) }}</span>
                 <TaskActionOutcomeBadge :value="action.status" />
               </div>
               <div class="mt-1 text-xs text-text-muted">
@@ -124,24 +221,7 @@ watch(() => taskActionsStore.isDrawerOpen, async (open) => {
 
         <main class="min-h-0 overflow-y-auto p-4">
           <div v-if="focused" class="space-y-4">
-            <div class="grid gap-2 sm:grid-cols-4">
-              <div class="rounded-md border border-border-subtle p-3">
-                <div class="text-xl font-semibold text-text-primary">{{ focused.item_total }}</div>
-                <div class="text-xs text-text-muted">items</div>
-              </div>
-              <div class="rounded-md border border-border-subtle p-3">
-                <div class="text-xl font-semibold text-status-success">{{ focused.item_created + focused.item_changed }}</div>
-                <div class="text-xs text-text-muted">changed</div>
-              </div>
-              <div class="rounded-md border border-border-subtle p-3">
-                <div class="text-xl font-semibold text-status-warning">{{ focused.item_skipped }}</div>
-                <div class="text-xs text-text-muted">skipped</div>
-              </div>
-              <div class="rounded-md border border-border-subtle p-3">
-                <div class="text-xl font-semibold text-status-error">{{ focused.item_failed }}</div>
-                <div class="text-xs text-text-muted">failed</div>
-              </div>
-            </div>
+            <DataMetricStrip :metrics="activityMetrics" />
 
             <div v-if="lifecycleCounts.length" class="flex flex-wrap gap-2">
               <Badge
@@ -156,12 +236,43 @@ watch(() => taskActionsStore.isDrawerOpen, async (open) => {
             <div class="flex flex-wrap items-center gap-2">
               <div class="relative min-w-[220px] flex-1">
                 <Search class="absolute left-2 top-2 h-4 w-4 text-text-muted" />
-                <Input v-model="query" class="pl-8" placeholder="Search activity..." />
+                <Input v-model="query" class="pl-8" placeholder="Search actions" />
               </div>
-              <Button variant="outline" size="sm" :class="outcomeFilter === 'all' ? 'bg-background-selected' : ''" @click="outcomeFilter = 'all'">All</Button>
-              <Button variant="outline" size="sm" :class="outcomeFilter === 'failed' ? 'bg-background-selected' : ''" @click="outcomeFilter = 'failed'">Failed</Button>
-              <Button variant="outline" size="sm" :class="outcomeFilter === 'skipped' ? 'bg-background-selected' : ''" @click="outcomeFilter = 'skipped'">Skipped</Button>
-              <Button v-if="focused.action_type === 'rerun'" variant="outline" size="sm" :class="outcomeFilter === 'running' ? 'bg-background-selected' : ''" @click="outcomeFilter = 'running'">Running</Button>
+              <Popover v-model:open="outcomeFilterOpen">
+                <PopoverTrigger as-child>
+                  <Button variant="outline" size="sm" class="h-9 min-w-40 justify-between gap-2">
+                    {{ selectedOutcomeFilter.label }}
+                    <ChevronsUpDown class="h-3.5 w-3.5 text-text-muted" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  class="w-44 border-border-subtle bg-background-surface p-0 text-text-primary"
+                  align="end"
+                >
+                  <Command class="bg-background-surface text-text-primary">
+                    <CommandList class="max-h-none">
+                      <CommandEmpty class="text-text-muted">No filter found.</CommandEmpty>
+                      <CommandGroup class="text-text-primary">
+                        <CommandItem
+                          v-for="option in outcomeFilterOptions"
+                          :key="option.value"
+                          :value="option.value"
+                          class="cursor-pointer text-text-secondary data-[highlighted]:bg-background-hover-subtle data-[highlighted]:text-text-primary"
+                          @select="selectOutcomeFilter(option.value)"
+                        >
+                          <Check
+                            :class="cn(
+                              'h-4 w-4 text-primary',
+                              outcomeFilter === option.value ? 'visible' : 'invisible',
+                            )"
+                          />
+                          {{ option.label }}
+                        </CommandItem>
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div class="space-y-2">
@@ -192,20 +303,51 @@ watch(() => taskActionsStore.isDrawerOpen, async (open) => {
                       </template>
                     </div>
                     <p v-if="item.reason" class="mt-2 text-xs text-text-secondary">{{ item.reason }}</p>
+                    <div v-if="item.rerun_kind || item.attempted_task_id" class="mt-2 flex flex-wrap items-center gap-2 text-xs text-text-muted">
+                      <Badge v-if="rerunKindLabel(item.rerun_kind)" variant="outline" class="text-[10px]">
+                        {{ rerunKindLabel(item.rerun_kind) }}
+                      </Badge>
+                      <template v-if="item.attempted_task_id && !item.rerun_task_id">
+                        <span>Attempted task</span>
+                        <UuidDisplay :uuid="item.attempted_task_id" :truncate-length="12" size="sm" />
+                      </template>
+                    </div>
                   </div>
                   <div class="flex items-center gap-2">
+                    <CopyButton
+                      v-if="item.submitted_args && item.submitted_kwargs"
+                      :text="submittedInputsText(item)"
+                      :copy-key="`submitted-rerun-inputs-${item.id}`"
+                      label="Inputs"
+                      size="xs"
+                      title="Copy submitted inputs"
+                    />
+                    <CopyButton
+                      v-if="item.submitted_args && item.submitted_kwargs && item.rerun_task_name"
+                      :text="submittedSnippetText(item)"
+                      :copy-key="`submitted-rerun-snippet-${item.id}`"
+                      label="Snippet"
+                      size="xs"
+                      title="Copy submitted Celery snippet"
+                    />
                     <NuxtLink
                       :to="`/tasks/${item.original_task_id}`"
                       @click="taskActionsStore.closeDrawer()"
                     >
-                      <Button variant="outline" size="xs">Original</Button>
+                      <Button variant="outline" size="xs" class="gap-1">
+                        <ChevronRight class="h-3.5 w-3.5" />
+                        Original
+                      </Button>
                     </NuxtLink>
                     <NuxtLink
                       v-if="item.rerun_task_id"
                       :to="`/tasks/${item.rerun_task_id}`"
                       @click="taskActionsStore.closeDrawer()"
                     >
-                      <Button variant="outline" size="xs">Rerun</Button>
+                      <Button variant="outline" size="xs" class="gap-1">
+                        <ChevronRight class="h-3.5 w-3.5" />
+                        Rerun
+                      </Button>
                     </NuxtLink>
                   </div>
                 </div>

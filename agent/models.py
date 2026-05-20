@@ -44,6 +44,9 @@ class TaskEvent(BaseModel):
     resolved: bool = False
     resolved_by: Optional[str] = None
     resolved_at: Optional[datetime] = None
+    submitted_rerun_args: Optional[List[Any]] = None
+    submitted_rerun_kwargs: Optional[Dict[str, Any]] = None
+    submitted_rerun_kind: Optional[str] = None
 
     model_config = {
         'from_attributes': True,
@@ -238,7 +241,33 @@ class TaskActionItemOutcome(str, Enum):
     NOOP = "noop"
     CREATED = "created"
     SKIPPED_UNAVAILABLE = "skipped_unavailable"
+    USER_SKIPPED = "user_skipped"
+    BLOCKED_SKIPPED = "blocked_skipped"
     FAILED = "failed"
+
+
+class RerunReviewState(str, Enum):
+    """Availability state for a manual rerun review item."""
+
+    REPLAYABLE = "replayable"
+    REPAIRABLE = "repairable"
+    BLOCKED = "blocked"
+
+
+class RerunSubmitDecision(str, Enum):
+    """Per-task decision made in the rerun review drawer."""
+
+    SUBMIT = "submit"
+    USER_SKIP = "user_skip"
+    BLOCKED_SKIP = "blocked_skip"
+
+
+class RerunKind(str, Enum):
+    """Audit category for submitted manual rerun inputs."""
+
+    REPLAY = "replay"
+    EDITED_OVERRIDE = "edited_override"
+    REPAIRED_OVERRIDE = "repaired_override"
 
 
 class RerunUnavailableReason(str, Enum):
@@ -249,6 +278,32 @@ class RerunUnavailableReason(str, Enum):
     TRUNCATED_PAYLOAD = "truncated_payload"
     UNPARSEABLE_PAYLOAD = "unparseable_payload"
     MONITOR_UNAVAILABLE = "monitor_unavailable"
+
+
+class RerunInputIssue(BaseModel):
+    """Path-addressed rerun input issue."""
+
+    path: str
+    reason_code: str
+    message: str
+
+
+class RerunSubmissionTarget(BaseModel):
+    """Read-only task identity and routing target for manual rerun submission."""
+
+    task_name: Optional[str] = None
+    queue: Optional[str] = None
+    routing_key: Optional[str] = None
+    exchange: Optional[str] = None
+
+
+class RerunInputBaseline(BaseModel):
+    """Starting rerun inputs shown to the user."""
+
+    args: List[Any] = Field(default_factory=list)
+    kwargs: Dict[str, Any] = Field(default_factory=dict)
+    source: str = "observed_task_inputs"
+    source_version: Optional[str] = None
 
 
 class TaskActionCreateRequest(BaseModel):
@@ -270,9 +325,14 @@ class RerunPreflightItem(BaseModel):
     task_id: str
     task_name: Optional[str] = None
     ready: bool = False
+    review_state: RerunReviewState = RerunReviewState.BLOCKED
     reason_code: Optional[str] = None
     reason: Optional[str] = None
     task: Optional[TaskEvent] = None
+    baseline: RerunInputBaseline = Field(default_factory=RerunInputBaseline)
+    target: RerunSubmissionTarget = Field(default_factory=RerunSubmissionTarget)
+    required_replacements: List[RerunInputIssue] = Field(default_factory=list)
+    fingerprint: Optional[str] = None
 
 
 class RerunPreflightResponse(BaseModel):
@@ -281,8 +341,27 @@ class RerunPreflightResponse(BaseModel):
     total: int
     ready_count: int
     unavailable_count: int
+    replayable_count: int = 0
+    repairable_count: int = 0
+    blocked_count: int = 0
     max_selection_size: int
     items: List[RerunPreflightItem] = Field(default_factory=list)
+
+
+class RerunSubmitItem(BaseModel):
+    """A single rerun review decision submitted by the frontend."""
+
+    task_id: str
+    decision: RerunSubmitDecision
+    fingerprint: str
+    args: Optional[List[Any]] = None
+    kwargs: Optional[Dict[str, Any]] = None
+
+
+class RerunSubmitRequest(BaseModel):
+    """Submit a manual rerun review."""
+
+    items: List[RerunSubmitItem] = Field(min_length=1)
 
 
 class TaskActionItem(BaseModel):
@@ -298,6 +377,13 @@ class TaskActionItem(BaseModel):
     rerun_task_id: Optional[str] = None
     rerun_task_name: Optional[str] = None
     rerun_task: Optional[TaskEvent] = None
+    attempted_task_id: Optional[str] = None
+    submitted_args: Optional[List[Any]] = None
+    submitted_kwargs: Optional[Dict[str, Any]] = None
+    rerun_kind: Optional[RerunKind] = None
+    skip_category: Optional[str] = None
+    review_fingerprint: Optional[str] = None
+    target_queue: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

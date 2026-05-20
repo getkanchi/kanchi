@@ -10,12 +10,17 @@ import type {
   RetentionLastRun,
   RetentionScheduleConfig,
   TaskStats,
-  TaskEventResponse,
+  TaskEvent,
   TaskIssueConfig,
   WorkerInfo
 } from '../src/types/api'
 
 export type AuthProvider = 'google' | 'github'
+export type TaskEventResponse = TaskEvent & {
+  submitted_rerun_args?: any[] | null
+  submitted_rerun_kwargs?: Record<string, any> | null
+  submitted_rerun_kind?: RerunKind | null
+}
 
 export interface UserInfoDTO {
   id: string
@@ -112,23 +117,62 @@ export interface TaskProgressSnapshotResponse {
 
 export type TaskActionType = 'rerun' | 'resolve' | 'unresolve'
 export type TaskActionStatus = 'running' | 'completed' | 'partial_success' | 'failed'
-export type TaskActionItemOutcome = 'pending' | 'changed' | 'noop' | 'created' | 'skipped_unavailable' | 'failed'
+export type TaskActionItemOutcome = 'pending' | 'changed' | 'noop' | 'created' | 'skipped_unavailable' | 'user_skipped' | 'blocked_skipped' | 'failed'
+export type RerunReviewState = 'replayable' | 'repairable' | 'blocked'
+export type RerunSubmitDecision = 'submit' | 'user_skip' | 'blocked_skip'
+export type RerunKind = 'replay' | 'edited_override' | 'repaired_override'
+
+export interface RerunInputIssueDTO {
+  path: string
+  reason_code: string
+  message: string
+}
+
+export interface RerunInputBaselineDTO {
+  args: any[]
+  kwargs: Record<string, any>
+  source: string
+  source_version?: string | null
+}
+
+export interface RerunSubmissionTargetDTO {
+  task_name?: string | null
+  queue?: string | null
+  routing_key?: string | null
+  exchange?: string | null
+}
 
 export interface RerunPreflightItemDTO {
   task_id: string
   task_name?: string | null
   ready: boolean
+  review_state: RerunReviewState
   reason_code?: string | null
   reason?: string | null
   task?: TaskEventResponse | null
+  baseline: RerunInputBaselineDTO
+  target: RerunSubmissionTargetDTO
+  required_replacements: RerunInputIssueDTO[]
+  fingerprint?: string | null
 }
 
 export interface RerunPreflightResponseDTO {
   total: number
   ready_count: number
   unavailable_count: number
+  replayable_count: number
+  repairable_count: number
+  blocked_count: number
   max_selection_size: number
   items: RerunPreflightItemDTO[]
+}
+
+export interface RerunSubmitItemDTO {
+  task_id: string
+  decision: RerunSubmitDecision
+  fingerprint: string
+  args?: any[] | null
+  kwargs?: Record<string, any> | null
 }
 
 export interface TaskActionItemDTO {
@@ -142,6 +186,13 @@ export interface TaskActionItemDTO {
   rerun_task_id?: string | null
   rerun_task_name?: string | null
   rerun_task?: TaskEventResponse | null
+  attempted_task_id?: string | null
+  submitted_args?: any[] | null
+  submitted_kwargs?: Record<string, any> | null
+  rerun_kind?: RerunKind | null
+  skip_category?: string | null
+  review_fingerprint?: string | null
+  target_queue?: string | null
   created_at: string
   updated_at: string
 }
@@ -401,9 +452,18 @@ class ApiService {
 
   async preflightTaskActionRerun(taskIds: string[]): Promise<RerunPreflightResponseDTO> {
     const response = await this.api.request({
-      path: '/api/task-actions/preflight',
+      path: '/api/task-actions/rerun/preflight',
       method: 'POST',
       body: { task_ids: taskIds }
+    })
+    return response.data
+  }
+
+  async submitRerunReview(items: RerunSubmitItemDTO[]): Promise<TaskActionDetailDTO> {
+    const response = await this.api.request({
+      path: '/api/task-actions/rerun',
+      method: 'POST',
+      body: { items }
     })
     return response.data
   }

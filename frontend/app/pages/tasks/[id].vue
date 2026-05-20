@@ -314,9 +314,26 @@
           <!-- Data Tab -->
           <TabsContent value="data">
             <div class="space-y-6">
+              <div
+                v-if="task.submitted_rerun_args || task.submitted_rerun_kwargs"
+                class="border border-primary-border rounded-md p-5 bg-primary-bg/10"
+              >
+                <h2 class="text-sm font-medium text-primary mb-4">Inputs Kanchi submitted</h2>
+                <div class="grid gap-4 lg:grid-cols-2">
+                  <div>
+                    <div class="text-[10px] uppercase tracking-wider font-medium text-text-muted mb-2">Positional arguments</div>
+                    <pre class="text-xs font-mono bg-background-base border border-border-subtle rounded p-3 overflow-x-auto text-text-primary">{{ formatJson(task.submitted_rerun_args || []) }}</pre>
+                  </div>
+                  <div>
+                    <div class="text-[10px] uppercase tracking-wider font-medium text-text-muted mb-2">Keyword arguments</div>
+                    <pre class="text-xs font-mono bg-background-base border border-border-subtle rounded p-3 overflow-x-auto text-text-primary">{{ formatJson(task.submitted_rerun_kwargs || {}) }}</pre>
+                  </div>
+                </div>
+              </div>
+
               <!-- Arguments -->
               <div class="border border-border-subtle rounded-md p-5">
-                <h2 class="text-sm font-medium text-text-primary mb-4">Arguments</h2>
+                <h2 class="text-sm font-medium text-text-primary mb-4">Observed positional arguments</h2>
                 <PayloadTruncationNotice
                   :value="task.args"
                   title="Arguments truncated before reaching Kanchi"
@@ -326,7 +343,7 @@
 
               <!-- Keyword Arguments -->
               <div class="border border-border-subtle rounded-md p-5">
-                <h2 class="text-sm font-medium text-text-primary mb-4">Keyword Arguments</h2>
+                <h2 class="text-sm font-medium text-text-primary mb-4">Observed keyword arguments</h2>
                 <PayloadTruncationNotice
                   :value="task.kwargs"
                   title="Keyword arguments truncated before reaching Kanchi"
@@ -415,7 +432,7 @@
     </NuxtLink>
   </div>
 
-  <RerunConfirmDialog
+  <RerunReviewDrawer
     v-model:open="rerunDialogOpen"
     :task-ids="task ? [task.task_id] : []"
     :tasks="task ? [task] : []"
@@ -423,7 +440,7 @@
     :is-loading="taskActionsStore.isCreating"
     :is-preflighting="taskActionsStore.isPreflighting"
     @preflight="preflightRerun"
-    @confirm="handleRerunConfirm"
+    @submitted="handleRerunSubmitted"
     @cancel="rerunPreflight = null"
   />
 
@@ -439,7 +456,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs'
 import TimeDisplay from '~/components/TimeDisplay.vue'
 import UuidDisplay from '~/components/UuidDisplay.vue'
 import PayloadTruncationNotice from '~/components/PayloadTruncationNotice.vue'
-import RerunConfirmDialog from '~/components/tasks/RerunConfirmDialog.vue'
+import RerunReviewDrawer from '~/components/tasks/RerunReviewDrawer.vue'
 import TaskActionActivityDrawer from '~/components/tasks/TaskActionActivityDrawer.vue'
 import TaskProgressSteps from '~/components/tasks/TaskProgressSteps.vue'
 import type { RerunPreflightResponseDTO, TaskEventResponse } from '~/services/apiClient'
@@ -553,17 +570,10 @@ const preflightRerun = async () => {
   rerunPreflight.value = await taskActionsStore.preflightRerun([task.value.task_id])
 }
 
-const handleRerunConfirm = async () => {
-  if (!task.value?.task_id) return
-
-  try {
-    await taskActionsStore.createAction('rerun', [task.value.task_id])
-    rerunDialogOpen.value = false
-    rerunPreflight.value = null
-    await fetchTaskData()
-  } catch (error) {
-    console.error('Failed to rerun task:', error)
-  }
+const handleRerunSubmitted = async () => {
+  rerunDialogOpen.value = false
+  rerunPreflight.value = null
+  await fetchTaskData()
 }
 
 const handleTaskIdUrlCopy = async () => {

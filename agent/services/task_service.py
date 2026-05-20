@@ -12,6 +12,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 
 from database import (
+    TaskActionItemDB,
     TaskEventDB,
     RetryRelationshipDB,
     TaskLatestDB,
@@ -1029,15 +1030,37 @@ class TaskService:
                 related_ids.add(rel.rerun_task_id)
 
         related_tasks = self._fetch_related_tasks(related_ids) if related_ids else {}
+        submitted_items = (
+            self.session.query(TaskActionItemDB)
+            .filter(
+                TaskActionItemDB.rerun_task_id.in_(task_ids),
+                TaskActionItemDB.submitted_args.isnot(None),
+                TaskActionItemDB.submitted_kwargs.isnot(None),
+            )
+            .all()
+        )
+        submitted_by_rerun_id = {
+            item.rerun_task_id: item
+            for item in submitted_items
+            if item.rerun_task_id
+        }
 
         for event in events:
             rerun_rel = by_rerun_id.get(event.task_id)
             if rerun_rel:
                 event.is_rerun = True
                 event.rerun_of = related_tasks.get(rerun_rel.original_task_id)
+                submitted_item = submitted_by_rerun_id.get(event.task_id)
+                if submitted_item:
+                    event.submitted_rerun_args = submitted_item.submitted_args or []
+                    event.submitted_rerun_kwargs = submitted_item.submitted_kwargs or {}
+                    event.submitted_rerun_kind = submitted_item.rerun_kind
             else:
                 event.is_rerun = False
                 event.rerun_of = None
+                event.submitted_rerun_args = None
+                event.submitted_rerun_kwargs = None
+                event.submitted_rerun_kind = None
 
             child_rels = by_original_id.get(event.task_id, [])
             event.rerun_by = [

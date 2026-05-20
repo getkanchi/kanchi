@@ -269,7 +269,7 @@
     </SheetContent>
   </Sheet>
 
-  <RerunConfirmDialog
+  <RerunReviewDrawer
     v-model:open="rerunDialogOpen"
     :task-ids="currentRerunTaskId ? [currentRerunTaskId] : []"
     :tasks="currentRerunTask ? [currentRerunTask] : []"
@@ -277,7 +277,7 @@
     :is-loading="taskActionsStore.isCreating && !!currentRerunTaskId"
     :is-preflighting="taskActionsStore.isPreflighting"
     @preflight="handleRerunPreflight"
-    @confirm="handleRerunConfirm"
+    @submitted="handleRerunSubmitted"
     @cancel="handleRerunCancel"
   />
 </template>
@@ -292,7 +292,7 @@ import Tag from '~/components/common/Tag.vue'
 import { Badge } from '~/components/ui/badge'
 import IconButton from '~/components/common/IconButton.vue'
 import FailureCard from '~/components/FailureCard.vue'
-import RerunConfirmDialog from '~/components/tasks/RerunConfirmDialog.vue'
+import RerunReviewDrawer from '~/components/tasks/RerunReviewDrawer.vue'
 import type { RerunPreflightResponseDTO, TaskRegistryResponse, TaskRegistryStats, TaskTimelineResponse, TaskRegistryUpdate, TaskEventResponse } from '~/services/apiClient'
 
 interface Props {
@@ -457,19 +457,10 @@ async function handleRerunPreflight() {
   rerunPreflight.value = await taskActionsStore.preflightRerun([currentRerunTaskId.value])
 }
 
-async function handleRerunConfirm() {
-  if (!currentRerunTaskId.value) return
-
-  try {
-    await taskActionsStore.createAction('rerun', [currentRerunTaskId.value])
-    currentRerunTaskId.value = null
-    rerunDialogOpen.value = false
-    rerunPreflight.value = null
-  } catch (error) {
-    console.error('Failed to rerun task:', error)
-    currentRerunTaskId.value = null
-    rerunPreflight.value = null
-  }
+function handleRerunSubmitted() {
+  currentRerunTaskId.value = null
+  rerunDialogOpen.value = false
+  rerunPreflight.value = null
 }
 
 function handleRerunCancel() {
