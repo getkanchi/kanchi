@@ -16,7 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import { ChevronRight, ChevronDown, Clock, Hash, Database, Cpu, AlertTriangle, ChevronLeft, ChevronsLeft, ChevronsRight, ArrowUpDown, ArrowUp, ArrowDown, Search, RefreshCw, CornerDownRight, CheckSquare } from 'lucide-vue-next'
+import { ChevronRight, ChevronDown, Clock, Hash, Database, Cpu, AlertTriangle, ChevronLeft, ChevronsLeft, ChevronsRight, ArrowUpDown, ArrowUp, ArrowDown, Search, RefreshCw, CornerDownRight } from 'lucide-vue-next'
 import { Card, CardContent } from '@/components/ui/card'
 
 import {Badge} from "~/components/ui/badge";
@@ -30,6 +30,7 @@ import { Select } from '~/components/common'
 import PythonValueViewer from "~/components/PythonValueViewer.vue";
 import TimeDisplay from "~/components/TimeDisplay.vue";
 import { Checkbox } from '~/components/ui/checkbox'
+import { Switch } from '~/components/ui/switch'
 import type { ParsedFilter } from '~/composables/useFilterParser'
 import type { TimeRange } from '~/components/TimeRangeFilter.vue'
 import TaskDetailsSection from '~/components/common/TaskDetailsSection.vue'
@@ -143,9 +144,9 @@ const clearSelection = () => {
   selectedTaskIds.value = new Set()
 }
 
-const toggleBulkMode = () => {
-  bulkMode.value = !bulkMode.value
-  if (!bulkMode.value) {
+const setBulkMode = (checked: boolean) => {
+  bulkMode.value = checked
+  if (!checked) {
     clearSelection()
   }
 }
@@ -307,16 +308,14 @@ const getProgressMessage = (snapshot: any) => snapshot?.latest?.message || ''
       
       <div class="ml-4 flex shrink-0 items-center gap-2">
         <TaskActionActivityButton />
-        <Button
-          variant="outline"
-          size="sm"
-          class="gap-1.5"
-          :class="bulkMode ? 'bg-background-selected' : ''"
-          @click="toggleBulkMode"
-        >
-          <CheckSquare class="h-4 w-4" />
-          Bulk
-        </Button>
+        <div class="inline-flex h-9 items-center gap-2 text-sm font-medium text-text-secondary">
+          <span class="font-medium">Bulk</span>
+          <Switch
+            aria-label="Bulk mode"
+            :model-value="bulkMode"
+            @update:model-value="setBulkMode"
+          />
+        </div>
 
         <!-- Live mode indicator badge -->
         <Badge

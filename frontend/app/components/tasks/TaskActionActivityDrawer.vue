@@ -7,10 +7,12 @@ import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '~/components/ui/sheet'
+import { useLogger } from '~/services/logger'
 import TaskActionOutcomeBadge from './TaskActionOutcomeBadge.vue'
 import type { TaskEventResponse } from '~/services/apiClient'
 
 const taskActionsStore = useTaskActionsStore()
+const logger = useLogger()
 const { eventTypeToStatus, getStatusVariant, formatStatus } = useTaskStatus()
 const query = ref('')
 const outcomeFilter = ref<'all' | 'failed' | 'skipped' | 'running'>('all')
@@ -69,9 +71,13 @@ function eventTypeStatusMeta(eventType: string) {
   }
 }
 
-watch(() => taskActionsStore.isDrawerOpen, (open) => {
+watch(() => taskActionsStore.isDrawerOpen, async (open) => {
   if (open && taskActionsStore.actions.length === 0) {
-    taskActionsStore.fetchActions().catch(() => {})
+    try {
+      await taskActionsStore.fetchActions()
+    } catch (error) {
+      logger.error('Failed to fetch task actions when opening activity drawer', { error })
+    }
   }
 })
 </script>

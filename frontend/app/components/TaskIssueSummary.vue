@@ -48,16 +48,14 @@
           />
         </div>
         <div class="flex flex-wrap items-center justify-end gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            class="gap-1.5"
-            :class="bulkMode ? 'bg-background-selected' : ''"
-            @click="toggleBulkMode"
-          >
-            <CheckSquare class="h-4 w-4" />
-            Bulk
-          </Button>
+          <div class="inline-flex h-9 items-center gap-2 text-sm font-medium text-text-secondary">
+            <span class="font-medium">Bulk</span>
+            <Switch
+              aria-label="Bulk mode"
+              :model-value="bulkMode"
+              @update:model-value="setBulkMode"
+            />
+          </div>
             <Tabs
               :model-value="activeLookbackString"
               :disabled="isUpdatingLookback"
@@ -366,6 +364,7 @@ import StatusDot from '~/components/StatusDot.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '~/components/ui/checkbox'
+import { Switch } from '~/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Table,
@@ -379,7 +378,7 @@ import SearchInput from '~/components/SearchInput.vue'
 import PythonValueViewer from '~/components/PythonValueViewer.vue'
 import { IconButton, Select } from '~/components/common'
 import TaskDetailsSection from '~/components/common/TaskDetailsSection.vue'
-import { ChevronDown, ChevronRight, Loader2, AlertTriangle, ChevronsLeft, ChevronLeft, ChevronsRight, CheckCircle2, CheckSquare } from 'lucide-vue-next'
+import { ChevronDown, ChevronRight, Loader2, AlertTriangle, ChevronsLeft, ChevronLeft, ChevronsRight, CheckCircle2 } from 'lucide-vue-next'
 import type { TaskEventResponse } from '~/services/apiClient'
 import type { RerunPreflightResponseDTO } from '~/services/apiClient'
 import { useTaskStatus } from '~/composables/useTaskStatus'
@@ -734,9 +733,9 @@ const clearSelection = () => {
   selectedTaskIds.value = new Set()
 }
 
-const toggleBulkMode = () => {
-  bulkMode.value = !bulkMode.value
-  if (!bulkMode.value) {
+const setBulkMode = (checked: boolean) => {
+  bulkMode.value = checked
+  if (!checked) {
     clearSelection()
   }
 }
