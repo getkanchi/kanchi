@@ -37,26 +37,60 @@ const formatResult = (result: unknown): string => {
   <div class="space-y-4 w-full max-w-full min-w-0 px-8 py-6 overflow-hidden">
     <Card class="w-full bg-background-surface/90 border border-border rounded-lg shadow-sm">
       <CardContent class="p-3 md:p-4 space-y-3">
-        <div class="flex flex-wrap items-center justify-between gap-3 text-xs text-text-muted">
-          <div class="flex items-center gap-3 flex-wrap min-w-0">
-            <div class="flex items-center gap-2 min-w-0">
-              <span class="text-sm font-semibold text-text-primary truncate">
-                {{ taskName || 'Task' }}
-              </span>
-              <Badge
-                :variant="statusVariant"
-                class="text-[11px] font-semibold"
-              >
-                {{ statusLabel }}
-              </Badge>
+        <div class="flex flex-col gap-2 text-xs text-text-muted">
+          <div class="flex w-full flex-wrap items-center gap-3">
+            <div class="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="text-sm font-semibold text-text-primary truncate">
+                  {{ taskName || 'Task' }}
+                </span>
+                <Badge
+                  :variant="statusVariant"
+                  class="text-[11px] font-semibold"
+                >
+                  {{ statusLabel }}
+                </Badge>
+              </div>
+              <div class="flex flex-wrap items-center gap-4 md:gap-6 text-sm text-text-primary">
+                <div class="flex items-center gap-2 min-w-0">
+                  <Hash class="h-3.5 w-3.5 text-text-muted" />
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span class="font-semibold truncate">{{ taskId }}</span>
+                    <CopyButton
+                      :text="taskId"
+                      :copy-key="`task-id-${taskId}`"
+                      title="Copy task ID"
+                      :show-text="false"
+                    />
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2 min-w-0">
+                  <Database class="h-3.5 w-3.5 text-text-muted" />
+                  <span class="font-semibold truncate">{{ routingKey || 'default' }}</span>
+                </div>
+
+                <div class="flex items-center gap-2 min-w-0">
+                  <Cpu class="h-3.5 w-3.5 text-text-muted" />
+                  <span class="font-semibold break-words">{{ hostname || '-' }}</span>
+                </div>
+
+                <slot name="meta-extra" />
+              </div>
             </div>
+
+            <div class="flex gap-2 ml-auto shrink-0">
+              <slot name="actions" />
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2 text-sm text-text-primary">
             <template v-if="startedTimestamp">
-              <span class="text-border-border">•</span>
               <div class="flex items-center gap-1.5">
-                <span class="font-medium text-text-secondary">Started</span>
                 <TimeDisplay
                   :timestamp="startedTimestamp"
                   layout="inline"
+                  :short="true"
                   :auto-refresh="true"
                   :refresh-interval="1000"
                   class="text-text-muted"
@@ -78,37 +112,8 @@ const formatResult = (result: unknown): string => {
               </span>
             </template>
           </div>
-          <div class="flex gap-2">
-            <slot name="actions" />
-          </div>
         </div>
 
-        <div class="flex flex-wrap items-center gap-4 md:gap-6 text-sm text-text-primary">
-          <div class="flex items-center gap-2 min-w-0">
-            <Hash class="h-3.5 w-3.5 text-text-muted" />
-            <div class="flex items-center gap-2 min-w-0">
-              <span class="font-semibold truncate">{{ taskId }}</span>
-              <CopyButton
-                :text="taskId"
-                :copy-key="`task-id-${taskId}`"
-                title="Copy task ID"
-                :show-text="false"
-              />
-            </div>
-          </div>
-
-          <div class="flex items-center gap-2 min-w-0">
-            <Database class="h-3.5 w-3.5 text-text-muted" />
-            <span class="font-semibold truncate">{{ routingKey || 'default' }}</span>
-          </div>
-
-          <div class="flex items-center gap-2 min-w-0">
-            <Cpu class="h-3.5 w-3.5 text-text-muted" />
-            <span class="font-semibold break-words">{{ hostname || '-' }}</span>
-          </div>
-
-          <slot name="meta-extra" />
-        </div>
       </CardContent>
     </Card>
 

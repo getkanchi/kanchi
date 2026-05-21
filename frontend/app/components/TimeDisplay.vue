@@ -54,6 +54,7 @@
     >
       <span
         class="font-medium transition-colors duration-200"
+        v-if="!props.short"
         :class="[
           timeData.colorClass,
           'group-hover/time:text-gray-200'
@@ -61,7 +62,7 @@
       >
         {{ timeData.contextLabel }}
       </span>
-      <span class="text-gray-600">•</span>
+      <span v-if="!props.short" class="text-gray-600">•</span>
       <span class="font-mono text-gray-400 tabular-nums text-[11px] group-hover/time:text-gray-300">
         {{ timeData.timeStr }}
       </span>
@@ -126,6 +127,7 @@ interface Props {
   autoRefresh?: boolean
   refreshInterval?: number
   layout?: 'auto' | 'inline'
+  short?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {

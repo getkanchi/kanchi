@@ -10,7 +10,8 @@ from services import (
     TaskService,
     WorkerService,
     TaskRegistryService,
-    DailyStatsService
+    DailyStatsService,
+    ProgressService
 )
 from metrics import metrics_collector
 
@@ -52,6 +53,32 @@ class EventHandler:
 
         except Exception as e:
             logger.error(f"Error handling task event {task_event.task_id}: {e}", exc_info=True)
+
+    def handle_progress_event(self, progress_event):
+        try:
+            with self.db_manager.get_session() as session:
+                progress_service = ProgressService(session)
+                progress_service.save_progress_event(progress_event)
+
+            self.connection_manager.queue_progress_broadcast(progress_event)
+
+            if self.workflow_engine:
+                self.workflow_engine.process_event(progress_event)
+        except Exception as exc:
+            logger.error(f"Error handling progress event {progress_event.task_id}: {exc}", exc_info=True)
+
+    def handle_steps_event(self, steps_event):
+        try:
+            with self.db_manager.get_session() as session:
+                progress_service = ProgressService(session)
+                progress_service.save_steps_event(steps_event)
+
+            self.connection_manager.queue_progress_broadcast(steps_event)
+
+            if self.workflow_engine:
+                self.workflow_engine.process_event(steps_event)
+        except Exception as exc:
+            logger.error(f"Error handling steps event {steps_event.task_id}: {exc}", exc_info=True)
 
     def handle_worker_event(self, worker_event: WorkerEvent):
         try:

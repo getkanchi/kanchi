@@ -4,7 +4,8 @@ import { useApiService } from '../services/apiClient'
 import type { TaskEventResponse } from '../services/apiClient'
 
 const DEFAULT_LOOKBACK_HOURS = 24
-const LOOKBACK_WINDOW_MS = DEFAULT_LOOKBACK_HOURS * 60 * 60 * 1000
+const MIN_LOOKBACK_HOURS = 1
+const LOOKBACK_HOURS_FALLBACK = DEFAULT_LOOKBACK_HOURS
 
 function parseTimestamp(timestamp?: string | null): number | null {
   if (!timestamp) {
@@ -21,6 +22,8 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   const lastFetchedAt = ref<Date | null>(null)
+  const lookbackHours = ref(DEFAULT_LOOKBACK_HOURS)
+  const lookbackWindowMs = computed(() => lookbackHours.value * 60 * 60 * 1000)
 
   const totalFailedTasks = computed(() => failedTasks.value.length)
   const latestFailedTask = computed(() => failedTasks.value[0] || null)
@@ -38,7 +41,7 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
   }
 
   function pruneExpired(referenceTime = Date.now()) {
-    const cutoff = referenceTime - LOOKBACK_WINDOW_MS
+    const cutoff = referenceTime - lookbackWindowMs.value
     failedTasks.value = failedTasks.value.filter(task => {
       const timestamp = parseTimestamp(task.timestamp)
       return timestamp !== null && timestamp >= cutoff
@@ -88,13 +91,24 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
     return false
   }
 
+  function setLookbackHours(hours: number | undefined) {
+    if (typeof hours !== 'number' || Number.isNaN(hours)) {
+      lookbackHours.value = LOOKBACK_HOURS_FALLBACK
+      return
+    }
+    lookbackHours.value = Math.max(MIN_LOOKBACK_HOURS, hours)
+  }
+
   async function fetchFailedTasks(options?: { hours?: number; limit?: number; includeRetried?: boolean }) {
     try {
       isLoading.value = true
       error.value = null
 
+      const effectiveHours = options?.hours ?? lookbackHours.value
+      setLookbackHours(effectiveHours)
+
       const response = await apiService.getRecentFailedTasks({
-        hours: options?.hours ?? DEFAULT_LOOKBACK_HOURS,
+        hours: effectiveHours,
         limit: options?.limit,
         include_retried: options?.includeRetried ?? false
       })
@@ -159,7 +173,7 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
         return
       }
 
-      const cutoff = Date.now() - LOOKBACK_WINDOW_MS
+      const cutoff = Date.now() - lookbackWindowMs.value
       if (timestamp < cutoff) {
         return
       }
@@ -180,11 +194,13 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
     isLoading: readonly(isLoading),
     error: readonly(error),
     lastFetchedAt: readonly(lastFetchedAt),
+    lookbackHours: readonly(lookbackHours),
 
     totalFailedTasks,
     latestFailedTask,
 
     fetchFailedTasks,
+    setLookbackHours,
     updateFromLiveEvent,
     pruneExpired,
     removeFailedTask,

@@ -19,7 +19,9 @@ from tasks import (
     memory_intensive_task,
     error_types_task,
     dynamic_task,
-    trigger_workflow
+    trigger_workflow,
+    sdk_progress_task,
+    sdk_steps_task,
 )
 
 
@@ -196,6 +198,30 @@ class TaskProducer:
                 time.sleep(0.5)
         
         return results
+
+    def generate_sdk_progress(self, count=1, total_steps=5, delay=3):
+        """Generate tasks that emit percentage-only progress via SDK."""
+        print(f"Generating {count} SDK progress tasks...")
+        results = []
+        for _ in range(count):
+            result = sdk_progress_task.delay(total_steps=total_steps, delay=delay)
+            results.append(result)
+            self.task_count += 1
+            if not self.burst:
+                time.sleep(1 / self.rate)
+        return results
+
+    def generate_sdk_steps(self, count=1, delay=4.0):
+        """Generate tasks that define steps and emit per-step progress via SDK."""
+        print(f"Generating {count} SDK steps tasks...")
+        results = []
+        for _ in range(count):
+            result = sdk_steps_task.delay(delay=delay)
+            results.append(result)
+            self.task_count += 1
+            if not self.burst:
+                time.sleep(1 / self.rate)
+        return results
     
     def print_stats(self):
         """Print statistics about generated tasks."""
@@ -211,7 +237,7 @@ def main():
     parser.add_argument('--mode', '-m',
                        default='mixed',
                        choices=['simple', 'long', 'failing', 'priority', 'resource',
-                               'workflow', 'error', 'mixed', 'stress'],
+                               'workflow', 'error', 'mixed', 'stress', 'sdk-progress', 'sdk-steps'],
                        help='Type of tasks to generate')
     parser.add_argument('--count', '-c',
                        type=int,
@@ -252,6 +278,10 @@ def main():
             results = producer.generate_mixed_load(args.duration)
         elif args.mode == 'stress':
             results = producer.generate_stress_test(args.count)
+        elif args.mode == 'sdk-progress':
+            results = producer.generate_sdk_progress(args.count)
+        elif args.mode == 'sdk-steps':
+            results = producer.generate_sdk_steps(args.count)
         
         producer.print_stats()
         

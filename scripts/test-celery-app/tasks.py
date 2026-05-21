@@ -5,9 +5,19 @@ import time
 import random
 import json
 import hashlib
+import sys
+from pathlib import Path
 from datetime import datetime
 from celery import Task, group, chain, chord
 from celery_app import app
+
+# Make local SDK available without installing a package.
+try:
+    from kanchi_sdk import send_kanchi_progress, define_kanchi_steps
+except Exception as exc:
+    print(f"Warning: failed to import kanchi_sdk: {exc}")
+    define_kanchi_steps = None
+    send_kanchi_progress = None
 
 
 class CallbackTask(Task):
@@ -359,6 +369,55 @@ def email_send_task(recipient='user@example.com', template='welcome'):
         'sent_at': datetime.utcnow().isoformat(),
         'message_id': hashlib.md5(f"{recipient}{datetime.utcnow()}".encode()).hexdigest()
     }
+
+
+@app.task(name='tasks.sdk_progress_task')
+def sdk_progress_task(total_steps=4, delay=0.5):
+    """
+    Demonstrates incremental percentage updates via the Kanchi SDK.
+    """
+    if not send_kanchi_progress:
+        return {'status': 'sdk not available', 'reason': 'import failed'}
+
+    for idx in range(total_steps + 1):
+        percent = round((idx / total_steps) * 100, 2)
+        send_kanchi_progress(
+            percent,
+            step_key=None,
+            message=f"Checkpoint {idx}/{total_steps}"
+        )
+        time.sleep(delay)
+
+    return {'status': 'completed', 'steps': total_steps}
+
+
+@app.task(name='tasks.sdk_steps_task')
+def sdk_steps_task(delay=0.75):
+    """
+    Demonstrates step definitions + per-step progress via the Kanchi SDK.
+    """
+    if not define_kanchi_steps or not send_kanchi_progress:
+        return {'status': 'sdk not available', 'reason': 'import failed'}
+
+    steps = [
+        {"key": "prepare", "label": "Prepare payload"},
+        {"key": "execute", "label": "Execute work"},
+        {"key": "finalize", "label": "Finalize task"},
+    ]
+
+    define_kanchi_steps(steps)
+
+    send_kanchi_progress(0, step_key="prepare", message="Starting preparation")
+    time.sleep(delay)
+
+    send_kanchi_progress(35, step_key="prepare", message="Preparation done")
+    send_kanchi_progress(40, step_key="execute", message="Executing core work")
+    time.sleep(delay)
+
+    send_kanchi_progress(80, step_key="execute", message="Wrapping up execution")
+    send_kanchi_progress(100, step_key="finalize", message="All steps completed")
+
+    return {'status': 'completed', 'steps_defined': [s["key"] for s in steps]}
 
 
 @app.task(name='tasks.report_generation_task', bind=True)

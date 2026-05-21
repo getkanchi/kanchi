@@ -11,6 +11,7 @@ celery = "^5.5.3"
 redis = "^6.4.0"
 kombu = "^5.5.4"
 flower = "^2.0.1"
+kanchi-sdk = "^0.0.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.4.2"

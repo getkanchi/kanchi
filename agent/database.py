@@ -128,6 +128,85 @@ class TaskEventDB(Base):
         }
 
 
+class TaskProgressDB(Base):
+    """History of progress updates per task."""
+    __tablename__ = 'task_progress_events'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    task_id = Column(String(255), nullable=False, index=True)
+    task_name = Column(String(255), index=True)
+    progress = Column(Float, nullable=False)
+    step_key = Column(String(255))
+    message = Column(Text)
+    meta = Column(JSON)
+    timestamp = Column(DateTime(timezone=True), nullable=False, index=True, default=utc_now)
+
+    __table_args__ = (
+        Index('idx_progress_task_ts', 'task_id', 'timestamp'),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'task_id': self.task_id,
+            'task_name': self.task_name,
+            'progress': self.progress,
+            'step_key': self.step_key,
+            'message': self.message,
+            'meta': self.meta or {},
+            'timestamp': ensure_utc_isoformat(self.timestamp),
+        }
+
+
+class TaskProgressLatestDB(Base):
+    """Snapshot of latest progress per task."""
+    __tablename__ = 'task_progress_latest'
+
+    task_id = Column(String(255), primary_key=True)
+    task_name = Column(String(255), index=True)
+    progress = Column(Float, nullable=False)
+    step_key = Column(String(255))
+    message = Column(Text)
+    meta = Column(JSON)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+
+    __table_args__ = (
+        Index('idx_progress_latest_updated', 'updated_at'),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'task_id': self.task_id,
+            'task_name': self.task_name,
+            'progress': self.progress,
+            'step_key': self.step_key,
+            'message': self.message,
+            'meta': self.meta or {},
+            'timestamp': ensure_utc_isoformat(self.updated_at),
+        }
+
+
+class TaskStepsDB(Base):
+    """Latest set of step definitions per task."""
+    __tablename__ = 'task_steps'
+
+    task_id = Column(String(255), primary_key=True)
+    task_name = Column(String(255), index=True)
+    steps = Column(JSON, nullable=False)
+    defined_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+
+    __table_args__ = (
+        Index('idx_task_steps_defined', 'defined_at'),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'task_id': self.task_id,
+            'task_name': self.task_name,
+            'steps': self.steps or [],
+            'timestamp': ensure_utc_isoformat(self.defined_at),
+        }
+
+
 class TaskLatestDB(Base):
     """
     Snapshot of the latest event per task for high-performance aggregated queries.
@@ -626,6 +705,38 @@ class ActionConfigDB(Base):
             'created_by': self.created_by,
             'usage_count': self.usage_count,
             'last_used_at': ensure_utc_isoformat(self.last_used_at),
+        }
+
+
+class AppSettingDB(Base):
+    """Key-value application settings stored in the database."""
+    __tablename__ = 'app_settings'
+
+    key = Column(String(255), primary_key=True)
+    value = Column(JSON, nullable=False)
+    value_type = Column(String(50), nullable=False, default="string")
+    label = Column(String(255))
+    description = Column(Text)
+    category = Column(String(100))
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+    __table_args__ = (
+        Index('idx_app_settings_category', 'category'),
+        Index('idx_app_settings_updated_at', 'updated_at'),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for API responses."""
+        return {
+            'key': self.key,
+            'value': self.value,
+            'value_type': self.value_type,
+            'label': self.label,
+            'description': self.description,
+            'category': self.category,
+            'created_at': ensure_utc_isoformat(self.created_at),
+            'updated_at': ensure_utc_isoformat(self.updated_at),
         }
 
 

@@ -40,6 +40,7 @@
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^12.0.0",
+    "@vue/devtools-kit": "^7.7.5",
     "axios": "^1.12.1",
     "openapi-typescript": "^7.9.1",
     "swagger-typescript-api": "^13.2.10"

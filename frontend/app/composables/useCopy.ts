@@ -2,6 +2,7 @@ import { ref } from 'vue'
 
 export function useCopy() {
   const copiedItems = ref(new Set<string>())
+  const copyTimeouts = ref(new Map<string, ReturnType<typeof setTimeout>>())
 
   const copyToClipboard = async (text: string, key?: string) => {
     try {
@@ -28,10 +29,19 @@ export function useCopy() {
       }
 
       if (key) {
+        const existingTimeout = copyTimeouts.value.get(key)
+        if (existingTimeout) {
+          clearTimeout(existingTimeout)
+        }
+
         copiedItems.value.add(key)
-        setTimeout(() => {
+
+        const timeoutId = setTimeout(() => {
           copiedItems.value.delete(key)
+          copyTimeouts.value.delete(key)
         }, 2000)
+
+        copyTimeouts.value.set(key, timeoutId)
       }
 
       return true

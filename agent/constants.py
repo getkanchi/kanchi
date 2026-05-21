@@ -31,6 +31,10 @@ class EventType(str, Enum):
     WORKER_OFFLINE = "worker-offline"
     WORKER_HEARTBEAT = "worker-heartbeat"
 
+# Custom Kanchi auxiliary events (not part of Celery state machine)
+    TASK_PROGRESS = "kanchi-task-progress"
+    TASK_STEPS = "kanchi-task-steps"
+
 
 STATE_TO_EVENT_MAP = {
     TaskState.PENDING: EventType.TASK_SENT,

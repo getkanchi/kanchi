@@ -41,6 +41,69 @@ export interface LoginResponseDTO {
   provider: string
 }
 
+export type AppSettingValueType = 'string' | 'number' | 'boolean' | 'json'
+
+export interface AppSettingDTO {
+  key: string
+  value: any
+  value_type: AppSettingValueType
+  label?: string | null
+  description?: string | null
+  category?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AppSettingInput {
+  value: any
+  value_type?: AppSettingValueType
+  label?: string | null
+  description?: string | null
+  category?: string | null
+}
+
+export interface TaskIssueConfigDTO {
+  lookback_hours: number
+}
+
+export interface AppConfigSnapshotDTO {
+  task_issue_summary: TaskIssueConfigDTO
+}
+
+export interface TaskStepDefinition {
+  key: string
+  label: string
+  description?: string | null
+  total?: number | null
+  order?: number | null
+}
+
+export interface TaskProgressEventResponse {
+  task_id: string
+  task_name: string
+  progress: number
+  timestamp: string
+  step_key?: string | null
+  message?: string | null
+  meta?: Record<string, any> | null
+  event_type: 'kanchi-task-progress'
+}
+
+export interface TaskStepsEventResponse {
+  task_id: string
+  task_name: string
+  steps: TaskStepDefinition[]
+  timestamp: string
+  event_type: 'kanchi-task-steps'
+}
+
+export interface TaskProgressSnapshotResponse {
+  task_id: string
+  latest?: TaskProgressEventResponse | null
+  steps: TaskStepDefinition[]
+  history: TaskProgressEventResponse[]
+}
+
 class ApiService {
   private api: Api<unknown>
 
@@ -108,6 +171,39 @@ class ApiService {
 
   getAccessToken(): string | null {
     return this.accessToken
+  }
+
+  // Configuration endpoints
+  async getAppConfig(): Promise<AppConfigSnapshotDTO> {
+    const response = await this.api.request({
+      path: '/api/config',
+      method: 'GET'
+    })
+    return response.data
+  }
+
+  async listSettings(): Promise<AppSettingDTO[]> {
+    const response = await this.api.request({
+      path: '/api/config/settings',
+      method: 'GET'
+    })
+    return response.data
+  }
+
+  async upsertSetting(key: string, payload: AppSettingInput): Promise<AppSettingDTO> {
+    const response = await this.api.request({
+      path: `/api/config/settings/${encodeURIComponent(key)}`,
+      method: 'PUT',
+      body: payload
+    })
+    return response.data
+  }
+
+  async deleteSetting(key: string): Promise<void> {
+    await this.api.request({
+      path: `/api/config/settings/${encodeURIComponent(key)}`,
+      method: 'DELETE'
+    })
   }
 
   async getAuthConfig(): Promise<AuthConfigDTO> {
@@ -192,6 +288,14 @@ class ApiService {
 
   async getTaskEvents(taskId: string): Promise<TaskEventResponse[]> {
     const response = await this.api.api.getTaskEventsApiEventsTaskIdGet(taskId)
+    return response.data
+  }
+
+  async getTaskProgress(taskId: string): Promise<TaskProgressSnapshotResponse> {
+    const response = await this.api.request({
+      path: `/api/tasks/${encodeURIComponent(taskId)}/progress`,
+      method: 'GET'
+    })
     return response.data
   }
 
@@ -616,7 +720,15 @@ export function useApiService(): ApiService {
   return apiService
 }
 
-export type { TaskStats, TaskEventResponse, WorkerInfo }
+export type {
+  TaskStats,
+  TaskEventResponse,
+  WorkerInfo,
+  AppConfigSnapshotDTO,
+  AppSettingDTO,
+  AppSettingInput,
+  TaskIssueConfigDTO
+}
 
 // Re-export session types from auto-generated API
 export type { UserSessionResponse, UserSessionUpdate } from '../src/types/api'

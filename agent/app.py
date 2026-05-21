@@ -22,6 +22,8 @@ from worker_health_monitor import WorkerHealthMonitor
 from security.auth import AuthManager
 from security.dependencies import build_auth_dependencies, get_auth_dependency
 
+from kanchi_sdk import send_kanchi_progress
+
 logger = logging.getLogger(__name__)
 
 # Track application start time for uptime calculation
@@ -98,6 +100,7 @@ def create_app() -> FastAPI:
     from api.auth_routes import create_router as create_auth_router
     from api.metrics_routes import create_router as create_metrics_router
     from ui_routes import create_router as create_ui_router
+    from api.config_routes import create_router as create_config_router
 
     app.include_router(create_task_router(app_state))
     app.include_router(create_worker_router(app_state))
@@ -111,6 +114,7 @@ def create_app() -> FastAPI:
     app.include_router(create_auth_router(app_state))
     app.include_router(create_metrics_router(app_state))
     app.include_router(create_ui_router(app_state))
+    app.include_router(create_config_router(app_state))
 
     require_user_dep = get_auth_dependency(app_state, require=True)
 
@@ -244,6 +248,16 @@ async def initialize_application():
     app_state.db_manager.run_migrations()
     logger.info(f"Database migrations completed")
 
+    # Seed default configuration entries
+    try:
+        from services.app_config_service import AppConfigService
+
+        with app_state.db_manager.get_session() as session:
+            AppConfigService(session).ensure_defaults()
+        logger.info("Default application settings ensured")
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.error("Failed to ensure default settings: %s", exc, exc_info=True)
+
     app_state.connection_manager = ConnectionManager()
 
     # Initialize authentication helpers
@@ -290,6 +304,8 @@ def start_monitor(config: Config):
     
     app_state.monitor_instance.set_task_callback(app_state.event_handler.handle_task_event)
     app_state.monitor_instance.set_worker_callback(app_state.event_handler.handle_worker_event)
+    app_state.monitor_instance.set_progress_callback(app_state.event_handler.handle_progress_event)
+    app_state.monitor_instance.set_steps_callback(app_state.event_handler.handle_steps_event)
     
     app_state.monitor_thread = threading.Thread(target=app_state.monitor_instance.start_monitoring)
     app_state.monitor_thread.daemon = True
