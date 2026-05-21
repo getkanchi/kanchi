@@ -24,6 +24,10 @@ NUXT_PUBLIC_API_URL="$NUXT_PUBLIC_API_URL" \
 NUXT_PUBLIC_WS_URL="$NUXT_PUBLIC_WS_URL" \
 npm run generate
 
+if [[ -z "$OUTPUT_DIR" || "$OUTPUT_DIR" != "$ROOT_DIR/agent/ui" ]]; then
+  echo "Refusing to remove unexpected output dir: $OUTPUT_DIR"
+  exit 1
+fi
 rm -rf "$OUTPUT_DIR"
 mkdir -p "$OUTPUT_DIR"
 cp -R .output/public/. "$OUTPUT_DIR"

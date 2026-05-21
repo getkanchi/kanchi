@@ -62,6 +62,23 @@ def test_collect_frontend_env_normalizes_forwarded_host(monkeypatch):
     assert env["NUXT_PUBLIC_WS_URL"] == "wss://kanchi.example.com/ws"
 
 
+def test_collect_frontend_env_normalizes_forwarded_proto_case(monkeypatch):
+    monkeypatch.delenv("NUXT_PUBLIC_API_URL", raising=False)
+    monkeypatch.delenv("NUXT_PUBLIC_WS_URL", raising=False)
+
+    request = make_request(
+        {
+            "host": "kanchi.example.com",
+            "x-forwarded-proto": "HTTPS",
+        }
+    )
+
+    env = collect_frontend_env(Config(), request)
+
+    assert env["NUXT_PUBLIC_API_URL"] == "https://kanchi.example.com"
+    assert env["NUXT_PUBLIC_WS_URL"] == "wss://kanchi.example.com/ws"
+
+
 def test_collect_frontend_env_keeps_explicit_public_urls(monkeypatch):
     monkeypatch.setenv("NUXT_PUBLIC_API_URL", "https://api.example.com")
     monkeypatch.setenv("NUXT_PUBLIC_WS_URL", "wss://ws.example.com/live")

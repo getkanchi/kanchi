@@ -1,6 +1,7 @@
 """Main FastAPI application for Celery Event Monitor."""
 
 import logging
+import os
 import threading
 from typing import Any, Dict, Optional
 import uvicorn
@@ -9,7 +10,7 @@ import sys
 import platform
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -49,6 +50,13 @@ class ApplicationState:
 
 
 app_state = ApplicationState()
+
+
+def _prefixed_ui_path(prefix: str) -> str:
+    normalized = prefix.strip("/")
+    if normalized:
+        return f"/{normalized}/ui"
+    return "/ui"
 
 
 @asynccontextmanager
@@ -211,8 +219,9 @@ def create_app() -> FastAPI:
         return collect_health_metrics(include_database=True)
 
     @app.get("/", include_in_schema=False)
-    async def ui_root():
-        return RedirectResponse(url="/ui")
+    async def ui_root(request: Request):
+        prefix = request.scope.get("root_path") or os.getenv("NUXT_PUBLIC_URL_PREFIX", "")
+        return RedirectResponse(url=_prefixed_ui_path(prefix))
 
     return app
 
@@ -308,18 +317,18 @@ def start_monitor(config: Config):
     if app_state.monitor_thread and app_state.monitor_thread.is_alive():
         logger.warning("Monitor already running")
         return
-    
+
     logger.info(f"Starting Celery monitor with broker: {mask_sensitive_url(config.broker_url)}")
     app_state.monitor_instance = CeleryEventMonitor(
         broker_url=config.broker_url,
         allow_pickle_serialization=config.enable_pickle_serialization,
     )
-    
+
     app_state.monitor_instance.set_task_callback(app_state.event_handler.handle_task_event)
     app_state.monitor_instance.set_worker_callback(app_state.event_handler.handle_worker_event)
     app_state.monitor_instance.set_progress_callback(app_state.event_handler.handle_progress_event)
     app_state.monitor_instance.set_steps_callback(app_state.event_handler.handle_steps_event)
-    
+
     app_state.monitor_thread = threading.Thread(target=app_state.monitor_instance.start_monitoring)
     app_state.monitor_thread.daemon = True
     app_state.monitor_thread.start()
@@ -330,7 +339,7 @@ def start_health_monitor():
     if app_state.health_monitor:
         logger.warning("Health monitor already running")
         return
-        
+
     app_state.health_monitor = WorkerHealthMonitor(
         app_state.monitor_instance,
         app_state.db_manager,
@@ -355,7 +364,7 @@ def start_server():
     """Start the FastAPI server."""
     config = Config.from_env()
     app = create_app()
-    
+
     uvicorn.run(
         app,
         host=config.ws_host,

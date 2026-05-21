@@ -30,7 +30,7 @@ def collect_frontend_env(config: Config, request: Request) -> Dict[str, str]:
     env: Dict[str, str] = {key: os.environ[key] for key in PUBLIC_ENV_KEYS if key in os.environ}
 
     forwarded_proto = request.headers.get("x-forwarded-proto", request.url.scheme)
-    scheme = forwarded_proto.split(",", 1)[0].strip()
+    scheme = forwarded_proto.split(",", 1)[0].strip().lower() or request.url.scheme
     forwarded_host = request.headers.get("x-forwarded-host")
     host = (
         forwarded_host.split(",", 1)[0].strip() if forwarded_host else None

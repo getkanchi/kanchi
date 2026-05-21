@@ -101,9 +101,10 @@ Run Kanchi using pre-built images from Docker Hub. No repository cloning require
          DEVELOPMENT_MODE: ${DEVELOPMENT_MODE:-false}
          ENABLE_PICKLE_SERIALIZATION: ${ENABLE_PICKLE_SERIALIZATION:-false}
 
-         # Optional: Frontend URLs
-         NUXT_PUBLIC_API_URL: ${NUXT_PUBLIC_API_URL:-http://localhost:8765}
-         NUXT_PUBLIC_WS_URL: ${NUXT_PUBLIC_WS_URL:-ws://localhost:8765/ws}
+         # Optional: Frontend URL prefix for reverse-proxy deployments.
+         # Omit NUXT_PUBLIC_API_URL and NUXT_PUBLIC_WS_URL by default so the
+         # backend can derive them from the request host, including legacy :3000.
+         NUXT_PUBLIC_URL_PREFIX: ${NUXT_PUBLIC_URL_PREFIX:-}
 
          # Optional: Authentication (disabled by default)
          AUTH_ENABLED: ${AUTH_ENABLED:-false}
@@ -165,8 +166,11 @@ Run Kanchi using pre-built images from Docker Hub. No repository cloning require
    export LOG_LEVEL=INFO
    export DEVELOPMENT_MODE=false
    export ENABLE_PICKLE_SERIALIZATION=false
-   export NUXT_PUBLIC_API_URL=http://your-kanchi-host:8765
-   export NUXT_PUBLIC_WS_URL=ws://your-kanchi-host:8765/ws
+   export NUXT_PUBLIC_URL_PREFIX=/kanchi
+
+   # Usually omit these so Kanchi derives them from the request host.
+   export NUXT_PUBLIC_API_URL=https://your-kanchi-host
+   export NUXT_PUBLIC_WS_URL=wss://your-kanchi-host/ws
 
    # Authentication / security (all optional)
    export AUTH_ENABLED=true
@@ -187,7 +191,7 @@ Run Kanchi using pre-built images from Docker Hub. No repository cloning require
    export ALLOWED_EMAIL_PATTERNS='*@example.com,*@example.org'
 
    # CORS and host controls
-   export ALLOWED_ORIGINS=https://your-kanchi-host,http://localhost:8765
+   export ALLOWED_ORIGINS=https://your-kanchi-host,http://localhost:8765,http://localhost:3000
    export ALLOWED_HOSTS=your-kanchi-host,localhost,127.0.0.1
 
    # Token secrets (must be non-default in production)
