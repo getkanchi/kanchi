@@ -57,7 +57,7 @@ def test_frontend_assets_return_404_for_missing_asset(tmp_path):
     (tmp_path / "index.html").write_text("<html><head></head><body></body></html>")
     assets = FrontendAssets(Config(frontend_dist_path=str(tmp_path)))
 
-    request = make_request({"accept": "*/*"})
+    request = make_request({"accept": "text/html"})
 
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(assets.serve(request, "_nuxt/missing.js"))

@@ -124,7 +124,7 @@ class FrontendAssets:
         try:
             response = await self.static_files.get_response(path, request.scope)
         except StarletteHTTPException as exc:
-            if exc.status_code == 404 and "text/html" in request.headers.get("accept", ""):
+            if exc.status_code == 404 and self._is_spa_route(path, request):
                 return self._index_response(request)
             raise HTTPException(
                 status_code=exc.status_code,
@@ -134,10 +134,17 @@ class FrontendAssets:
         if response.status_code < 400:
             return response  # type: ignore[return-value]
 
-        if "text/html" in request.headers.get("accept", ""):
+        if self._is_spa_route(path, request):
             return self._index_response(request)
 
         raise HTTPException(status_code=404, detail="Frontend asset not found.")
+
+    def _is_spa_route(self, path: str, request: Request) -> bool:
+        if "text/html" not in request.headers.get("accept", ""):
+            return False
+        if path.startswith("_nuxt/"):
+            return False
+        return "." not in Path(path).name
 
     def _index_response(self, request: Request) -> HTMLResponse:
         try:
