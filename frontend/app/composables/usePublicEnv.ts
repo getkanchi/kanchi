@@ -41,6 +41,21 @@ function normalizePrefix(prefix: string | undefined): string {
   return normalized
 }
 
+function prefixedPath(path: string, prefix: string): string {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`
+  if (normalizedPath === prefix || normalizedPath.startsWith(`${prefix}/`)) {
+    return normalizedPath
+  }
+  if (normalizedPath === '/') {
+    return prefix
+  }
+  return `${prefix}${normalizedPath}`
+}
+
+function isAbsoluteUrl(url: string): boolean {
+  return /^[a-z][a-z\d+\-.]*:\/\//i.test(url)
+}
+
 function applyHttpPrefix(url: string | undefined, prefix: string): string | undefined {
   if (!url) {
     return undefined
@@ -48,9 +63,11 @@ function applyHttpPrefix(url: string | undefined, prefix: string): string | unde
   if (!prefix) {
     return url
   }
+  if (!isAbsoluteUrl(url)) {
+    return prefixedPath(url, prefix)
+  }
   const parsed = new URL(url)
-  const trimmed = parsed.pathname.replace(/\/+$/, '')
-  parsed.pathname = `${trimmed}${prefix}`
+  parsed.pathname = prefixedPath(parsed.pathname, prefix)
   return parsed.toString().replace(/\/$/, '')
 }
 
@@ -61,8 +78,11 @@ function applyWsPrefix(url: string | undefined, prefix: string): string | undefi
   if (!prefix) {
     return url
   }
+  if (!isAbsoluteUrl(url)) {
+    return prefixedPath(url, prefix)
+  }
   const parsed = new URL(url)
-  parsed.pathname = `${prefix}/ws`
+  parsed.pathname = prefixedPath(parsed.pathname, prefix)
   return parsed.toString()
 }
 

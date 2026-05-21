@@ -7,6 +7,7 @@ help:
 	@echo "make logs     - Tail unified log file (last 100 lines and follow)"
 	@echo "make backend  - Start backend only"
 	@echo "make frontend - Start frontend only"
+	@echo "make build-ui - Build frontend assets for backend hosting"
 	@echo "make seed     - Seed database with marketing/demo data (clears existing data)"
 	@echo "make demo-data - Seed database with full demo dataset (clears existing data)"
 

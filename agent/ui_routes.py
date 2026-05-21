@@ -17,17 +17,24 @@ logger = logging.getLogger(__name__)
 
 # Expose frontend configuration on the window object for easy consumption.
 ENV_TARGET = "window.__KANCHI_UI_ENV__"
+PUBLIC_ENV_KEYS = (
+    "NUXT_PUBLIC_API_URL",
+    "NUXT_PUBLIC_WS_URL",
+    "NUXT_PUBLIC_KANCHI_VERSION",
+    "NUXT_PUBLIC_URL_PREFIX",
+)
 
 
 def collect_frontend_env(config: Config, request: Request) -> Dict[str, str]:
     """Collect frontend environment variables with sensible defaults."""
-    env: Dict[str, str] = {
-        key: value for key, value in os.environ.items() if key.startswith("NUXT_PUBLIC_")
-    }
+    env: Dict[str, str] = {key: os.environ[key] for key in PUBLIC_ENV_KEYS if key in os.environ}
 
     forwarded_proto = request.headers.get("x-forwarded-proto", request.url.scheme)
     scheme = forwarded_proto.split(",", 1)[0].strip()
-    host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+    forwarded_host = request.headers.get("x-forwarded-host")
+    host = (
+        forwarded_host.split(",", 1)[0].strip() if forwarded_host else None
+    ) or request.headers.get("host")
     if not host:
         host = f"localhost:{config.ws_port}"
 
@@ -108,6 +115,8 @@ class FrontendAssets:
         base_dir = Path(path_value).expanduser()
         if base_dir.is_absolute():
             return base_dir
+        if base_dir.parts[:1] == ("agent",):
+            return Path(__file__).resolve().parent.parent / base_dir
         return Path(__file__).resolve().parent / base_dir
 
     async def serve(self, request: Request, path: str) -> Response:
@@ -134,10 +143,10 @@ class FrontendAssets:
         if response.status_code < 400:
             return response  # type: ignore[return-value]
 
-        if self._is_spa_route(path, request):
+        if response.status_code == 404 and self._is_spa_route(path, request):
             return self._index_response(request)
 
-        raise HTTPException(status_code=404, detail="Frontend asset not found.")
+        raise HTTPException(status_code=response.status_code, detail="Frontend asset not found.")
 
     def _is_spa_route(self, path: str, request: Request) -> bool:
         if "text/html" not in request.headers.get("accept", ""):
