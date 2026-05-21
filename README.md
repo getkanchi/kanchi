@@ -70,7 +70,7 @@ does not remount the backend routes by itself.
 
 ## Quick Start (Docker Compose)
 
-Run Kanchi using pre-built images from Docker Hub. No repository cloning required—just set a few environment variables and start the container. The container runs a single FastAPI process and serves the UI from `/ui` on port 8765 (no separate frontend port).
+Run Kanchi using pre-built images from Docker Hub. No repository cloning required—just set a few environment variables and start the container. The container runs a single FastAPI process and serves the UI from `/ui` on port 8765. You can also publish host port 3000 to container port 8765 for compatibility with old frontend URLs.
 
 ### Prerequisites
 
@@ -88,6 +88,7 @@ Run Kanchi using pre-built images from Docker Hub. No repository cloning require
        container_name: kanchi
        ports:
          - "8765:8765"
+         - "3000:8765"
        environment:
          # Required: Your Celery broker connection string
          CELERY_BROKER_URL: ${CELERY_BROKER_URL}
@@ -208,6 +209,7 @@ export ENABLE_PICKLE_SERIALIZATION=false
 4. **Visit the app**
 
    - Frontend: `http://localhost:8765/ui`
+   - Legacy frontend URL: `http://localhost:3000`
    - API / Docs: `http://localhost:8765`
 
 5. **Optional commands**

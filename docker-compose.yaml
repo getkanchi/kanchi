@@ -8,6 +8,7 @@ services:
     image: kanchi:latest
     ports:
       - "8765:8765"
+      - "3000:8765"
     environment:
       # Required: point to your existing Celery broker (RabbitMQ or Redis)
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:?Set CELERY_BROKER_URL to your broker connection string}

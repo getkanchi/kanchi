@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from config import Config, mask_sensitive_url
@@ -208,6 +209,10 @@ def create_app() -> FastAPI:
     async def health_details(current_user=Depends(require_user_dep)):
         """Detailed health information (authentication required when enabled)."""
         return collect_health_metrics(include_database=True)
+
+    @app.get("/", include_in_schema=False)
+    async def ui_root():
+        return RedirectResponse(url="/ui")
 
     return app
 
