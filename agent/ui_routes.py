@@ -76,6 +76,7 @@ class FrontendIndexRenderer:
             return self._cached_html
 
         html = self.index_path.read_text(encoding="utf-8")
+        html = self._prefix_ui_urls(html, env.get("NUXT_PUBLIC_URL_PREFIX", ""))
         transformed = self._inject_env(html, env_payload)
 
         if self.cache_enabled:
@@ -83,6 +84,14 @@ class FrontendIndexRenderer:
             self._cached_html = transformed
 
         return transformed
+
+    def _prefix_ui_urls(self, html: str, prefix: str) -> str:
+        normalized = prefix.strip("/")
+        if not normalized:
+            return html
+
+        public_ui_path = f"/{normalized}/ui"
+        return html.replace('"/ui', f'"{public_ui_path}').replace("'/ui", f"'{public_ui_path}")
 
     def _inject_env(self, html: str, env_payload: str) -> str:
         # Escape </script> to prevent breaking out of the script context

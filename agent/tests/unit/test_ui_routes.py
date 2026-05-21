@@ -142,6 +142,25 @@ def test_frontend_index_renderer_appends_env_without_head_or_body(tmp_path):
     assert html.startswith("<main></main>\n<script>")
 
 
+def test_frontend_index_renderer_prefixes_ui_urls(tmp_path):
+    index_path = tmp_path / "index.html"
+    index_path.write_text(
+        '<html><head><script type="module" src="/ui/_nuxt/app.js"></script></head>'
+        '<body><a href="/ui/tasks">Tasks</a>'
+        '<script>window.__NUXT__={config:{app:{baseURL:"/ui/"}}}</script></body></html>'
+    )
+    renderer = FrontendIndexRenderer(
+        index_path,
+        lambda request: {"NUXT_PUBLIC_URL_PREFIX": "/kanchi"},
+    )
+
+    html = renderer.render(make_request())
+
+    assert 'src="/kanchi/ui/_nuxt/app.js"' in html
+    assert 'href="/kanchi/ui/tasks"' in html
+    assert 'baseURL:"/kanchi/ui/"' in html
+
+
 def test_frontend_assets_resolves_agent_prefixed_dist_path():
     assets = FrontendAssets(Config(frontend_dist_path="agent/ui"))
 
