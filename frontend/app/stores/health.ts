@@ -58,9 +58,9 @@ export const useHealthStore = defineStore('health', () => {
   }
 
   return {
-    health: readonly(health),
-    isLoading: readonly(isLoading),
-    error: readonly(error),
+    health,
+    isLoading,
+    error,
 
     fetchHealth,
     fetchHealthDetails,

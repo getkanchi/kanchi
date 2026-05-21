@@ -42,6 +42,8 @@ class ConnectionManager:
                         await self._broadcast_worker_event(data)
                     elif message_type == "progress":
                         await self._broadcast_progress_event(data)
+                    elif message_type == "task_action":
+                        await self._broadcast_task_action_event(data)
 
                 except asyncio.TimeoutError:
                     continue
@@ -88,6 +90,9 @@ class ConnectionManager:
     def queue_progress_broadcast(self, progress_event):
         self._queue_event("progress", progress_event)
 
+    def queue_task_action_broadcast(self, action_event):
+        self._queue_event("task_action", action_event)
+
     def _queue_event(self, event_type: str, event):
         if self.active_connections and self._loop and self.message_queue:
             try:
@@ -105,6 +110,9 @@ class ConnectionManager:
 
     async def _broadcast_progress_event(self, progress_event):
         await self._broadcast_event(progress_event, check_filters=True)
+
+    async def _broadcast_task_action_event(self, action_event):
+        await self._broadcast_event(action_event, check_filters=False)
 
     async def _broadcast_event(self, event, check_filters: bool):
         if not self.active_connections:

@@ -1,8 +1,12 @@
 import os
+import logging
 import secrets
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import List, Optional
+from urllib.parse import urlparse, urlunparse
+
+logger = logging.getLogger(__name__)
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -26,12 +30,35 @@ def _split_csv(value: Optional[str]) -> List[str]:
     return parts
 
 
+def mask_sensitive_url(url: Optional[str]) -> Optional[str]:
+    """Mask password in URLs for safe logging."""
+    if not url:
+        return url
+    try:
+        parsed = urlparse(url)
+        if parsed.password:
+            hostname = parsed.hostname or ""
+            if ":" in hostname:
+                hostname = f"[{hostname}]"
+            if parsed.port:
+                hostname = f"{hostname}:{parsed.port}"
+            if parsed.username:
+                hostname = f"{parsed.username}:******@{hostname}"
+            else:
+                hostname = f"******@{hostname}"
+            masked = parsed._replace(netloc=hostname)
+            return urlunparse(masked)
+    except Exception:
+        logger.warning("Failed to mask sensitive URL; raw URL will be used.")
+    return url
+
+
 @dataclass
 class Config:
     """Configuration for the Celery WebSocket Bridge"""
 
     # Celery broker configuration (supports both RabbitMQ and Redis)
-    broker_url: str = os.getenv('CELERY_BROKER_URL')
+    broker_url: str = os.getenv('CELERY_BROKER_URL', 'amqp://guest:guest@localhost:5672//')
 
     # Database configuration
     database_url: str = os.getenv('DATABASE_URL', 'sqlite:///kanchi.db')  # Default to SQLite
@@ -63,6 +90,7 @@ class Config:
     # Performance settings
     max_clients: int = int(os.getenv('MAX_WS_CLIENTS', 100))
     event_buffer_size: int = int(os.getenv('EVENT_BUFFER_SIZE', 1000))
+    task_action_max_selection: int = int(os.getenv('TASK_ACTION_MAX_SELECTION', 100))
 
     # CORS / Hosts
     allowed_origins: List[str] = field(default_factory=lambda: _split_csv(os.getenv('ALLOWED_ORIGINS')))

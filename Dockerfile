@@ -8,6 +8,8 @@ RUN npm ci
 COPY frontend/ .
 
 ENV NUXT_APP_BASE_URL=/ui/
+ARG NUXT_PUBLIC_KANCHI_VERSION=dev
+ENV NUXT_PUBLIC_KANCHI_VERSION=${NUXT_PUBLIC_KANCHI_VERSION}
 
 RUN NUXT_APP_BASE_URL="/ui/" npm run generate
 
@@ -25,7 +27,7 @@ COPY agent/pyproject.toml agent/poetry.lock* ./agent/
 RUN pip install poetry && \
     cd agent && \
     poetry config virtualenvs.create false && \
-    poetry install --without dev
+    poetry install --without dev --extras "db-postgres db-postgres-async db-mysql db-mysql-native"
 
 COPY agent/ ./agent/
 COPY --from=frontend-builder /app/frontend/.output/public ./agent/ui

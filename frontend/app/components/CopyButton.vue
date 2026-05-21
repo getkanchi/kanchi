@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { Copy, Check } from 'lucide-vue-next'
+import type { HTMLAttributes } from 'vue'
+import { Button, type ButtonVariants } from '~/components/ui/button'
 import { useCopy } from '~/composables/useCopy'
 
 const props = defineProps<{
@@ -7,6 +9,10 @@ const props = defineProps<{
   copyKey?: string
   title?: string
   showText?: boolean
+  label?: string
+  variant?: ButtonVariants['variant']
+  size?: ButtonVariants['size']
+  class?: HTMLAttributes['class']
 }>()
 
 const { copyToClipboard, isCopied } = useCopy()
@@ -21,9 +27,25 @@ const isItemCopied = computed(() =>
 </script>
 
 <template>
-  <button 
+  <Button
+    v-if="label"
+    type="button"
+    :variant="variant || 'outline'"
+    :size="size || 'xs'"
+    :class="props.class"
+    :title="title || `Copy ${label.toLowerCase()}`"
     @click.stop="handleCopy"
-    class="flex items-center gap-1.5 text-gray-400 hover:text-gray-300 p-1 transition-colors min-h-[25px]"
+  >
+    <Check v-if="isItemCopied" class="h-3.5 w-3.5 text-green-400" />
+    <Copy v-else class="h-3.5 w-3.5" />
+    <span :class="isItemCopied ? 'text-green-400' : ''">
+      {{ isItemCopied ? 'Copied' : label }}
+    </span>
+  </Button>
+  <button 
+    v-else
+    @click.stop="handleCopy"
+    :class="props.class || 'flex min-h-[25px] items-center gap-1.5 p-1 text-gray-400 transition-colors hover:text-gray-300'"
     :title="title || 'Copy to clipboard'"
   >
     <template v-if="isItemCopied">

@@ -13,6 +13,10 @@
     "generate:api:local": "./generate-api-types.sh http://localhost:8765"
   },
   "dependencies": {
+    "@codemirror/commands": "^6.10.3",
+    "@codemirror/lang-json": "^6.0.2",
+    "@codemirror/state": "^6.6.0",
+    "@codemirror/view": "^6.43.0",
     "@fontsource/geist-mono": "^5.2.7",
     "@fontsource/geist-sans": "^5.2.5",
     "@lukeed/uuid": "^2.0.1",

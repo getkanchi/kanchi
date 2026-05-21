@@ -11,7 +11,14 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 
-from database import TaskEventDB, RetryRelationshipDB, TaskLatestDB, TaskResolutionDB
+from database import (
+    TaskActionItemDB,
+    TaskEventDB,
+    RetryRelationshipDB,
+    TaskLatestDB,
+    TaskResolutionDB,
+    TaskRerunRelationshipDB,
+)
 from models import TaskEvent
 from constants import TaskState, EventType, STATE_TO_EVENT_MAP, ACTIVE_EVENT_TYPES
 from services.utils import EnvironmentFilter, GenericFilter, parse_filter_string
@@ -52,7 +59,9 @@ class TaskService:
             self._log_payload_truncation(task_event, args, kwargs, task_event.result)
 
             # Ensure the in-memory event (used for WebSocket broadcast) carries the
-            # inherited args/kwargs so downstream consumers don't lose them.
+            # inherited data so downstream consumers don't lose it.
+            task_event.routing_key = routing_key
+            task_event.queue = queue
             task_event.args = args
             task_event.kwargs = kwargs
 
@@ -92,12 +101,18 @@ class TaskService:
 
         if events:
             self._bulk_enrich_with_retry_info([events[0]])
+            self._bulk_enrich_with_rerun_info([events[0]])
             for i in range(1, len(events)):
                 events[i].retry_of = events[0].retry_of
                 events[i].retried_by = events[0].retried_by
                 events[i].is_retry = events[0].is_retry
                 events[i].has_retries = events[0].has_retries
                 events[i].retry_count = events[0].retry_count
+                events[i].rerun_of = events[0].rerun_of
+                events[i].rerun_by = events[0].rerun_by
+                events[i].is_rerun = events[0].is_rerun
+                events[i].has_reruns = events[0].has_reruns
+                events[i].rerun_count = events[0].rerun_count
 
         self._attach_resolution_info(events)
         return events
@@ -202,9 +217,94 @@ class TaskService:
 
         events = [self._db_to_task_event(event_db) for event_db in active_events_db]
         self._bulk_enrich_with_retry_info(events)
+        self._bulk_enrich_with_rerun_info(events)
         self._attach_resolution_info(events)
 
         return events
+
+    def get_unretried_orphaned_tasks(self) -> List[TaskEvent]:
+        """Get orphaned tasks that have not been retried and have no final-state event."""
+        FINAL_STATES = {
+            'task-succeeded', 'task-failed', 'task-revoked',
+            'task-rejected', 'task-retried',
+        }
+
+        # Latest orphaned event per task (same subquery as before, now in service)
+        latest_orphaned_sq = (
+            self.session.query(
+                TaskEventDB.task_id,
+                func.max(TaskEventDB.timestamp).label('max_timestamp'),
+            )
+            .filter(TaskEventDB.is_orphan == True)
+        )
+
+        if self.active_env:
+            env_conditions = []
+            if self.active_env.queue_patterns:
+                queue_conditions = [
+                    TaskEventDB.queue.like(p.replace('*', '%').replace('?', '_'))
+                    for p in self.active_env.queue_patterns
+                ]
+                env_conditions.append(or_(*queue_conditions))
+            if self.active_env.worker_patterns:
+                worker_conditions = [
+                    TaskEventDB.hostname.like(p.replace('*', '%').replace('?', '_'))
+                    for p in self.active_env.worker_patterns
+                ]
+                env_conditions.append(or_(*worker_conditions))
+            if env_conditions:
+                latest_orphaned_sq = latest_orphaned_sq.filter(or_(*env_conditions))
+
+        latest_orphaned_sq = latest_orphaned_sq.group_by(TaskEventDB.task_id).subquery()
+
+        orphaned_events_db = (
+            self.session.query(TaskEventDB)
+            .join(
+                latest_orphaned_sq,
+                and_(
+                    TaskEventDB.task_id == latest_orphaned_sq.c.task_id,
+                    TaskEventDB.timestamp == latest_orphaned_sq.c.max_timestamp,
+                ),
+            )
+            .order_by(TaskEventDB.orphaned_at.desc())
+            .all()
+        )
+
+        orphaned_events = [self._db_to_task_event(e) for e in orphaned_events_db]
+        self._bulk_enrich_with_retry_info(orphaned_events)
+        self._bulk_enrich_with_rerun_info(orphaned_events)
+        self._attach_resolution_info(orphaned_events)
+
+        if not orphaned_events:
+            return []
+
+        orphaned_task_ids = [e.task_id for e in orphaned_events]
+
+        # Batch query 1: retry relationships for all orphaned tasks at once
+        retry_rels = (
+            self.session.query(RetryRelationshipDB)
+            .filter(RetryRelationshipDB.task_id.in_(orphaned_task_ids))
+            .all()
+        )
+        retry_map = {r.task_id: r for r in retry_rels}
+
+        # Batch query 2: which tasks have any final-state event
+        tasks_with_final_state = {
+            row[0]
+            for row in self.session.query(TaskEventDB.task_id)
+            .filter(
+                TaskEventDB.task_id.in_(orphaned_task_ids),
+                TaskEventDB.event_type.in_(list(FINAL_STATES)),
+            )
+            .distinct()
+            .all()
+        }
+
+        return [
+            event for event in orphaned_events
+            if not (retry_map.get(event.task_id) and retry_map[event.task_id].retry_chain)
+            and event.task_id not in tasks_with_final_state
+        ]
 
     def get_recent_failed_tasks(
         self,
@@ -271,6 +371,7 @@ class TaskService:
 
         events = [self._db_to_task_event(event_db) for event_db in events_db]
         self._bulk_enrich_with_retry_info(events)
+        self._bulk_enrich_with_rerun_info(events)
         self._attach_resolution_info(events)
 
         return events
@@ -410,7 +511,12 @@ class TaskService:
 
     def _inherit_queue_info(self, task_event: TaskEvent) -> Tuple[str, str]:
         """
-        Inherit queue information from previous task-sent event if not present.
+        Inherit routing metadata from earlier events in the same task lifecycle.
+
+        Celery does not guarantee that every task event repeats the original queue
+        and routing information. Later lifecycle events such as task-succeeded may
+        omit queue or fall back to routing_key="default". In those cases we keep
+        the most recent meaningful routing metadata already seen for that task.
 
         Args:
             task_event: Task event to process
@@ -421,16 +527,36 @@ class TaskService:
         routing_key = task_event.routing_key
         queue = task_event.queue
 
-        if not routing_key or routing_key == 'default':
-            existing_sent_event = (
-                self.session.query(TaskEventDB)
-                .filter_by(task_id=task_event.task_id, event_type=EventType.TASK_SENT.value)
-                .first()
-            )
+        routing_key_missing = not routing_key or routing_key == 'default'
+        queue_missing = not queue or queue == 'default'
 
-            if existing_sent_event and existing_sent_event.routing_key:
-                routing_key = existing_sent_event.routing_key
-                queue = existing_sent_event.queue
+        if not routing_key_missing and not queue_missing:
+            return routing_key, queue
+
+        existing_event = (
+            self.session.query(TaskEventDB)
+            .filter(TaskEventDB.task_id == task_event.task_id)
+            .filter(
+                or_(
+                    TaskEventDB.queue.isnot(None),
+                    and_(
+                        TaskEventDB.routing_key.isnot(None),
+                        TaskEventDB.routing_key != 'default'
+                    )
+                )
+            )
+            .order_by(TaskEventDB.timestamp.desc(), TaskEventDB.id.desc())
+            .first()
+        )
+
+        if not existing_event:
+            return routing_key, queue
+
+        if routing_key_missing and existing_event.routing_key:
+            routing_key = existing_event.routing_key
+
+        if queue_missing and existing_event.queue:
+            queue = existing_event.queue
 
         return routing_key, queue
 
@@ -865,6 +991,86 @@ class TaskService:
             else:
                 self._set_default_retry_info(event)
 
+    def _bulk_enrich_with_rerun_info(self, events: List[TaskEvent]):
+        """
+        Bulk enrich multiple task events with manual rerun lineage.
+
+        Manual reruns are intentionally tracked separately from Celery/workflow
+        retry relationships, but the frontend needs the same one-level linking
+        behavior for task detail and table rows.
+        """
+        if not events:
+            return
+
+        task_ids = [event.task_id for event in events if event.task_id]
+        if not task_ids:
+            return
+
+        rels = (
+            self.session.query(TaskRerunRelationshipDB)
+            .filter(
+                or_(
+                    TaskRerunRelationshipDB.original_task_id.in_(task_ids),
+                    TaskRerunRelationshipDB.rerun_task_id.in_(task_ids),
+                )
+            )
+            .order_by(TaskRerunRelationshipDB.created_at.asc())
+            .all()
+        )
+
+        by_rerun_id = {rel.rerun_task_id: rel for rel in rels}
+        by_original_id: Dict[str, List[TaskRerunRelationshipDB]] = {}
+        related_ids = set()
+
+        for rel in rels:
+            by_original_id.setdefault(rel.original_task_id, []).append(rel)
+            if rel.rerun_task_id in task_ids:
+                related_ids.add(rel.original_task_id)
+            if rel.original_task_id in task_ids:
+                related_ids.add(rel.rerun_task_id)
+
+        related_tasks = self._fetch_related_tasks(related_ids) if related_ids else {}
+        submitted_items = (
+            self.session.query(TaskActionItemDB)
+            .filter(
+                TaskActionItemDB.rerun_task_id.in_(task_ids),
+                TaskActionItemDB.submitted_args.isnot(None),
+                TaskActionItemDB.submitted_kwargs.isnot(None),
+            )
+            .all()
+        )
+        submitted_by_rerun_id = {
+            item.rerun_task_id: item
+            for item in submitted_items
+            if item.rerun_task_id
+        }
+
+        for event in events:
+            rerun_rel = by_rerun_id.get(event.task_id)
+            if rerun_rel:
+                event.is_rerun = True
+                event.rerun_of = related_tasks.get(rerun_rel.original_task_id)
+                submitted_item = submitted_by_rerun_id.get(event.task_id)
+                if submitted_item:
+                    event.submitted_rerun_args = submitted_item.submitted_args or []
+                    event.submitted_rerun_kwargs = submitted_item.submitted_kwargs or {}
+                    event.submitted_rerun_kind = submitted_item.rerun_kind
+            else:
+                event.is_rerun = False
+                event.rerun_of = None
+                event.submitted_rerun_args = None
+                event.submitted_rerun_kwargs = None
+                event.submitted_rerun_kind = None
+
+            child_rels = by_original_id.get(event.task_id, [])
+            event.rerun_by = [
+                related_tasks[rel.rerun_task_id]
+                for rel in child_rels
+                if rel.rerun_task_id in related_tasks
+            ]
+            event.has_reruns = bool(event.rerun_by)
+            event.rerun_count = len(child_rels)
+
     def _fetch_related_tasks(self, task_ids: set) -> Dict[str, TaskEvent]:
         """
         Fetch latest events for related tasks in bulk.
@@ -1037,14 +1243,15 @@ class TaskService:
             query, filters, start_time, end_time,
             filter_state, filter_worker, filter_task, filter_queue, search
         )
-        query = self._apply_sorting(query, sort_by, sort_order)
+        total_events = query.with_entities(func.count(TaskEventDB.id)).scalar()
 
-        total_events = query.count()
+        query = self._apply_sorting(query, sort_by, sort_order)
         start_idx = page * limit
         events_db = query.offset(start_idx).limit(limit).all()
 
         events = [self._db_to_task_event(event_db) for event_db in events_db]
         self._bulk_enrich_with_retry_info(events)
+        self._bulk_enrich_with_rerun_info(events)
         self._attach_resolution_info(events)
 
         return events, total_events
@@ -1103,14 +1310,15 @@ class TaskService:
             filter_state, filter_worker, filter_task, filter_queue, search,
             model=TaskLatestDB
         )
-        query = self._apply_sorting(query, sort_by, sort_order, model=TaskLatestDB)
+        total_events = query.with_entities(func.count(TaskLatestDB.task_id)).scalar()
 
-        total_events = query.count()
+        query = self._apply_sorting(query, sort_by, sort_order, model=TaskLatestDB)
         start_idx = page * limit
         events_db = query.offset(start_idx).limit(limit).all()
 
         events = [self._db_to_task_event(event_db) for event_db in events_db]
         self._bulk_enrich_with_retry_info(events)
+        self._bulk_enrich_with_rerun_info(events)
         self._attach_resolution_info(events)
         return events, total_events
 

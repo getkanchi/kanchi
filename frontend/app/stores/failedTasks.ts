@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed, readonly } from 'vue'
+import { ref, computed } from 'vue'
 import { useApiService } from '../services/apiClient'
 import type { TaskEventResponse } from '../services/apiClient'
 
@@ -190,11 +190,11 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
   }
 
   return {
-    failedTasks: readonly(failedTasks),
-    isLoading: readonly(isLoading),
-    error: readonly(error),
-    lastFetchedAt: readonly(lastFetchedAt),
-    lookbackHours: readonly(lookbackHours),
+    failedTasks,
+    isLoading,
+    error,
+    lastFetchedAt,
+    lookbackHours,
 
     totalFailedTasks,
     latestFailedTask,

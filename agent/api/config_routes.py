@@ -3,12 +3,12 @@
 import logging
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from config import Config
-from models import AppSetting, AppSettingUpdate, AppConfigSnapshot
-from services import AppConfigService
+from models import AppSetting, AppSettingUpdate, AppConfigSnapshot, DataRetentionConfig, RetentionCleanupResponse
+from services import AppConfigService, RetentionService
 from security.dependencies import get_auth_dependency
 
 logger = logging.getLogger(__name__)
@@ -33,6 +33,9 @@ def create_router(app_state) -> APIRouter:
 
     def get_config_service(session: Session = Depends(get_db)) -> AppConfigService:
         return AppConfigService(session)
+
+    def get_retention_service(session: Session = Depends(get_db)) -> RetentionService:
+        return RetentionService(session)
 
     @router.get("", response_model=AppConfigSnapshot)
     async def get_config_snapshot(
@@ -82,5 +85,23 @@ def create_router(app_state) -> APIRouter:
         if not deleted:
             raise HTTPException(status_code=404, detail="Setting not found")
         return None
+
+    @router.get("/retention", response_model=DataRetentionConfig)
+    async def get_retention_policy(
+        retention_service: RetentionService = Depends(get_retention_service)
+    ):
+        """Get normalized data retention policy values."""
+        return retention_service.get_policy()
+
+    @router.post("/retention/cleanup", response_model=RetentionCleanupResponse)
+    async def run_retention_cleanup(
+        dry_run: bool = Query(default=True),
+        retention_service: RetentionService = Depends(get_retention_service)
+    ):
+        """Run retention cleanup, optionally as a dry-run preview."""
+        try:
+            return retention_service.cleanup(dry_run=dry_run)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     return router

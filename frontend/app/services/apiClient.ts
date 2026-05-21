@@ -3,13 +3,25 @@
  */
 import { Api } from '../src/types/api'
 import type {
+  AppConfigSnapshot,
+  DataRetentionConfig,
+  RetentionCleanupResponse,
+  RetentionCleanupResult,
+  RetentionLastRun,
+  RetentionScheduleConfig,
   TaskStats,
-  TaskEventResponse,
+  TaskEvent,
+  TaskIssueConfig,
   WorkerInfo
 } from '../src/types/api'
 import { usePublicEnv } from '~/composables/usePublicEnv'
 
 export type AuthProvider = 'google' | 'github'
+export type TaskEventResponse = TaskEvent & {
+  submitted_rerun_args?: any[] | null
+  submitted_rerun_kwargs?: Record<string, any> | null
+  submitted_rerun_kind?: RerunKind | null
+}
 
 export interface UserInfoDTO {
   id: string
@@ -62,13 +74,13 @@ export interface AppSettingInput {
   category?: string | null
 }
 
-export interface TaskIssueConfigDTO {
-  lookback_hours: number
-}
-
-export interface AppConfigSnapshotDTO {
-  task_issue_summary: TaskIssueConfigDTO
-}
+export type TaskIssueConfigDTO = TaskIssueConfig
+export type DataRetentionConfigDTO = DataRetentionConfig
+export type RetentionCleanupResultDTO = RetentionCleanupResult
+export type RetentionCleanupResponseDTO = RetentionCleanupResponse
+export type RetentionScheduleConfigDTO = RetentionScheduleConfig
+export type RetentionLastRunDTO = RetentionLastRun
+export type AppConfigSnapshotDTO = AppConfigSnapshot
 
 export interface TaskStepDefinition {
   key: string
@@ -102,6 +114,120 @@ export interface TaskProgressSnapshotResponse {
   latest?: TaskProgressEventResponse | null
   steps: TaskStepDefinition[]
   history: TaskProgressEventResponse[]
+}
+
+export type TaskActionType = 'rerun' | 'resolve' | 'unresolve'
+export type TaskActionStatus = 'running' | 'completed' | 'partial_success' | 'failed'
+export type TaskActionItemOutcome = 'pending' | 'changed' | 'noop' | 'created' | 'skipped_unavailable' | 'user_skipped' | 'blocked_skipped' | 'failed'
+export type RerunReviewState = 'replayable' | 'repairable' | 'blocked'
+export type RerunSubmitDecision = 'submit' | 'user_skip' | 'blocked_skip'
+export type RerunKind = 'replay' | 'edited_override' | 'repaired_override'
+
+export interface RerunInputIssueDTO {
+  path: string
+  reason_code: string
+  message: string
+}
+
+export interface RerunInputBaselineDTO {
+  args: any[]
+  kwargs: Record<string, any>
+  source: string
+  source_version?: string | null
+}
+
+export interface RerunSubmissionTargetDTO {
+  task_name?: string | null
+  queue?: string | null
+  routing_key?: string | null
+  exchange?: string | null
+}
+
+export interface RerunPreflightItemDTO {
+  task_id: string
+  task_name?: string | null
+  ready: boolean
+  review_state: RerunReviewState
+  reason_code?: string | null
+  reason?: string | null
+  task?: TaskEventResponse | null
+  baseline: RerunInputBaselineDTO
+  target: RerunSubmissionTargetDTO
+  required_replacements: RerunInputIssueDTO[]
+  fingerprint?: string | null
+}
+
+export interface RerunPreflightResponseDTO {
+  total: number
+  ready_count: number
+  unavailable_count: number
+  replayable_count: number
+  repairable_count: number
+  blocked_count: number
+  max_selection_size: number
+  items: RerunPreflightItemDTO[]
+}
+
+export interface RerunSubmitItemDTO {
+  task_id: string
+  decision: RerunSubmitDecision
+  fingerprint: string
+  args?: any[] | null
+  kwargs?: Record<string, any> | null
+}
+
+export interface TaskActionItemDTO {
+  id: number
+  action_id: string
+  original_task_id: string
+  original_task_name?: string | null
+  outcome: TaskActionItemOutcome
+  reason_code?: string | null
+  reason?: string | null
+  rerun_task_id?: string | null
+  rerun_task_name?: string | null
+  rerun_task?: TaskEventResponse | null
+  attempted_task_id?: string | null
+  submitted_args?: any[] | null
+  submitted_kwargs?: Record<string, any> | null
+  rerun_kind?: RerunKind | null
+  skip_category?: string | null
+  review_fingerprint?: string | null
+  target_queue?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface TaskActionSummaryDTO {
+  id: string
+  action_type: TaskActionType
+  status: TaskActionStatus
+  initiated_by_user_id?: string | null
+  initiated_by?: string | null
+  initiated_session_id?: string | null
+  created_at: string
+  started_at?: string | null
+  completed_at?: string | null
+  original_task_ids: string[]
+  selection_size: number
+  item_total: number
+  item_changed: number
+  item_noop: number
+  item_created: number
+  item_skipped: number
+  item_failed: number
+  summary?: Record<string, any>
+}
+
+export interface TaskActionDetailDTO extends TaskActionSummaryDTO {
+  items: TaskActionItemDTO[]
+  rerun_lifecycle_counts: Record<string, number>
+  event_type?: 'kanchi-task-action'
+}
+
+export interface TaskActionListResponseDTO {
+  data: TaskActionSummaryDTO[]
+  max_selection_size: number
 }
 
 class ApiService {
@@ -206,6 +332,22 @@ class ApiService {
     })
   }
 
+  async getRetentionConfig(): Promise<DataRetentionConfigDTO> {
+    const response = await this.api.request({
+      path: '/api/config/retention',
+      method: 'GET'
+    })
+    return response.data
+  }
+
+  async runRetentionCleanup(dryRun = true): Promise<RetentionCleanupResponseDTO> {
+    const response = await this.api.request({
+      path: `/api/config/retention/cleanup?dry_run=${dryRun ? 'true' : 'false'}`,
+      method: 'POST'
+    })
+    return response.data
+  }
+
   async getAuthConfig(): Promise<AuthConfigDTO> {
     const response = await this.api.instance.get<AuthConfigDTO>('/api/auth/config')
     return response.data
@@ -305,7 +447,78 @@ class ApiService {
   }
 
   async retryTask(taskId: string): Promise<any> {
-    const response = await this.api.api.retryTaskApiTasksTaskIdRetryPost(taskId)
+    const response = await this.rerunTask(taskId)
+    return response
+  }
+
+  async preflightTaskActionRerun(taskIds: string[]): Promise<RerunPreflightResponseDTO> {
+    const response = await this.api.request({
+      path: '/api/task-actions/rerun/preflight',
+      method: 'POST',
+      body: { task_ids: taskIds }
+    })
+    return response.data
+  }
+
+  async submitRerunReview(items: RerunSubmitItemDTO[]): Promise<TaskActionDetailDTO> {
+    const response = await this.api.request({
+      path: '/api/task-actions/rerun',
+      method: 'POST',
+      body: { items }
+    })
+    return response.data
+  }
+
+  async createTaskAction(actionType: TaskActionType, taskIds: string[]): Promise<TaskActionDetailDTO> {
+    const response = await this.api.request({
+      path: '/api/task-actions',
+      method: 'POST',
+      body: {
+        action_type: actionType,
+        task_ids: taskIds
+      }
+    })
+    return response.data
+  }
+
+  async listTaskActions(params?: { limit?: number }): Promise<TaskActionListResponseDTO> {
+    const response = await this.api.request({
+      path: '/api/task-actions',
+      method: 'GET',
+      query: params
+    })
+    return response.data
+  }
+
+  async getTaskAction(actionId: string): Promise<TaskActionDetailDTO> {
+    const response = await this.api.request({
+      path: `/api/task-actions/${encodeURIComponent(actionId)}`,
+      method: 'GET'
+    })
+    return response.data
+  }
+
+  async getTaskActionConfig(): Promise<{ max_selection_size: number }> {
+    const response = await this.api.request({
+      path: '/api/task-actions/config',
+      method: 'GET'
+    })
+    return response.data
+  }
+
+  async preflightTaskRerun(taskId: string): Promise<RerunPreflightResponseDTO> {
+    const response = await this.api.request({
+      path: `/api/tasks/${encodeURIComponent(taskId)}/rerun/preflight`,
+      method: 'POST'
+    })
+    return response.data
+  }
+
+  async rerunTask(taskId: string): Promise<TaskActionDetailDTO> {
+    const response = await this.api.request({
+      path: `/api/tasks/${encodeURIComponent(taskId)}/rerun`,
+      method: 'POST'
+    })
     return response.data
   }
 
@@ -727,7 +940,11 @@ export type {
   AppConfigSnapshotDTO,
   AppSettingDTO,
   AppSettingInput,
-  TaskIssueConfigDTO
+  TaskIssueConfigDTO,
+  DataRetentionConfigDTO,
+  RetentionCleanupResponseDTO,
+  RetentionScheduleConfigDTO,
+  RetentionLastRunDTO
 }
 
 // Re-export session types from auto-generated API

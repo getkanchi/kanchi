@@ -13,7 +13,7 @@ from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
-from config import Config
+from config import Config, mask_sensitive_url
 from database import DatabaseManager
 from connection_manager import ConnectionManager
 from event_handler import EventHandler
@@ -44,6 +44,7 @@ class ApplicationState:
         self.auth_manager = None
         self.auth_dependencies = None
         self.frontend_assets = None
+        self.retention_scheduler = None
 
 
 app_state = ApplicationState()
@@ -58,10 +59,14 @@ async def lifespan(app: FastAPI):
     # Shutdown
     if app_state.health_monitor:
         app_state.health_monitor.stop()
+    if app_state.retention_scheduler:
+        app_state.retention_scheduler.stop()
     if app_state.connection_manager:
         await app_state.connection_manager.stop_background_broadcaster()
+    if app_state.monitor_instance:
+        app_state.monitor_instance.stop()
     if app_state.monitor_thread and app_state.monitor_thread.is_alive():
-        logger.info("Shutting down monitor thread")
+        logger.info("Monitor thread signalled to stop (daemon; exits with process)")
 
 
 def create_app() -> FastAPI:
@@ -101,8 +106,10 @@ def create_app() -> FastAPI:
     from api.metrics_routes import create_router as create_metrics_router
     from ui_routes import create_router as create_ui_router
     from api.config_routes import create_router as create_config_router
+    from api.task_action_routes import create_router as create_task_action_router
 
     app.include_router(create_task_router(app_state))
+    app.include_router(create_task_action_router(app_state))
     app.include_router(create_worker_router(app_state))
     app.include_router(create_websocket_router(app_state))
     app.include_router(create_log_router(app_state))
@@ -244,7 +251,7 @@ async def initialize_application():
         )
 
     app_state.db_manager = DatabaseManager(config.database_url)
-    logger.info(f"Running database migrations for: {config.database_url}")
+    logger.info(f"Running database migrations for: {mask_sensitive_url(config.database_url)}")
     app_state.db_manager.run_migrations()
     logger.info(f"Database migrations completed")
 
@@ -288,6 +295,7 @@ async def initialize_application():
     app_state.workflow_engine.monitor_instance = app_state.monitor_instance
 
     start_health_monitor()
+    start_retention_scheduler()
 
 
 def start_monitor(config: Config):
@@ -296,7 +304,7 @@ def start_monitor(config: Config):
         logger.warning("Monitor already running")
         return
     
-    logger.info(f"Starting Celery monitor with broker: {config.broker_url}")
+    logger.info(f"Starting Celery monitor with broker: {mask_sensitive_url(config.broker_url)}")
     app_state.monitor_instance = CeleryEventMonitor(
         broker_url=config.broker_url,
         allow_pickle_serialization=config.enable_pickle_serialization,
@@ -324,6 +332,18 @@ def start_health_monitor():
         app_state.event_handler
     )
     app_state.health_monitor.start()
+
+
+def start_retention_scheduler():
+    """Start the automatic retention cleanup scheduler."""
+    if app_state.retention_scheduler:
+        logger.warning("Retention scheduler already running")
+        return
+
+    from services.retention_scheduler_service import RetentionSchedulerService
+
+    app_state.retention_scheduler = RetentionSchedulerService(app_state.db_manager)
+    app_state.retention_scheduler.start()
 
 
 def start_server():

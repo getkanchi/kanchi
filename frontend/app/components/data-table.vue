@@ -1,6 +1,6 @@
 <script setup lang="ts" generic="TData, TValue">
 import type { ColumnDef } from '@tanstack/vue-table'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import {
   FlexRender,
   getCoreRowModel,
@@ -25,15 +25,20 @@ import CopyButton from "~/components/CopyButton.vue";
 import SearchInput from "~/components/SearchInput.vue";
 import TimeRangeFilter from "~/components/TimeRangeFilter.vue";
 import RetryChain from "~/components/RetryChain.vue";
-import RetryTaskConfirmDialog from "~/components/RetryTaskConfirmDialog.vue";
 import IconButton from "~/components/common/IconButton.vue";
 import { Select } from '~/components/common'
 import PythonValueViewer from "~/components/PythonValueViewer.vue";
 import TimeDisplay from "~/components/TimeDisplay.vue";
+import { Checkbox } from '~/components/ui/checkbox'
 import type { ParsedFilter } from '~/composables/useFilterParser'
 import type { TimeRange } from '~/components/TimeRangeFilter.vue'
 import TaskDetailsSection from '~/components/common/TaskDetailsSection.vue'
 import TaskProgressSteps from '~/components/tasks/TaskProgressSteps.vue'
+import TaskActionSelectionBar from '~/components/tasks/TaskActionSelectionBar.vue'
+import TaskActionActivityButton from '~/components/tasks/TaskActionActivityButton.vue'
+import RerunReviewDrawer from '~/components/tasks/RerunReviewDrawer.vue'
+import type { BulkTaskAction } from '~/components/common/BulkActionCombobox.vue'
+import type { RerunPreflightResponseDTO } from '~/services/apiClient'
 
 const props = defineProps<{
   columns: ColumnDef<TData, TValue>[]
@@ -65,11 +70,16 @@ const expandedRows = ref(new Set<string>())
 const searchInput = ref(props.searchQuery || '')
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
 
-// Use tasks store for retry functionality
+// Use task action store for manual rerun functionality
 const tasksStore = useTasksStore()
-const isRetrying = computed(() => tasksStore.isLoading)
+const taskActionsStore = useTaskActionsStore()
 const currentRetryTaskId = ref<string | null>(null)
-const retryDialogRef = ref<InstanceType<typeof RetryTaskConfirmDialog> | null>(null)
+const singleRerunDialogOpen = ref(false)
+const singleRerunPreflight = ref<RerunPreflightResponseDTO | null>(null)
+const selectedTaskIds = ref(new Set<string>())
+const bulkAction = ref<BulkTaskAction>('rerun')
+const rerunDialogOpen = ref(false)
+const rerunPreflight = ref<RerunPreflightResponseDTO | null>(null)
 
 const handleSearch = (value: string) => {
   searchInput.value = value
@@ -101,6 +111,62 @@ const table = useVueTable({
   manualSorting: true,
 })
 
+const visibleTaskIds = computed(() =>
+  table.getRowModel().rows
+    .map(row => (row.original as any)?.task_id)
+    .filter(Boolean)
+)
+
+const selectedCount = computed(() => selectedTaskIds.value.size)
+
+const selectedTasks = computed(() => {
+  const selected = selectedTaskIds.value
+  const rows = props.data as any[]
+  return rows.filter(task => selected.has(task.task_id))
+})
+
+const currentRerunTask = computed(() => {
+  if (!currentRetryTaskId.value) return null
+  return (props.data as any[]).find(task => task.task_id === currentRetryTaskId.value) || null
+})
+
+const headerChecked = computed(() => {
+  if (visibleTaskIds.value.length === 0) return false
+  const selectedVisible = visibleTaskIds.value.filter(id => selectedTaskIds.value.has(id)).length
+  if (selectedVisible === 0) return false
+  if (selectedVisible === visibleTaskIds.value.length) return true
+  return 'indeterminate'
+})
+
+const clearSelection = () => {
+  selectedTaskIds.value = new Set()
+}
+
+const setTaskSelected = (taskId: string | undefined, checked: boolean | 'indeterminate') => {
+  if (!taskId) return
+  const next = new Set(selectedTaskIds.value)
+  if (checked === true) {
+    if (next.size >= taskActionsStore.maxSelectionSize && !next.has(taskId)) return
+    next.add(taskId)
+  } else {
+    next.delete(taskId)
+  }
+  selectedTaskIds.value = next
+}
+
+const toggleVisibleSelection = (checked: boolean | 'indeterminate') => {
+  const next = new Set(selectedTaskIds.value)
+  if (checked === true) {
+    for (const taskId of visibleTaskIds.value) {
+      if (next.size >= taskActionsStore.maxSelectionSize && !next.has(taskId)) break
+      next.add(taskId)
+    }
+  } else {
+    visibleTaskIds.value.forEach(taskId => next.delete(taskId))
+  }
+  selectedTaskIds.value = next
+}
+
 const toggleRowExpansion = (taskId: string | undefined) => {
   if (!taskId) return
   if (expandedRows.value.has(taskId)) {
@@ -114,22 +180,48 @@ const toggleRowExpansion = (taskId: string | undefined) => {
   }
 }
 
-const handleRetryConfirm = async () => {
-  if (!currentRetryTaskId.value) return
-  
-  try {
-    const result = await tasksStore.retryTask(currentRetryTaskId.value)
-    // Reset current retry task ID
-    currentRetryTaskId.value = null
-  } catch (error) {
-    console.error('Failed to retry task:', error)
-    // Reset current retry task ID on error too
-    currentRetryTaskId.value = null
-  }
+const openSingleRerun = (task: any) => {
+  currentRetryTaskId.value = task?.task_id || null
+  singleRerunPreflight.value = null
+  singleRerunDialogOpen.value = Boolean(currentRetryTaskId.value)
 }
 
-const handleRetryCancel = () => {
+const preflightSelectedRerun = async () => {
+  rerunPreflight.value = await taskActionsStore.preflightRerun(Array.from(selectedTaskIds.value))
+}
+
+const executeBulkAction = async () => {
+  if (selectedTaskIds.value.size === 0) return
+
+  if (bulkAction.value === 'rerun') {
+    rerunDialogOpen.value = true
+    return
+  }
+
+  await taskActionsStore.createAction(bulkAction.value, Array.from(selectedTaskIds.value))
+  clearSelection()
+}
+
+const handleSelectedRerunSubmitted = () => {
+  rerunDialogOpen.value = false
+  rerunPreflight.value = null
+  clearSelection()
+}
+
+const preflightSingleRerun = async () => {
+  if (!currentRetryTaskId.value) return
+  singleRerunPreflight.value = await taskActionsStore.preflightRerun([currentRetryTaskId.value])
+}
+
+const handleSingleRerunSubmitted = () => {
+  singleRerunDialogOpen.value = false
+  singleRerunPreflight.value = null
   currentRetryTaskId.value = null
+}
+
+const cancelSingleRerun = () => {
+  currentRetryTaskId.value = null
+  singleRerunPreflight.value = null
 }
 
 const mapTaskToRetryChainFormat = (task: any) => {
@@ -202,29 +294,49 @@ const getProgressMessage = (snapshot: any) => snapshot?.latest?.message || ''
 
       </div>
       
-      <!-- Live mode indicator badge -->
-      <Badge
-        v-if="isLiveMode"
-        @click="emit('toggleLiveMode')"
-        variant="success"
+      <div class="ml-4 flex shrink-0 items-center gap-2">
+        <TaskActionActivityButton />
 
-      >
-        <StatusDot status="success" :pulse="true" class="mr-1.5" />
-        Live
-      </Badge>
-      <Badge
-        v-else
-        @click="emit('toggleLiveMode')"
-        variant="outline"
+        <!-- Live mode indicator badge -->
+        <Badge
+          v-if="isLiveMode"
+          @click="emit('toggleLiveMode')"
+          variant="success"
+
         >
-        <StatusDot status="muted" class="mr-1.5" />
-        Start Live Mode
-      </Badge>
+          <StatusDot status="success" :pulse="true" class="mr-1.5" />
+          Live
+        </Badge>
+        <Badge
+          v-else
+          @click="emit('toggleLiveMode')"
+          variant="outline"
+          >
+          <StatusDot status="muted" class="mr-1.5" />
+          Start Live Mode
+        </Badge>
+      </div>
     </div>
+
+    <TaskActionSelectionBar
+      v-model:action="bulkAction"
+      :selected-count="selectedCount"
+      :max-selection-size="taskActionsStore.maxSelectionSize"
+      :is-loading="taskActionsStore.isCreating || taskActionsStore.isPreflighting"
+      @execute="executeBulkAction"
+      @clear="clearSelection"
+    />
 
     <Table>
       <TableHeader>
         <TableRow class="border-border-subtle" v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+          <TableHead class="w-10 pl-4 pr-0">
+            <Checkbox
+              :checked="headerChecked"
+              aria-label="Select visible tasks"
+              @update:checked="toggleVisibleSelection"
+            />
+          </TableHead>
           <TableHead class="w-12"></TableHead>
           <TableHead
             v-for="header in headerGroup.headers"
@@ -259,6 +371,13 @@ const getProgressMessage = (snapshot: any) => snapshot?.latest?.message || ''
               class="border-border-subtle cursor-pointer hover:bg-background-hover-subtle transition-colors duration-150"
               @click="toggleRowExpansion(row.original.task_id)"
             >
+              <TableCell class="w-10 pl-4 pr-0" @click.stop>
+                <Checkbox
+                  :checked="selectedTaskIds.has(row.original.task_id)"
+                  :aria-label="`Select task ${row.original.task_id}`"
+                  @update:checked="setTaskSelected(row.original.task_id, $event)"
+                />
+              </TableCell>
               <TableCell class="w-12">
                 <ChevronRight class="h-4 w-4 text-gray-400 transition-transform duration-200 ease-in-out"
                   :class="expandedRows.has(row.original.task_id) ? 'rotate-90' : 'rotate-0'"/>
@@ -274,7 +393,7 @@ const getProgressMessage = (snapshot: any) => snapshot?.latest?.message || ''
             
             
             <TableRow class="bg-background-raised border-border-subtle cursor-default">
-              <TableCell :colspan="columns.length + 1" class="p-0">
+              <TableCell :colspan="columns.length + 2" class="p-0">
                 <Transition
                   enter-active-class="transition-[opacity,transform,max-height] duration-250 ease-out"
                   enter-from-class="opacity-0 -translate-y-1 max-h-[0px]"
@@ -320,9 +439,9 @@ const getProgressMessage = (snapshot: any) => snapshot?.latest?.message || ''
                       <Button
                         variant="outline"
                         size="xs"
-                        @click="() => { currentRetryTaskId = row.original.task_id; retryDialogRef?.open() }"
-                        :disabled="isRetrying"
-                        :loading="isRetrying && currentRetryTaskId === row.original.task_id"    
+                        @click="openSingleRerun(row.original)"
+                        :disabled="taskActionsStore.isCreating"
+                        :loading="taskActionsStore.isCreating && currentRetryTaskId === row.original.task_id"    
                       >
                         <RefreshCw class="h-4 w-4" />
                         Rerun
@@ -386,7 +505,7 @@ const getProgressMessage = (snapshot: any) => snapshot?.latest?.message || ''
         </template>
         <template v-else>
           <TableRow class="border-border-subtle">
-            <TableCell :colspan="columns.length + 1" class="h-24 text-center">
+            <TableCell :colspan="columns.length + 2" class="h-24 text-center">
               No results.
             </TableCell>
           </TableRow>
@@ -465,12 +584,27 @@ const getProgressMessage = (snapshot: any) => snapshot?.latest?.message || ''
     </div>
   </div>
 
-  <!-- Retry Confirmation Dialog -->
-  <RetryTaskConfirmDialog
-    ref="retryDialogRef"
-    :task="currentRetryTaskId ? data.find(task => task.task_id === currentRetryTaskId) || null : null"
-  :is-loading="isRetrying && !!currentRetryTaskId"
-  @confirm="handleRetryConfirm"
-  @cancel="handleRetryCancel"
+  <RerunReviewDrawer
+    v-model:open="singleRerunDialogOpen"
+    :task-ids="currentRetryTaskId ? [currentRetryTaskId] : []"
+    :tasks="currentRerunTask ? [currentRerunTask] : []"
+    :preflight="singleRerunPreflight"
+    :is-loading="taskActionsStore.isCreating"
+    :is-preflighting="taskActionsStore.isPreflighting"
+    @preflight="preflightSingleRerun"
+    @submitted="handleSingleRerunSubmitted"
+    @cancel="cancelSingleRerun"
+  />
+
+  <RerunReviewDrawer
+    v-model:open="rerunDialogOpen"
+    :task-ids="Array.from(selectedTaskIds)"
+    :tasks="selectedTasks"
+    :preflight="rerunPreflight"
+    :is-loading="taskActionsStore.isCreating"
+    :is-preflighting="taskActionsStore.isPreflighting"
+    @preflight="preflightSelectedRerun"
+    @submitted="handleSelectedRerunSubmitted"
+    @cancel="rerunPreflight = null"
   />
 </template>

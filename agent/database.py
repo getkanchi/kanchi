@@ -275,6 +275,84 @@ class TaskResolutionDB(Base):
         Index('idx_task_resolved_flag', 'resolved'),
     )
 
+
+class TaskActionDB(Base):
+    """Persisted user-initiated task action activity."""
+    __tablename__ = 'task_actions'
+
+    id = Column(String(36), primary_key=True)
+    action_type = Column(String(50), nullable=False, index=True)
+    status = Column(String(50), nullable=False, index=True)
+    initiated_by_user_id = Column(String(36), index=True)
+    initiated_by = Column(String(255))
+    initiated_session_id = Column(String(36), index=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+    started_at = Column(DateTime(timezone=True))
+    completed_at = Column(DateTime(timezone=True), index=True)
+    original_task_ids = Column(JSON, nullable=False)
+    selection_size = Column(Integer, default=0, nullable=False)
+    item_total = Column(Integer, default=0, nullable=False)
+    item_changed = Column(Integer, default=0, nullable=False)
+    item_noop = Column(Integer, default=0, nullable=False)
+    item_created = Column(Integer, default=0, nullable=False)
+    item_skipped = Column(Integer, default=0, nullable=False)
+    item_failed = Column(Integer, default=0, nullable=False)
+    summary = Column(JSON)
+
+    items = relationship("TaskActionItemDB", back_populates="action", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index('idx_task_actions_type_created', 'action_type', 'created_at'),
+        Index('idx_task_actions_session_created', 'initiated_session_id', 'created_at'),
+        Index('idx_task_actions_status_created', 'status', 'created_at'),
+    )
+
+
+class TaskActionItemDB(Base):
+    """Per-task outcome for a persisted task action."""
+    __tablename__ = 'task_action_items'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    action_id = Column(String(36), ForeignKey('task_actions.id', ondelete='CASCADE'), nullable=False, index=True)
+    original_task_id = Column(String(255), nullable=False, index=True)
+    original_task_name = Column(String(255))
+    outcome = Column(String(50), nullable=False, index=True)
+    reason_code = Column(String(100))
+    reason = Column(Text)
+    rerun_task_id = Column(String(255), index=True)
+    rerun_task_name = Column(String(255))
+    attempted_task_id = Column(String(255), index=True)
+    submitted_args = Column(JSON)
+    submitted_kwargs = Column(JSON)
+    rerun_kind = Column(String(50), index=True)
+    skip_category = Column(String(50), index=True)
+    review_fingerprint = Column(String(128))
+    target_queue = Column(String(255))
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+    action = relationship("TaskActionDB", back_populates="items")
+
+    __table_args__ = (
+        Index('idx_task_action_items_action_outcome', 'action_id', 'outcome'),
+    )
+
+
+class TaskRerunRelationshipDB(Base):
+    """Tracks manual rerun lineage separately from Celery/workflow retries."""
+    __tablename__ = 'task_rerun_relationships'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    original_task_id = Column(String(255), nullable=False, index=True)
+    rerun_task_id = Column(String(255), nullable=False, unique=True, index=True)
+    action_id = Column(String(36), ForeignKey('task_actions.id', ondelete='SET NULL'), index=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+    created_by = Column(String(255))
+
+    __table_args__ = (
+        Index('idx_task_rerun_original_created', 'original_task_id', 'created_at'),
+    )
+
 class WorkerEventDB(Base):
     """SQLAlchemy model for worker events."""
     __tablename__ = 'worker_events'

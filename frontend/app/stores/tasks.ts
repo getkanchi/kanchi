@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed, readonly } from 'vue'
+import { ref, computed } from 'vue'
 import { useApiService } from '../services/apiClient'
 import type {
   TaskStats,
@@ -132,16 +132,20 @@ export const useTasksStore = defineStore('tasks', () => {
     }
   }
 
-  async function retryTask(taskId: string) {
+  async function rerunTask(taskId: string) {
     try {
       error.value = null
-      const result = await apiService.retryTask(taskId)
+      const result = await apiService.rerunTask(taskId)
       await fetchRecentEvents()
       return result
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to retry task'
+      error.value = err instanceof Error ? err.message : 'Failed to rerun task'
       throw err
     }
+  }
+
+  async function retryTask(taskId: string) {
+    return rerunTask(taskId)
   }
 
   async function getTaskEvents(taskId: string): Promise<TaskEventResponse[]> {
@@ -325,17 +329,17 @@ export const useTasksStore = defineStore('tasks', () => {
   }
 
   return {
-    stats: readonly(stats),
-    events: readonly(events),
-    activeTasks: readonly(activeTasks),
-    progressSnapshots: readonly(progressSnapshots),
-    pagination: readonly(pagination),
-    isLoading: readonly(isLoading),
-    error: readonly(error),
-    filters: readonly(filters),
-    paginationParams: readonly(paginationParams),
-    isLiveMode: readonly(isLiveMode),
-    lastRefreshTime: readonly(lastRefreshTime),
+    stats,
+    events,
+    activeTasks,
+    progressSnapshots,
+    pagination,
+    isLoading,
+    error,
+    filters,
+    paginationParams,
+    isLiveMode,
+    lastRefreshTime,
 
     hasNextPage,
     hasPrevPage,
@@ -346,6 +350,7 @@ export const useTasksStore = defineStore('tasks', () => {
     fetchStats,
     fetchRecentEvents,
     fetchActiveTasks,
+    rerunTask,
     retryTask,
     getTaskEvents,
     getTaskProgress,
