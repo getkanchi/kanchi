@@ -9,6 +9,7 @@ from typing import Callable, Dict, Optional, Tuple
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from config import Config
 
@@ -18,16 +19,23 @@ logger = logging.getLogger(__name__)
 ENV_TARGET = "window.__KANCHI_UI_ENV__"
 
 
-def collect_frontend_env(config: Config) -> Dict[str, str]:
+def collect_frontend_env(config: Config, request: Request) -> Dict[str, str]:
     """Collect frontend environment variables with sensible defaults."""
     env: Dict[str, str] = {
         key: value for key, value in os.environ.items() if key.startswith("NUXT_PUBLIC_")
     }
 
-    env.setdefault("NUXT_PUBLIC_API_URL", f"http://{config.ws_host}:{config.ws_port}")
-    env.setdefault("NUXT_PUBLIC_WS_URL", f"ws://{config.ws_host}:{config.ws_port}/ws")
+    forwarded_proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+    scheme = forwarded_proto.split(",", 1)[0].strip()
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+    if not host:
+        host = f"localhost:{config.ws_port}"
+
+    ws_scheme = "wss" if scheme == "https" else "ws"
+    env.setdefault("NUXT_PUBLIC_API_URL", f"{scheme}://{host}")
+    env.setdefault("NUXT_PUBLIC_WS_URL", f"{ws_scheme}://{host}/ws")
     env.setdefault("NUXT_PUBLIC_KANCHI_VERSION", "dev")
-    env.setdefault("NUXT_PUBLIC_URL_PREFIX", os.getenv("NUXT_PUBLIC_URL_PREFIX", ""))
+    env.setdefault("NUXT_PUBLIC_URL_PREFIX", "")
 
     return env
 
@@ -38,7 +46,7 @@ class FrontendIndexRenderer:
     def __init__(
         self,
         index_path: Path,
-        env_provider: Callable[[], Dict[str, str]],
+        env_provider: Callable[[Request], Dict[str, str]],
         cache_enabled: bool = True,
     ):
         self.index_path = index_path
@@ -47,15 +55,13 @@ class FrontendIndexRenderer:
         self._cache_key: Optional[Tuple[float, str]] = None
         self._cached_html: Optional[str] = None
 
-    def render(self) -> str:
+    def render(self, request: Request) -> str:
         """Return the transformed index.html with injected env."""
         if not self.index_path.exists():
             raise FileNotFoundError(f"Frontend index file missing at {self.index_path}")
 
-        env = self.env_provider()
-        env_payload = json.dumps(
-            env, sort_keys=True, separators=(",", ":"), ensure_ascii=True
-        )
+        env = self.env_provider(request)
+        env_payload = json.dumps(env, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
         mtime = self.index_path.stat().st_mtime
         cache_key = (mtime, env_payload)
 
@@ -93,7 +99,7 @@ class FrontendAssets:
         self.index_path = self.dist_dir / config.frontend_index_file
         self.renderer = FrontendIndexRenderer(
             self.index_path,
-            lambda: collect_frontend_env(config),
+            lambda request: collect_frontend_env(config, request),
             cache_enabled=config.frontend_cache_index,
         )
         self.static_files = StaticFiles(directory=self.dist_dir, check_dir=False)
@@ -106,7 +112,7 @@ class FrontendAssets:
 
     async def serve(self, request: Request, path: str) -> Response:
         if path in ("", "/", "index.html"):
-            return self._index_response()
+            return self._index_response(request)
 
         if not self.dist_dir.exists():
             logger.warning("Frontend dist directory not found at %s", self.dist_dir)
@@ -115,15 +121,27 @@ class FrontendAssets:
                 detail="Frontend build not found. Please build the UI assets.",
             )
 
-        response = await self.static_files.get_response(path, request.scope)
+        try:
+            response = await self.static_files.get_response(path, request.scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code == 404 and "text/html" in request.headers.get("accept", ""):
+                return self._index_response(request)
+            raise HTTPException(
+                status_code=exc.status_code,
+                detail="Frontend asset not found.",
+            ) from exc
+
         if response.status_code < 400:
             return response  # type: ignore[return-value]
 
-        return self._index_response()
+        if "text/html" in request.headers.get("accept", ""):
+            return self._index_response(request)
 
-    def _index_response(self) -> HTMLResponse:
+        raise HTTPException(status_code=404, detail="Frontend asset not found.")
+
+    def _index_response(self, request: Request) -> HTMLResponse:
         try:
-            html = self.renderer.render()
+            html = self.renderer.render(request)
         except FileNotFoundError as exc:
             logger.warning("Frontend index file missing: %s", exc)
             raise HTTPException(

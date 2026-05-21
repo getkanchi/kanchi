@@ -27,20 +27,6 @@ function readWindowEnv(): WindowEnv {
   return env as WindowEnv
 }
 
-function deriveLocationDefaults(): Partial<PublicEnv> {
-  if (typeof window === 'undefined') {
-    return {}
-  }
-
-  const origin = window.location.origin
-  const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
-
-  return {
-    apiUrl: origin,
-    wsUrl: `${wsScheme}://${window.location.host}/ws`,
-  }
-}
-
 function normalizePrefix(prefix: string | undefined): string {
   if (!prefix) {
     return ''
@@ -62,14 +48,10 @@ function applyHttpPrefix(url: string | undefined, prefix: string): string | unde
   if (!prefix) {
     return url
   }
-  try {
-    const parsed = new URL(url)
-    const trimmed = parsed.pathname.replace(/\/+$/, '')
-    parsed.pathname = `${trimmed}${prefix}`
-    return parsed.toString().replace(/\/$/, '')
-  } catch {
-    return `${url.replace(/\/+$/, '')}${prefix}`
-  }
+  const parsed = new URL(url)
+  const trimmed = parsed.pathname.replace(/\/+$/, '')
+  parsed.pathname = `${trimmed}${prefix}`
+  return parsed.toString().replace(/\/$/, '')
 }
 
 function applyWsPrefix(url: string | undefined, prefix: string): string | undefined {
@@ -79,37 +61,24 @@ function applyWsPrefix(url: string | undefined, prefix: string): string | undefi
   if (!prefix) {
     return url
   }
-  try {
-    const parsed = new URL(url)
-    parsed.pathname = `${prefix}/ws`
-    return parsed.toString()
-  } catch {
-    return url
-  }
+  const parsed = new URL(url)
+  parsed.pathname = `${prefix}/ws`
+  return parsed.toString()
 }
 
 export function usePublicEnv(): PublicEnv {
   const runtime = useRuntimeConfig()
   const runtimePublic = (runtime?.public ?? {}) as Record<string, string | undefined>
   const windowEnv = readWindowEnv()
-  const locationDefaults = deriveLocationDefaults()
   const urlPrefix = normalizePrefix(
     windowEnv.NUXT_PUBLIC_URL_PREFIX || runtimePublic.urlPrefix
   )
+  const apiUrl = windowEnv.NUXT_PUBLIC_API_URL || runtimePublic.apiUrl || FALLBACK_ENV.apiUrl
+  const wsUrl = windowEnv.NUXT_PUBLIC_WS_URL || runtimePublic.wsUrl || FALLBACK_ENV.wsUrl
 
   return {
-    apiUrl:
-      windowEnv.NUXT_PUBLIC_API_URL
-      || runtimePublic.apiUrl
-      || applyHttpPrefix(locationDefaults.apiUrl, urlPrefix)
-      || applyHttpPrefix(FALLBACK_ENV.apiUrl, urlPrefix)
-      || FALLBACK_ENV.apiUrl,
-    wsUrl:
-      windowEnv.NUXT_PUBLIC_WS_URL
-      || runtimePublic.wsUrl
-      || applyWsPrefix(locationDefaults.wsUrl, urlPrefix)
-      || applyWsPrefix(FALLBACK_ENV.wsUrl, urlPrefix)
-      || FALLBACK_ENV.wsUrl,
+    apiUrl: applyHttpPrefix(apiUrl, urlPrefix) || FALLBACK_ENV.apiUrl,
+    wsUrl: applyWsPrefix(wsUrl, urlPrefix) || FALLBACK_ENV.wsUrl,
     kanchiVersion:
       windowEnv.NUXT_PUBLIC_KANCHI_VERSION
       || runtimePublic.kanchiVersion
