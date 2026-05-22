@@ -309,7 +309,7 @@ class WorkflowService:
             if field == "trigger" and value is not None:
                 workflow_db.trigger_type = value["type"]
                 workflow_db.trigger_config = value.get("config", {})
-            elif field == "conditions" and value is not None:
+            elif field == "conditions":
                 workflow_db.conditions = value
             elif field == "actions" and value is not None:
                 workflow_db.actions = [action.dict() if hasattr(action, 'dict') else action for action in value]

@@ -144,7 +144,7 @@
             <div class="ml-9">
               <WorkflowConditionBuilder
                 :conditions="workflow.conditions"
-                @update:conditions="workflow.conditions = $event"
+                @update:conditions="workflow.conditions = $event ?? null"
               />
             </div>
           </div>

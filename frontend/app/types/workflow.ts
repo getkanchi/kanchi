@@ -71,7 +71,7 @@ export interface WorkflowDefinition {
   description?: string
   enabled: boolean
   trigger: TriggerConfig
-  conditions?: ConditionGroup
+  conditions?: ConditionGroup | null
   actions: ActionConfig[]
   priority: number
   max_executions_per_hour?: number
@@ -104,7 +104,7 @@ export interface WorkflowUpdateRequest {
   description?: string
   enabled?: boolean
   trigger?: TriggerConfig
-  conditions?: ConditionGroup
+  conditions?: ConditionGroup | null
   actions?: ActionConfig[]
   priority?: number
   max_executions_per_hour?: number

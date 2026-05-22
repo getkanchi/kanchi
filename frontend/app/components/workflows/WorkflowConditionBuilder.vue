@@ -86,7 +86,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  'update:conditions': [conditions?: ConditionGroup]
+  'update:conditions': [conditions: ConditionGroup | null]
 }>()
 
 // Available fields (from WORKFLOW_SYSTEM_PLAN.md context fields)
@@ -148,7 +148,7 @@ function removeCondition(index: number) {
   const newConditions = props.conditions.conditions.filter((_, i) => i !== index)
 
   if (newConditions.length === 0) {
-    emit('update:conditions', undefined)
+    emit('update:conditions', null)
   } else {
     emit('update:conditions', {
       ...props.conditions,
