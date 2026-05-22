@@ -13,6 +13,7 @@ from models import (
 from services.workflow_service import WorkflowService
 from services.action_executor import ActionExecutor
 from services.workflow_catalog import TRIGGER_METADATA
+from services.workflow_templates import WORKFLOW_TEMPLATES
 from config import Config
 from security.dependencies import get_auth_dependency
 
@@ -39,7 +40,8 @@ def create_router(app_state) -> APIRouter:
         """Expose supported triggers and actions."""
         return {
             "triggers": TRIGGER_METADATA,
-            "actions": ActionExecutor.get_action_catalog()
+            "actions": ActionExecutor.get_action_catalog(),
+            "templates": WORKFLOW_TEMPLATES,
         }
 
     # ==================== Workflow CRUD ====================
