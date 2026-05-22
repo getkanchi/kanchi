@@ -18,18 +18,4 @@ spec:
           service:
             name: kanchi
             port:
-              number: 3000
-      - path: /api
-        pathType: ImplementationSpecific
-        backend:
-          service:
-            name: kanchi
-            port:
-              number: 8765
-      - path: /ws
-        pathType: ImplementationSpecific
-        backend:
-          service:
-            name: kanchi
-            port:
               number: 8765

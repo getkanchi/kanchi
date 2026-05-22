@@ -6,6 +6,7 @@ import { useTasksStore } from './tasks'
 import { useWorkersStore } from './workers'
 import { useOrphanTasksStore } from './orphanTasks'
 import { useFailedTasksStore } from './failedTasks'
+import { usePublicEnv } from '~/composables/usePublicEnv'
 import { useTaskActionsStore } from './taskActions'
 
 export interface WebSocketMessage {
@@ -59,8 +60,8 @@ export const useWebSocketStore = defineStore('websocket', () => {
       isConnecting.value = true
       error.value = null
 
-      const config = useRuntimeConfig()
-      let wsUrl = config.public.wsUrl as string
+      const { wsUrl: envWsUrl } = usePublicEnv()
+      let wsUrl = envWsUrl
 
       if (authEnabled.value && accessToken.value) {
         try {

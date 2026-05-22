@@ -172,12 +172,13 @@ import {
 } from '~/components/ui/card'
 import IconBrandGoogle from '~/components/icons/IconBrandGoogle.vue'
 import { Activity, Github, Loader2, Sparkles } from 'lucide-vue-next'
+import { usePublicEnv } from '~/composables/usePublicEnv'
 
 const router = useRouter()
-const runtimeConfig = useRuntimeConfig()
 const authStore = useAuthStore()
 const sessionStore = useSessionStore()
 const apiService = useApiService()
+const { apiUrl } = usePublicEnv()
 
 const { authEnabled, oauthProviders, isAuthenticated, config } = storeToRefs(authStore)
 
@@ -223,7 +224,6 @@ function resolveAllowedOrigins(): Set<string> {
   if (process.client) {
     origins.add(window.location.origin)
   }
-  const apiUrl = runtimeConfig.public.apiUrl as string | undefined
   if (apiUrl) {
     try {
       origins.add(new URL(apiUrl).origin)

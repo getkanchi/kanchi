@@ -1,0 +1,200 @@
+"""Routes for serving the built frontend from the backend."""
+
+import json
+import logging
+import os
+from pathlib import Path
+from typing import Callable, Dict, Optional, Tuple
+
+from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from config import Config
+
+logger = logging.getLogger(__name__)
+
+# Expose frontend configuration on the window object for easy consumption.
+ENV_TARGET = "window.__KANCHI_UI_ENV__"
+PUBLIC_ENV_KEYS = (
+    "NUXT_PUBLIC_API_URL",
+    "NUXT_PUBLIC_WS_URL",
+    "NUXT_PUBLIC_KANCHI_VERSION",
+    "NUXT_PUBLIC_URL_PREFIX",
+)
+
+
+def collect_frontend_env(config: Config, request: Request) -> Dict[str, str]:
+    """Collect frontend environment variables with sensible defaults."""
+    env: Dict[str, str] = {key: os.environ[key] for key in PUBLIC_ENV_KEYS if key in os.environ}
+
+    forwarded_proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+    scheme = forwarded_proto.split(",", 1)[0].strip().lower() or request.url.scheme
+    forwarded_host = request.headers.get("x-forwarded-host")
+    host = (
+        forwarded_host.split(",", 1)[0].strip() if forwarded_host else None
+    ) or request.headers.get("host")
+    if not host:
+        host = f"localhost:{config.ws_port}"
+
+    ws_scheme = "wss" if scheme == "https" else "ws"
+    env.setdefault("NUXT_PUBLIC_API_URL", f"{scheme}://{host}")
+    env.setdefault("NUXT_PUBLIC_WS_URL", f"{ws_scheme}://{host}/ws")
+    env.setdefault("NUXT_PUBLIC_KANCHI_VERSION", "dev")
+    env.setdefault("NUXT_PUBLIC_URL_PREFIX", "")
+
+    return env
+
+
+class FrontendIndexRenderer:
+    """Transform and optionally cache the frontend index.html with injected env."""
+
+    def __init__(
+        self,
+        index_path: Path,
+        env_provider: Callable[[Request], Dict[str, str]],
+        cache_enabled: bool = True,
+    ):
+        self.index_path = index_path
+        self.env_provider = env_provider
+        self.cache_enabled = cache_enabled
+        self._cache_key: Optional[Tuple[float, str]] = None
+        self._cached_html: Optional[str] = None
+
+    def render(self, request: Request) -> str:
+        """Return the transformed index.html with injected env."""
+        if not self.index_path.exists():
+            raise FileNotFoundError(f"Frontend index file missing at {self.index_path}")
+
+        env = self.env_provider(request)
+        env_payload = json.dumps(env, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        mtime = self.index_path.stat().st_mtime
+        cache_key = (mtime, env_payload)
+
+        if self.cache_enabled and self._cache_key == cache_key and self._cached_html:
+            return self._cached_html
+
+        html = self.index_path.read_text(encoding="utf-8")
+        html = self._prefix_ui_urls(html, env.get("NUXT_PUBLIC_URL_PREFIX", ""))
+        transformed = self._inject_env(html, env_payload)
+
+        if self.cache_enabled:
+            self._cache_key = cache_key
+            self._cached_html = transformed
+
+        return transformed
+
+    def _prefix_ui_urls(self, html: str, prefix: str) -> str:
+        normalized = prefix.strip("/")
+        if not normalized:
+            return html
+
+        public_ui_path = f"/{normalized}/ui"
+        return html.replace('"/ui', f'"{public_ui_path}').replace("'/ui", f"'{public_ui_path}")
+
+    def _inject_env(self, html: str, env_payload: str) -> str:
+        # Escape </script> to prevent breaking out of the script context
+        safe_env_payload = env_payload.replace("</script>", "<\\/script>")
+        script_tag = f"<script>{ENV_TARGET}={safe_env_payload};</script>"
+
+        if "</head>" in html:
+            return html.replace("</head>", f"{script_tag}\n</head>", 1)
+        if "</body>" in html:
+            return html.replace("</body>", f"{script_tag}\n</body>", 1)
+
+        return f"{html}\n{script_tag}"
+
+
+class FrontendAssets:
+    """Helper for serving frontend assets and the transformed index page."""
+
+    def __init__(self, config: Config):
+        self.config = config
+        self.dist_dir = self._resolve_dist_dir(config.frontend_dist_path)
+        self.index_path = self.dist_dir / config.frontend_index_file
+        self.renderer = FrontendIndexRenderer(
+            self.index_path,
+            lambda request: collect_frontend_env(config, request),
+            cache_enabled=config.frontend_cache_index,
+        )
+        self.static_files = StaticFiles(directory=self.dist_dir, check_dir=False)
+
+    def _resolve_dist_dir(self, path_value: str) -> Path:
+        base_dir = Path(path_value).expanduser()
+        if base_dir.is_absolute():
+            return base_dir
+        if base_dir.parts[:1] == ("agent",):
+            return Path(__file__).resolve().parent.parent / base_dir
+        return Path(__file__).resolve().parent / base_dir
+
+    async def serve(self, request: Request, path: str) -> Response:
+        if path in ("", "/", "index.html"):
+            return self._index_response(request)
+
+        if not self.dist_dir.exists():
+            logger.warning("Frontend dist directory not found at %s", self.dist_dir)
+            raise HTTPException(
+                status_code=404,
+                detail="Frontend build not found. Please build the UI assets.",
+            )
+
+        try:
+            response = await self.static_files.get_response(path, request.scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code == 404 and self._is_spa_route(path, request):
+                return self._index_response(request)
+            raise HTTPException(
+                status_code=exc.status_code,
+                detail="Frontend asset not found.",
+            ) from exc
+
+        if response.status_code < 400:
+            return response  # type: ignore[return-value]
+
+        if response.status_code == 404 and self._is_spa_route(path, request):
+            return self._index_response(request)
+
+        raise HTTPException(status_code=response.status_code, detail="Frontend asset not found.")
+
+    def _is_spa_route(self, path: str, request: Request) -> bool:
+        if "text/html" not in request.headers.get("accept", ""):
+            return False
+        if path.startswith("_nuxt/"):
+            return False
+        return "." not in Path(path).name
+
+    def _index_response(self, request: Request) -> HTMLResponse:
+        try:
+            html = self.renderer.render(request)
+        except FileNotFoundError as exc:
+            logger.warning("Frontend index file missing: %s", exc)
+            raise HTTPException(
+                status_code=404,
+                detail="Frontend build not found. Please build the UI assets.",
+            ) from exc
+
+        return HTMLResponse(
+            content=html,
+            media_type="text/html",
+            headers={"Cache-Control": "no-store"},
+        )
+
+
+def create_router(app_state) -> APIRouter:
+    """Create router that serves the built frontend under /ui."""
+    router = APIRouter(tags=["ui"])
+    config = app_state.config or Config.from_env()
+
+    frontend_assets = FrontendAssets(config)
+    app_state.frontend_assets = frontend_assets
+
+    @router.get("/ui", include_in_schema=False)
+    async def ui_index(request: Request):
+        return await frontend_assets.serve(request, "")
+
+    @router.get("/ui/{path:path}", include_in_schema=False)
+    async def ui_assets(path: str, request: Request):
+        return await frontend_assets.serve(request, path)
+
+    return router

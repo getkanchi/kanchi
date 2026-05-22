@@ -1,9 +1,9 @@
 import { computed } from 'vue'
-import { useRuntimeConfig } from '#imports'
+import { usePublicEnv } from '~/composables/usePublicEnv'
 
 export function useAppVersion() {
-  const config = useRuntimeConfig()
-  const rawVersion = (config.public.kanchiVersion as string | undefined)?.trim() || 'dev'
+  const { kanchiVersion } = usePublicEnv()
+  const rawVersion = kanchiVersion?.trim() || 'dev'
 
   const displayVersion = computed(() => rawVersion || 'dev')
   const changelogUrl = computed(() => {
