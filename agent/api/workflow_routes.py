@@ -8,11 +8,16 @@ from models import (
     WorkflowDefinition,
     WorkflowCreateRequest,
     WorkflowUpdateRequest,
-    WorkflowExecutionRecord
+    WorkflowExecutionRecord,
+    WorkflowReplayRequest,
+    WorkflowReplayResponse,
+    TaskEvent,
+    WorkerEvent,
 )
 from services.workflow_service import WorkflowService
 from services.action_executor import ActionExecutor
 from services.workflow_catalog import TRIGGER_METADATA
+from services.workflow_executor import WorkflowExecutor
 from config import Config
 from security.dependencies import get_auth_dependency
 
@@ -199,5 +204,46 @@ def create_router(app_state) -> APIRouter:
             "would_execute": conditions_met,
             "actions": [action.type for action in workflow.actions]
         }
+
+    @router.post("/{workflow_id}/replay", response_model=WorkflowReplayResponse)
+    async def replay_workflow(
+        workflow_id: str,
+        replay_request: WorkflowReplayRequest,
+        session: Session = Depends(get_db)
+    ):
+        """Replay historical events against a workflow, optionally executing matching actions."""
+        workflow_service = WorkflowService(session)
+        workflow = workflow_service.get_workflow(workflow_id)
+
+        if not workflow:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+
+        try:
+            replay_result = workflow_service.replay_workflow(workflow, replay_request)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+        if replay_request.dry_run or not replay_result.matches:
+            return replay_result
+
+        executor = WorkflowExecutor(
+            session=session,
+            db_manager=app_state.db_manager,
+            monitor_instance=app_state.monitor_instance
+        )
+
+        executed_count = 0
+        for match in replay_result.matches:
+            context = match.context
+            if workflow.trigger.type.startswith("task."):
+                event = TaskEvent(**context)
+            else:
+                event = WorkerEvent(**context)
+            await executor.execute_workflow(workflow, context, event)
+            executed_count += 1
+
+        replay_result.executed_count = executed_count
+        replay_result.dry_run = False
+        return replay_result
 
     return router

@@ -1034,6 +1034,37 @@ class WorkflowExecutionRecord(BaseModel):
         from_attributes = True
 
 
+class WorkflowReplayRequest(BaseModel):
+    """Request model for replaying historical events against a workflow."""
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    limit: int = Field(default=25, ge=1, le=200)
+    dry_run: bool = True
+
+
+class WorkflowReplayMatch(BaseModel):
+    """Single historical event that matched a workflow during replay."""
+    event_type: str
+    timestamp: datetime
+    task_id: Optional[str] = None
+    task_name: Optional[str] = None
+    hostname: Optional[str] = None
+    summary: str
+    context: Dict[str, Any]
+
+
+class WorkflowReplayResponse(BaseModel):
+    """Summary of a workflow historical replay run."""
+    workflow_id: str
+    workflow_name: str
+    dry_run: bool
+    scanned_count: int
+    matched_count: int
+    executed_count: int = 0
+    truncated: bool = False
+    matches: List[WorkflowReplayMatch] = Field(default_factory=list)
+
+
 class ActionConfigDefinition(BaseModel):
     """Reusable action configuration."""
     id: Optional[str] = None

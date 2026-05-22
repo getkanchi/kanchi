@@ -6,6 +6,8 @@ import type {
   WorkflowCreateRequest,
   WorkflowUpdateRequest,
   WorkflowExecutionRecord,
+  WorkflowReplayRequest,
+  WorkflowReplayResponse,
   ActionConfigDefinition,
   ActionConfigCreateRequest,
   ActionConfigUpdateRequest
@@ -17,6 +19,7 @@ export const useWorkflowsStore = defineStore('workflows', () => {
   const workflows = ref<WorkflowDefinition[]>([])
   const currentWorkflow = ref<WorkflowDefinition | null>(null)
   const executions = ref<WorkflowExecutionRecord[]>([])
+  const replayResult = ref<WorkflowReplayResponse | null>(null)
   const actionConfigs = ref<ActionConfigDefinition[]>([])
   const triggerCatalog = ref<{ type: string; label: string; description: string; category: string }[]>([])
   const actionCatalog = ref<{ type: string; label: string; description: string; category: string }[]>([])
@@ -195,6 +198,20 @@ export const useWorkflowsStore = defineStore('workflows', () => {
     }
   }
 
+  async function replayWorkflow(workflowId: string, payload: WorkflowReplayRequest) {
+    try {
+      isLoading.value = true
+      error.value = null
+      replayResult.value = await apiService.replayWorkflow(workflowId, payload)
+      return replayResult.value
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to replay workflow'
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   async function fetchActionConfigs(params?: { action_type?: string }) {
     try {
       isLoading.value = true
@@ -269,6 +286,7 @@ export const useWorkflowsStore = defineStore('workflows', () => {
     workflows,
     currentWorkflow,
     executions,
+    replayResult,
     actionConfigs,
     isLoading,
     error,
@@ -288,6 +306,7 @@ export const useWorkflowsStore = defineStore('workflows', () => {
     fetchWorkflowExecutions,
     fetchRecentExecutions,
     testWorkflow,
+    replayWorkflow,
     fetchActionConfigs,
     createActionConfig,
     updateActionConfig,
