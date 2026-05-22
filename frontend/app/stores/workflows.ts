@@ -8,7 +8,8 @@ import type {
   WorkflowExecutionRecord,
   ActionConfigDefinition,
   ActionConfigCreateRequest,
-  ActionConfigUpdateRequest
+  ActionConfigUpdateRequest,
+  WorkflowActionPreviewResponse
 } from '~/types/workflow'
 
 export const useWorkflowsStore = defineStore('workflows', () => {
@@ -195,6 +196,16 @@ export const useWorkflowsStore = defineStore('workflows', () => {
     }
   }
 
+  async function previewWorkflowAction(actionType: string, params: any, context: any): Promise<WorkflowActionPreviewResponse> {
+    try {
+      error.value = null
+      return await apiService.previewWorkflowAction({ action_type: actionType, params, context })
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to preview workflow action'
+      throw err
+    }
+  }
+
   async function fetchActionConfigs(params?: { action_type?: string }) {
     try {
       isLoading.value = true
@@ -288,6 +299,7 @@ export const useWorkflowsStore = defineStore('workflows', () => {
     fetchWorkflowExecutions,
     fetchRecentExecutions,
     testWorkflow,
+    previewWorkflowAction,
     fetchActionConfigs,
     createActionConfig,
     updateActionConfig,

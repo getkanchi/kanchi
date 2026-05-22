@@ -47,6 +47,12 @@
         <div v-if="action.type === 'slack.notify'" class="text-xs text-text-muted pl-7 space-y-1">
           <div v-if="action.params.config_id">Config: {{ action.params.config_id }}</div>
           <div v-if="action.params.channel">Channel: {{ action.params.channel }}</div>
+          <div v-if="action.params.notification_policy?.dedupe_window_seconds">
+            Dedupe: {{ action.params.notification_policy.dedupe_window_seconds }}s
+          </div>
+          <div v-if="action.params.notification_policy?.escalation_steps?.length">
+            Escalation steps: {{ action.params.notification_policy.escalation_steps.length }}
+          </div>
           <div v-if="action.params.template" class="font-mono bg-background-base px-2 py-1 rounded">
             {{ truncate(action.params.template, 60) }}
           </div>

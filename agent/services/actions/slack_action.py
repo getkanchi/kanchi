@@ -6,6 +6,7 @@ from typing import Dict, Any
 from datetime import datetime
 
 from .base import ActionHandler
+from .notification_policy import NotificationPolicyHelper
 from models import ActionResult
 from services.action_config_service import ActionConfigService
 
@@ -29,14 +30,30 @@ class SlackActionHandler(ActionHandler):
                     duration_ms=0
                 )
 
+            policy_helper = NotificationPolicyHelper(self.session)
+            should_send, policy_metadata, resolved_params = policy_helper.evaluate(
+                "slack.notify",
+                context,
+                params,
+                self.render_template,
+            )
+
+            if not should_send:
+                return ActionResult(
+                    action_type="slack.notify",
+                    status="skipped",
+                    result=policy_metadata,
+                    duration_ms=int((datetime.now() - start_time).total_seconds() * 1000)
+                )
+
             config_service = ActionConfigService(self.session)
-            config = config_service.get_config(params["config_id"])
+            config = config_service.get_config(resolved_params["config_id"])
 
             if not config:
                 return ActionResult(
                     action_type="slack.notify",
                     status="failed",
-                    error_message=f"Action config not found: {params['config_id']}",
+                    error_message=f"Action config not found: {resolved_params['config_id']}",
                     duration_ms=0
                 )
 
@@ -49,16 +66,16 @@ class SlackActionHandler(ActionHandler):
                     duration_ms=0
                 )
 
-            message = self.render_template(params.get("template", ""), context)
+            message = self.render_template(resolved_params.get("template", ""), context)
 
             payload = self._build_slack_payload(
                 message=message,
-                channel=params.get("channel"),
-                username=params.get("username", "Kanchi Alert"),
-                icon_emoji=params.get("icon_emoji", ":robot_face:"),
-                color=params.get("color", "#36a64f"),
-                include_context=params.get("include_context", True),
-                context=context if params.get("include_context", True) else None
+                channel=resolved_params.get("channel"),
+                username=resolved_params.get("username", "Kanchi Alert"),
+                icon_emoji=resolved_params.get("icon_emoji", ":robot_face:"),
+                color=resolved_params.get("color", "#36a64f"),
+                include_context=resolved_params.get("include_context", True),
+                context=context if resolved_params.get("include_context", True) else None
             )
 
             timeout = aiohttp.ClientTimeout(total=10)
@@ -83,7 +100,10 @@ class SlackActionHandler(ActionHandler):
                 result={
                     "message": message,
                     "webhook_url": webhook_url[:30] + "...",  # Truncate for security
-                    "channel": params.get("channel")
+                    "channel": resolved_params.get("channel"),
+                    "notification_key": policy_metadata.get("notification_key"),
+                    "stage": policy_metadata.get("stage", "initial"),
+                    "severity": policy_metadata.get("severity"),
                 },
                 duration_ms=duration
             )
@@ -107,6 +127,21 @@ class SlackActionHandler(ActionHandler):
             return False, "Missing required parameter: template"
 
         return True, ""
+
+    def preview(self, context: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
+        policy_helper = NotificationPolicyHelper(self.session)
+        preview = policy_helper.build_preview(context, params, self.render_template)
+        resolved = dict(params)
+        for key in ("template", "channel", "color", "config_id"):
+            if preview.get(key):
+                resolved[key] = preview[key]
+        message = self.render_template(resolved.get("template", ""), context)
+        return {
+            **preview,
+            "message": message,
+            "channel": resolved.get("channel"),
+            "color": resolved.get("color", "#36a64f"),
+        }
 
     def _build_slack_payload(
         self,

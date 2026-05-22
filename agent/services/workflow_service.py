@@ -221,6 +221,11 @@ class WorkflowService:
                     raise ValueError("Slack action requires config_id")
                 if not config_service.get_config(config_id):
                     raise ValueError(f"Action config not found: {config_id}")
+                notification_policy = params.get("notification_policy") or {}
+                for step in notification_policy.get("escalation_steps") or []:
+                    step_config_id = step.get("config_id")
+                    if step_config_id and not config_service.get_config(step_config_id):
+                        raise ValueError(f"Action config not found: {step_config_id}")
 
     def _coerce_actions(self, actions: List[Any]) -> List[ActionConfig]:
         coerced = []

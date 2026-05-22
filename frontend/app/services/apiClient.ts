@@ -874,6 +874,15 @@ class ApiService {
     return response.data
   }
 
+  async previewWorkflowAction(data: { action_type: string; params: any; context: any }): Promise<any> {
+    const response = await this.api.request({
+      path: '/api/workflows/actions/preview',
+      method: 'POST',
+      body: data
+    })
+    return response.data
+  }
+
   async getActionConfigs(params?: {
     action_type?: string
     limit?: number

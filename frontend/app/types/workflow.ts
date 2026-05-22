@@ -181,8 +181,28 @@ export interface ActionTypeMetadata {
   label: string
   description: string
   category: string
-  requiredParams: string[]
-  optionalParams: string[]
+  requiredParams?: string[]
+  optionalParams?: string[]
+}
+
+export interface WorkflowActionPreviewRequest {
+  action_type: string
+  params: Record<string, any>
+  context: Record<string, any>
+}
+
+export interface WorkflowActionPreviewResponse {
+  supported: boolean
+  action_type: string
+  would_send?: boolean
+  stage?: string
+  severity?: string
+  duration_seconds?: number
+  skip_reason?: string
+  message?: string
+  channel?: string
+  color?: string
+  severity_options?: string[]
 }
 
 // ==================== UI Helper Types ====================
