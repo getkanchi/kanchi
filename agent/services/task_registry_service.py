@@ -1,21 +1,26 @@
 """Task registry service for auto-discovery and management of Celery tasks."""
 
 import logging
-import uuid
 import threading
-from datetime import datetime, timezone, timedelta
-from typing import List, Optional, Dict, Any
+import uuid
+from datetime import datetime, timedelta, timezone
+from typing import List, Optional
 
+from sqlalchemy import String, and_, case, cast, func
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, or_, cast, String, case
 
-from database import TaskRegistryDB, TaskEventDB, RetryRelationshipDB
+from database import (
+    RetryRelationshipDB,
+    TaskEventDB,
+    TaskRegistryDB,
+    TaskRerunRelationshipDB,
+)
 from models import (
     TaskRegistryResponse,
-    TaskRegistryUpdate,
     TaskRegistryStats,
+    TaskRegistryUpdate,
     TaskTimelineResponse,
-    TimelineBucket
+    TimelineBucket,
 )
 from services.utils import EnvironmentFilter
 
@@ -256,7 +261,18 @@ class TaskRegistryService:
                 rel.task_id for rel in retry_relationships if rel.total_retries > 0
             }
 
-            unretried_failures = len(failed_task_ids - retried_task_ids)
+            rerun_task_ids = {
+                row[0]
+                for row in (
+                    self.session.query(TaskRerunRelationshipDB.original_task_id)
+                    .filter(TaskRerunRelationshipDB.original_task_id.in_(failed_task_ids))
+                    .distinct()
+                    .all()
+                )
+            }
+
+            addressed_task_ids = retried_task_ids | rerun_task_ids
+            unretried_failures = len(failed_task_ids - addressed_task_ids)
 
         return TaskRegistryStats(
             task_name=task_name,
@@ -318,7 +334,7 @@ class TaskRegistryService:
 
         base_query = EnvironmentFilter.apply(base_query, self.active_env)
 
-        from sqlalchemy import cast, Integer, literal
+        from sqlalchemy import Integer, cast, literal
         from sqlalchemy.types import DateTime as SADateTime
 
         dialect_name = getattr(getattr(self.session.bind, "dialect", None), "name", "sqlite")

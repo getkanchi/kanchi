@@ -176,6 +176,7 @@ export const useWebSocketStore = defineStore('websocket', () => {
         }
         else if (eventType === 'kanchi-task-action') {
           taskActionsStore.handleLiveEvent(message)
+          failedTasksStore.updateFromTaskAction(message)
         }
         else if (eventType.startsWith('worker-')) {
           workersStore.updateFromLiveEvent(message)
