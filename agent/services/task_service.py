@@ -2,25 +2,34 @@
 
 import json
 import logging
-from datetime import datetime, timezone, timedelta
-from typing import List, Dict, Any, Optional, Tuple, Union
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-from sqlalchemy.orm import Session
-from sqlalchemy import desc, asc, or_, and_, func, String, cast, Integer, literal, inspect, case
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy import (
+    String,
+    and_,
+    asc,
+    case,
+    desc,
+    func,
+    or_,
+    select,
+)
 from sqlalchemy.dialects.mysql import insert as mysql_insert
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.orm import Session
 
+from constants import ACTIVE_EVENT_TYPES, STATE_TO_EVENT_MAP, EventType, TaskState
 from database import (
+    RetryRelationshipDB,
     TaskActionItemDB,
     TaskEventDB,
-    RetryRelationshipDB,
     TaskLatestDB,
-    TaskResolutionDB,
     TaskRerunRelationshipDB,
+    TaskResolutionDB,
 )
 from models import TaskEvent
-from constants import TaskState, EventType, STATE_TO_EVENT_MAP, ACTIVE_EVENT_TYPES
 from services.utils import EnvironmentFilter, GenericFilter, parse_filter_string
 from utils.payload_sanitizer import find_placeholder_paths
 
@@ -358,8 +367,10 @@ class TaskService:
         )
 
         if exclude_retried:
+            rerun_original_ids = select(TaskRerunRelationshipDB.original_task_id)
             query = query.filter(
-                or_(TaskEventDB.has_retries.is_(False), TaskEventDB.has_retries.is_(None))
+                or_(TaskEventDB.has_retries.is_(False), TaskEventDB.has_retries.is_(None)),
+                TaskEventDB.task_id.not_in(rerun_original_ids)
             )
 
         query = query.order_by(TaskEventDB.timestamp.desc())

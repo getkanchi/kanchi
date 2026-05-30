@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useApiService } from '../services/apiClient'
-import type { TaskEventResponse } from '../services/apiClient'
+import type { TaskActionDetailDTO, TaskEventResponse } from '../services/apiClient'
 
 const DEFAULT_LOOKBACK_HOURS = 24
 const MIN_LOOKBACK_HOURS = 1
@@ -86,6 +86,12 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
       return true
     }
     if (task.retried_by && Array.isArray(task.retried_by) && task.retried_by.length > 0) {
+      return true
+    }
+    if (task.has_reruns) {
+      return true
+    }
+    if (task.rerun_by && Array.isArray(task.rerun_by) && task.rerun_by.length > 0) {
       return true
     }
     return false
@@ -189,6 +195,18 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
     }
   }
 
+  function updateFromTaskAction(action: TaskActionDetailDTO) {
+    if (action.action_type !== 'rerun' || !Array.isArray(action.items)) {
+      return
+    }
+
+    for (const item of action.items) {
+      if (item.outcome === 'created') {
+        removeFailedTask(item.original_task_id)
+      }
+    }
+  }
+
   return {
     failedTasks,
     isLoading,
@@ -202,6 +220,7 @@ export const useFailedTasksStore = defineStore('failedTasks', () => {
     fetchFailedTasks,
     setLookbackHours,
     updateFromLiveEvent,
+    updateFromTaskAction,
     pruneExpired,
     removeFailedTask,
     applyResolutionState,

@@ -1,6 +1,7 @@
 import unittest
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
+from database import TaskRerunRelationshipDB
 from services.task_service import TaskService
 from tests.base import DatabaseTestCase
 
@@ -73,6 +74,42 @@ class TestTaskServiceRecentFailedTasks(DatabaseTestCase):
         task_ids_including = {task.task_id for task in results_including_retried}
 
         self.assertIn("failed-retried", task_ids_including)
+
+    def test_excludes_manually_rerun_failures_by_default(self):
+        recent_time = self.now - timedelta(minutes=30)
+
+        self.create_task_event_db(
+            task_id="failed-unrerun",
+            task_name="tasks.example",
+            event_type="task-failed",
+            timestamp=recent_time,
+        )
+        self.create_task_event_db(
+            task_id="failed-rerun",
+            task_name="tasks.example",
+            event_type="task-failed",
+            timestamp=recent_time - timedelta(minutes=1),
+        )
+        self.session.add(TaskRerunRelationshipDB(
+            original_task_id="failed-rerun",
+            rerun_task_id="rerun-task",
+            created_by="tester",
+        ))
+        self.session.commit()
+
+        results = self.service.get_recent_failed_tasks(hours=24)
+        task_ids = {task.task_id for task in results}
+
+        self.assertIn("failed-unrerun", task_ids)
+        self.assertNotIn("failed-rerun", task_ids)
+
+        results_including_rerun = self.service.get_recent_failed_tasks(
+            hours=24,
+            exclude_retried=False
+        )
+        task_ids_including = {task.task_id for task in results_including_rerun}
+
+        self.assertIn("failed-rerun", task_ids_including)
 
     def test_results_respect_limit_and_order(self):
         for index in range(3):
