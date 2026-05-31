@@ -113,7 +113,7 @@ Run Kanchi using pre-built images from Docker Hub. No repository cloning require
    Optional overrides (see docker-compose.yaml for all available options):
 
    ```bash
-   export DATABASE_URL=postgresql://user:pass@postgres-host:5432/kanchi
+   export DATABASE_URL=postgresql+psycopg://user:pass@postgres-host:5432/kanchi
    export LOG_LEVEL=INFO
    export DEVELOPMENT_MODE=false
    export ENABLE_PICKLE_SERIALIZATION=false
@@ -225,6 +225,15 @@ Every login issues short-lived access tokens plus refresh tokens. You can adjust
 ```bash
 cd agent && poetry install
 cd ../frontend && npm install
+```
+
+If you require a database other than SQLite, install one of the supported extras:
+
+```bash
+poetry install -E db-postgres
+poetry install -E db-postgres-async
+poetry install -E db-mysql
+poetry install -E db-mysql-native
 ```
 
 ### Run
