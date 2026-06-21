@@ -27,6 +27,9 @@ spec:
         - name: CELERY_BROKER_URL
           value: {{YOUR_CELERY_BROKER_URL}}
         # Optional: Set to a public reverse-proxy path prefix, for example /kanchi.
+        - name: KANCHI_ROOT_PATH
+          value: ""
+        # Backwards compatible alias for existing deployments.
         - name: NUXT_PUBLIC_URL_PREFIX
           value: ""
         # Optional: If you want to configure a different DB backend than SQLite.

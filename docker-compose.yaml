@@ -18,6 +18,8 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DEVELOPMENT_MODE: ${DEVELOPMENT_MODE:-false}
       # Optional: public path prefix used by reverse proxies, for example /kanchi.
+      KANCHI_ROOT_PATH: ${KANCHI_ROOT_PATH:-}
+      # Backwards compatible alias for existing deployments.
       NUXT_PUBLIC_URL_PREFIX: ${NUXT_PUBLIC_URL_PREFIX:-}
       # Authentication & security (optional)
       AUTH_ENABLED: ${AUTH_ENABLED:-false}

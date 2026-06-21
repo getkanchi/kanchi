@@ -14,6 +14,7 @@ RABBITMQ_VHOST="${RABBITMQ_VHOST:-/}"
 LOG_LEVEL="${LOG_LEVEL:-INFO}"
 WS_PORT="${WS_PORT:-8765}"
 FRONTEND_PORT="${FRONTEND_PORT:-3000}"
+KANCHI_ROOT_PATH="${KANCHI_ROOT_PATH:-${NUXT_PUBLIC_URL_PREFIX:-}}"
 
 # Function to detect platform and adjust localhost
 detect_docker_host() {
@@ -169,6 +170,9 @@ echo "Image:        $IMAGE_NAME"
 echo "Broker URL:   $CELERY_BROKER_URL"
 echo "WebSocket:    http://localhost:$WS_PORT (internal)"
 echo "Frontend:     http://localhost:$FRONTEND_PORT/ui"
+if [ -n "$KANCHI_ROOT_PATH" ]; then
+    echo "Root Path:    $KANCHI_ROOT_PATH"
+fi
 echo "Log Level:    $LOG_LEVEL"
 echo "========================================="
 
@@ -192,5 +196,6 @@ docker run \
     -p "${FRONTEND_PORT}:8765" \
     -e "CELERY_BROKER_URL=${CELERY_BROKER_URL}" \
     -e "LOG_LEVEL=${LOG_LEVEL}" \
+    -e "KANCHI_ROOT_PATH=${KANCHI_ROOT_PATH}" \
     -e "NUXT_PUBLIC_URL_PREFIX=${NUXT_PUBLIC_URL_PREFIX:-}" \
     "$IMAGE_NAME"

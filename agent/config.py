@@ -28,6 +28,24 @@ def _split_csv(value: Optional[str]) -> List[str]:
     return parts
 
 
+def _first_env(*names: str) -> str:
+    """Return the first non-empty environment variable from names."""
+    for name in names:
+        value = os.getenv(name)
+        if value and value.strip():
+            return value
+    return ""
+
+
+def _normalize_path_prefix(value: Optional[str]) -> str:
+    """Normalize a public mount path such as /kanchi."""
+    normalized = (value or "").strip()
+    if not normalized:
+        return ""
+    normalized = "/" + normalized.strip("/")
+    return "" if normalized == "/" else normalized
+
+
 def mask_sensitive_url(url: Optional[str]) -> Optional[str]:
     """Mask password in URLs for safe logging."""
     if not url:
@@ -79,6 +97,13 @@ class Config:
     )
     frontend_url_prefix: str = field(
         default_factory=lambda: os.getenv('NUXT_PUBLIC_URL_PREFIX', '')
+    )
+    asgi_root_path: str = field(
+        default_factory=lambda: _first_env(
+            'KANCHI_ROOT_PATH',
+            'ASGI_ROOT_PATH',
+            'NUXT_PUBLIC_URL_PREFIX',
+        )
     )
 
     # Performance settings
@@ -139,6 +164,9 @@ class Config:
 
     def __post_init__(self) -> None:
         """Normalize secrets so we never operate with predictable defaults."""
+        self.frontend_url_prefix = _normalize_path_prefix(self.frontend_url_prefix)
+        self.asgi_root_path = _normalize_path_prefix(self.asgi_root_path)
+
         if self.session_secret_key == 'change-me':
             self.session_secret_key = secrets.token_urlsafe(32)
 
