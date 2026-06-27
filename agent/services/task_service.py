@@ -1,5 +1,6 @@
 """Service layer for task-related operations."""
 
+import ast
 import json
 import logging
 from datetime import datetime, timedelta, timezone
@@ -617,21 +618,18 @@ class TaskService:
         args = self._parse_json_field(task_event.args, default=[])
         kwargs = self._parse_json_field(task_event.kwargs, default={})
 
-        args_empty = not args or args in [(), [], "()", "[]"]
-        kwargs_empty = not kwargs or kwargs in ({}, "{}", "{}")
+        args_empty = self._args_are_empty(args)
+        kwargs_empty = self._kwargs_are_empty(kwargs)
 
-        if args_empty and kwargs_empty:
-            existing_received_event = (
-                self.session.query(TaskEventDB)
-                .filter_by(task_id=task_event.task_id, event_type=EventType.TASK_RECEIVED.value)
-                .first()
+        if args_empty or kwargs_empty:
+            existing_args, existing_kwargs = self._find_prior_argument_values(
+                task_event.task_id
             )
 
-            if existing_received_event:
-                if existing_received_event.args:
-                    args = existing_received_event.args
-                if existing_received_event.kwargs:
-                    kwargs = existing_received_event.kwargs
+            if args_empty and existing_args is not None:
+                args = existing_args
+            if kwargs_empty and existing_kwargs is not None:
+                kwargs = existing_kwargs
 
         return args, kwargs
 
@@ -653,9 +651,72 @@ class TaskService:
             try:
                 return json.loads(field_value)
             except (json.JSONDecodeError, ValueError):
-                return field_value
+                try:
+                    return ast.literal_eval(field_value)
+                except (ValueError, SyntaxError):
+                    return field_value
 
         return field_value if field_value is not None else default
+
+    def _args_are_empty(self, value: Any) -> bool:
+        """Return True only when a stored positional-args payload has no values."""
+        if value is None:
+            return True
+        if isinstance(value, str):
+            return value.strip() in ("", "()", "[]")
+        if isinstance(value, (list, tuple)):
+            return len(value) == 0
+        return False
+
+    def _kwargs_are_empty(self, value: Any) -> bool:
+        """Return True only when a stored keyword-args payload has no values."""
+        if value is None:
+            return True
+        if isinstance(value, str):
+            return value.strip() in ("", "{}")
+        if isinstance(value, dict):
+            return len(value) == 0
+        return False
+
+    def _find_prior_argument_values(self, task_id: str) -> Tuple[Any, Any]:
+        """
+        Find earlier captured call inputs, preferring task-received events.
+
+        Celery terminal events often omit args while still carrying metadata
+        kwargs. Treat the two fields independently so one missing side can be
+        recovered without discarding the side present on the current event.
+        """
+        rows = (
+            self.session.query(TaskEventDB)
+            .filter(TaskEventDB.task_id == task_id)
+            .order_by(
+                case(
+                    (TaskEventDB.event_type == EventType.TASK_RECEIVED.value, 0),
+                    else_=1,
+                ),
+                asc(TaskEventDB.timestamp),
+                asc(TaskEventDB.id),
+            )
+            .all()
+        )
+
+        args = None
+        kwargs = None
+        for row in rows:
+            if args is None:
+                candidate_args = self._parse_json_field(row.args, default=[])
+                if not self._args_are_empty(candidate_args):
+                    args = candidate_args
+
+            if kwargs is None:
+                candidate_kwargs = self._parse_json_field(row.kwargs, default={})
+                if not self._kwargs_are_empty(candidate_kwargs):
+                    kwargs = candidate_kwargs
+
+            if args is not None and kwargs is not None:
+                break
+
+        return args, kwargs
 
     def _create_task_event_db(
         self,
@@ -750,6 +811,24 @@ class TaskService:
             "resolved_at": _ensure_utc(getattr(event_db, "resolved_at", None)),
             "resolved_by": getattr(event_db, "resolved_by", None),
         }
+
+        if self._args_are_empty(data["args"]) or self._kwargs_are_empty(data["kwargs"]):
+            existing_latest = (
+                self.session.query(TaskLatestDB)
+                .filter(TaskLatestDB.task_id == event_db.task_id)
+                .one_or_none()
+            )
+            if existing_latest:
+                if (
+                    self._args_are_empty(data["args"])
+                    and not self._args_are_empty(existing_latest.args)
+                ):
+                    data["args"] = existing_latest.args
+                if (
+                    self._kwargs_are_empty(data["kwargs"])
+                    and not self._kwargs_are_empty(existing_latest.kwargs)
+                ):
+                    data["kwargs"] = existing_latest.kwargs
 
         dialect = self.session.bind.dialect.name if self.session.bind else "sqlite"
 

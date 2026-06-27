@@ -1,7 +1,9 @@
-from typing import Any, Dict, Optional, List, Union, Literal
-from datetime import datetime, timezone, date
-from enum import Enum
 import ast
+import json
+from datetime import date, datetime, timezone
+from enum import Enum
+from typing import Any, Dict, List, Literal, Optional
+
 from pydantic import BaseModel, Field, field_validator
 
 from utils.payload_sanitizer import sanitize_payload
@@ -86,20 +88,30 @@ class TaskEvent(BaseModel):
             return []
         if isinstance(v, list):
             sanitized, _ = sanitize_payload(v)
-            return sanitized if isinstance(sanitized, list) else ([] if sanitized is None else [sanitized])
+            if isinstance(sanitized, list):
+                return sanitized
+            return [] if sanitized is None else [sanitized]
         if isinstance(v, tuple):
             sanitized, _ = sanitize_payload(list(v))
-            return sanitized if isinstance(sanitized, list) else ([] if sanitized is None else [sanitized])
+            if isinstance(sanitized, list):
+                return sanitized
+            return [] if sanitized is None else [sanitized]
         if isinstance(v, str):
             try:
-                parsed = ast.literal_eval(v) if v and v != '()' else []
+                if not v or v == '()':
+                    parsed = []
+                else:
+                    try:
+                        parsed = json.loads(v)
+                    except (json.JSONDecodeError, ValueError):
+                        parsed = ast.literal_eval(v)
                 if isinstance(parsed, tuple):
                     parsed = list(parsed)
                 elif not isinstance(parsed, list):
                     parsed = []
                 sanitized, _ = sanitize_payload(parsed)
                 return sanitized if isinstance(sanitized, list) else []
-            except:
+            except (TypeError, ValueError, SyntaxError):
                 return []
         sanitized, _ = sanitize_payload(v)
         return sanitized if isinstance(sanitized, list) else []
@@ -114,10 +126,18 @@ class TaskEvent(BaseModel):
             return sanitized if isinstance(sanitized, dict) else {}
         if isinstance(v, str):
             try:
-                parsed = ast.literal_eval(v) if v and v != '{}' else {}
-                sanitized, _ = sanitize_payload(parsed if isinstance(parsed, dict) else {})
+                if not v or v == '{}':
+                    parsed = {}
+                else:
+                    try:
+                        parsed = json.loads(v)
+                    except (json.JSONDecodeError, ValueError):
+                        parsed = ast.literal_eval(v)
+                sanitized, _ = sanitize_payload(
+                    parsed if isinstance(parsed, dict) else {}
+                )
                 return sanitized if isinstance(sanitized, dict) else {}
-            except:
+            except (TypeError, ValueError, SyntaxError):
                 return {}
         sanitized, _ = sanitize_payload(v)
         return sanitized if isinstance(sanitized, dict) else {}

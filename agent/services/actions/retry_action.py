@@ -5,11 +5,12 @@ import json
 import logging
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
-from .base import ActionHandler
 from models import ActionResult, TaskEvent
 from services.task_service import TaskService
+
+from .base import ActionHandler
 
 logger = logging.getLogger(__name__)
 
@@ -171,16 +172,60 @@ class RetryActionHandler(ActionHandler):
         args = self._parse_args(context.get("args"))
         kwargs = self._parse_kwargs(context.get("kwargs"))
 
+        if not args or not kwargs:
+            recovered_args, recovered_kwargs = self._find_prior_call_signature_parts(
+                task_events,
+                need_args=not args,
+                need_kwargs=not kwargs,
+            )
+            if not args and recovered_args:
+                args = recovered_args
+            if not kwargs and recovered_kwargs:
+                kwargs = recovered_kwargs
+
         if args or kwargs:
             return args, kwargs
 
-        for event in reversed(task_events):
-            args = self._parse_args(event.args)
-            kwargs = self._parse_kwargs(event.kwargs)
-            if args or kwargs:
-                return args, kwargs
-
         return (), {}
+
+    def _find_prior_call_signature_parts(
+        self,
+        task_events: List[TaskEvent],
+        *,
+        need_args: bool,
+        need_kwargs: bool,
+    ) -> Tuple[Optional[tuple], Optional[dict]]:
+        """Recover missing call inputs from task history, preferring task-received."""
+        if not need_args and not need_kwargs:
+            return None, None
+
+        ordered_events = sorted(
+            task_events,
+            key=lambda event: (
+                0 if event.event_type == "task-received" else 1,
+                event.timestamp,
+            ),
+        )
+        recovered_args = None
+        recovered_kwargs = None
+
+        for event in ordered_events:
+            if need_args and recovered_args is None:
+                candidate_args = self._parse_args(event.args)
+                if candidate_args:
+                    recovered_args = candidate_args
+
+            if need_kwargs and recovered_kwargs is None:
+                candidate_kwargs = self._parse_kwargs(event.kwargs)
+                if candidate_kwargs:
+                    recovered_kwargs = candidate_kwargs
+
+            if (not need_args or recovered_args is not None) and (
+                not need_kwargs or recovered_kwargs is not None
+            ):
+                break
+
+        return recovered_args, recovered_kwargs
 
     def _parse_args(self, raw_value: Any) -> tuple:
         """Convert stored args (JSON string/list/tuple) to tuple."""

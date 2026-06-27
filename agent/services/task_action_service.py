@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
-from sqlalchemy import func, or_
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from database import (
@@ -827,26 +827,59 @@ class TaskActionService:
         args = self._parse_args(getattr(row, "args", None))
         kwargs = self._parse_kwargs(getattr(row, "kwargs", None))
 
-        if args or kwargs:
-            return args, kwargs
-
-        received = (
-            self.session.query(TaskEventDB)
-            .filter(
-                TaskEventDB.task_id == row.task_id,
-                or_(
-                    TaskEventDB.args.isnot(None),
-                    TaskEventDB.kwargs.isnot(None),
-                ),
+        if not args or not kwargs:
+            recovered_args, recovered_kwargs = self._find_prior_call_signature_parts(
+                row.task_id,
+                need_args=not args,
+                need_kwargs=not kwargs,
             )
-            .order_by(TaskEventDB.timestamp.asc(), TaskEventDB.id.asc())
-            .first()
-        )
-        if received:
-            args = self._parse_args(received.args)
-            kwargs = self._parse_kwargs(received.kwargs)
+            if not args and recovered_args:
+                args = recovered_args
+            if not kwargs and recovered_kwargs:
+                kwargs = recovered_kwargs
 
         return args, kwargs
+
+    def _find_prior_call_signature_parts(
+        self,
+        task_id: str,
+        *,
+        need_args: bool,
+        need_kwargs: bool,
+    ) -> Tuple[Optional[tuple], Optional[dict]]:
+        if not need_args and not need_kwargs:
+            return None, None
+
+        rows = (
+            self.session.query(TaskEventDB)
+            .filter(TaskEventDB.task_id == task_id)
+            .order_by(
+                case((TaskEventDB.event_type == "task-received", 0), else_=1),
+                TaskEventDB.timestamp.asc(),
+                TaskEventDB.id.asc(),
+            )
+            .all()
+        )
+
+        recovered_args = None
+        recovered_kwargs = None
+        for event in rows:
+            if need_args and recovered_args is None:
+                candidate_args = self._parse_args(event.args)
+                if candidate_args:
+                    recovered_args = candidate_args
+
+            if need_kwargs and recovered_kwargs is None:
+                candidate_kwargs = self._parse_kwargs(event.kwargs)
+                if candidate_kwargs:
+                    recovered_kwargs = candidate_kwargs
+
+            if (not need_args or recovered_args is not None) and (
+                not need_kwargs or recovered_kwargs is not None
+            ):
+                break
+
+        return recovered_args, recovered_kwargs
 
     def _parse_args(self, raw_value: Any) -> tuple:
         if raw_value in (None, "", "()", "[]"):
