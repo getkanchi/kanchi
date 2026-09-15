@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
 import logging
 import threading
-from typing import Callable, List
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import and_, not_, or_, select
+from sqlalchemy import and_, inspect, not_, or_, select
 from sqlalchemy.orm import Session
 
 from constants import EventType
@@ -37,7 +37,7 @@ class RetentionTarget:
     key: str
     label: str
     retention_days: Callable[[DataRetentionConfig], int]
-    apply: Callable[[Session, datetime, bool], int]
+    apply: Callable[[Session, datetime, bool, int], int]
 
 
 class RetentionService:
@@ -50,14 +50,17 @@ class RetentionService:
     def get_policy(self) -> DataRetentionConfig:
         return self.config_service.get_data_retention_config()
 
-    def cleanup(self, *, dry_run: bool = False) -> RetentionCleanupResponse:
+    def cleanup(self, *, dry_run: bool = False, batch_size: int = 1000) -> RetentionCleanupResponse:
+        if batch_size < 1:
+            raise ValueError("batch_size must be greater than zero")
+
         if not _cleanup_lock.acquire(blocking=False):
             raise RuntimeError("Retention cleanup is already running")
 
         try:
             policy = self.get_policy()
             now = datetime.now(timezone.utc)
-            results: List[RetentionCleanupResult] = []
+            results: list[RetentionCleanupResult] = []
             logger.info(
                 "Retention cleanup started: dry_run=%s now=%s "
                 "task_successful_days=%s task_unsuccessful_days=%s worker_events_days=%s "
@@ -75,7 +78,7 @@ class RetentionService:
             for target in RETENTION_TARGETS:
                 retention_days = target.retention_days(policy)
                 cutoff = now - timedelta(days=retention_days)
-                deleted = target.apply(self.session, cutoff, dry_run)
+                deleted = target.apply(self.session, cutoff, dry_run, batch_size)
                 logger.info(
                     "Retention cleanup target processed: key=%s label=%s dry_run=%s "
                     "retention_days=%s cutoff=%s rows=%s",
@@ -117,20 +120,50 @@ class RetentionService:
 
 
 def _delete_by_datetime(model, column_name: str):
-    def apply(session: Session, cutoff: datetime, dry_run: bool) -> int:
+    def apply(session: Session, cutoff: datetime, dry_run: bool, batch_size: int) -> int:
         query = session.query(model).filter(getattr(model, column_name) < cutoff)
         if dry_run:
             return query.count()
-        return query.delete(synchronize_session=False)
+        return _delete_query_in_batches(session, query, model, batch_size)
 
     return apply
 
 
-def _delete_daily_stats(session: Session, cutoff: datetime, dry_run: bool) -> int:
+def _delete_query_in_batches(session: Session, query, model, batch_size: int) -> int:
+    """Delete a query in short transactions so SQLite writers are not blocked for minutes."""
+    primary_keys = inspect(model).primary_key
+    if len(primary_keys) != 1:
+        raise RuntimeError(f"Batched retention requires one primary key for {model.__name__}")
+
+    primary_key = primary_keys[0]
+    total_deleted = 0
+    while True:
+        ids = [row[0] for row in query.with_entities(primary_key).limit(batch_size).all()]
+        if not ids:
+            break
+        deleted = (
+            session.query(model)
+            .filter(primary_key.in_(ids))
+            .delete(synchronize_session=False)
+        )
+        session.commit()
+        total_deleted += deleted
+        logger.debug(
+            "Retention cleanup batch committed: model=%s rows=%s total_deleted=%s",
+            model.__name__,
+            deleted,
+            total_deleted,
+        )
+    return total_deleted
+
+
+def _delete_daily_stats(
+    session: Session, cutoff: datetime, dry_run: bool, batch_size: int
+) -> int:
     query = session.query(TaskDailyStatsDB).filter(TaskDailyStatsDB.date < cutoff.date())
     if dry_run:
         return query.count()
-    return query.delete(synchronize_session=False)
+    return _delete_query_in_batches(session, query, TaskDailyStatsDB, batch_size)
 
 
 def _successful_task_filter(model):
@@ -141,7 +174,7 @@ def _successful_task_filter(model):
 
 
 def _expired_task_family_cleanup(model, time_column: str, successful: bool):
-    def apply(session: Session, cutoff: datetime, dry_run: bool) -> int:
+    def apply(session: Session, cutoff: datetime, dry_run: bool, batch_size: int) -> int:
         latest_query = session.query(TaskLatestDB.task_id).filter(TaskLatestDB.timestamp < cutoff)
         if successful:
             latest_query = latest_query.filter(_successful_task_filter(TaskLatestDB))
@@ -155,13 +188,13 @@ def _expired_task_family_cleanup(model, time_column: str, successful: bool):
         )
         if dry_run:
             return query.count()
-        return query.delete(synchronize_session=False)
+        return _delete_query_in_batches(session, query, model, batch_size)
 
     return apply
 
 
 def _expired_task_latest_cleanup(successful: bool):
-    def apply(session: Session, cutoff: datetime, dry_run: bool) -> int:
+    def apply(session: Session, cutoff: datetime, dry_run: bool, batch_size: int) -> int:
         query = session.query(TaskLatestDB).filter(TaskLatestDB.timestamp < cutoff)
         if successful:
             query = query.filter(_successful_task_filter(TaskLatestDB))
@@ -169,12 +202,14 @@ def _expired_task_latest_cleanup(successful: bool):
             query = query.filter(not_(_successful_task_filter(TaskLatestDB)))
         if dry_run:
             return query.count()
-        return query.delete(synchronize_session=False)
+        return _delete_query_in_batches(session, query, TaskLatestDB, batch_size)
 
     return apply
 
 
-def _orphaned_task_action_items_cleanup(session: Session, cutoff: datetime, dry_run: bool) -> int:
+def _orphaned_task_action_items_cleanup(
+    session: Session, cutoff: datetime, dry_run: bool, batch_size: int
+) -> int:
     live_task_ids = select(TaskLatestDB.task_id)
     query = session.query(TaskActionItemDB).filter(
         TaskActionItemDB.created_at < cutoff,
@@ -186,10 +221,12 @@ def _orphaned_task_action_items_cleanup(session: Session, cutoff: datetime, dry_
     )
     if dry_run:
         return query.count()
-    return query.delete(synchronize_session=False)
+    return _delete_query_in_batches(session, query, TaskActionItemDB, batch_size)
 
 
-def _empty_task_actions_cleanup(session: Session, cutoff: datetime, dry_run: bool) -> int:
+def _empty_task_actions_cleanup(
+    session: Session, cutoff: datetime, dry_run: bool, batch_size: int
+) -> int:
     action_ids_with_items = select(TaskActionItemDB.action_id)
     query = session.query(TaskActionDB).filter(
         TaskActionDB.created_at < cutoff,
@@ -197,10 +234,10 @@ def _empty_task_actions_cleanup(session: Session, cutoff: datetime, dry_run: boo
     )
     if dry_run:
         return query.count()
-    return query.delete(synchronize_session=False)
+    return _delete_query_in_batches(session, query, TaskActionDB, batch_size)
 
 
-RETENTION_TARGETS: List[RetentionTarget] = [
+RETENTION_TARGETS: list[RetentionTarget] = [
     RetentionTarget(
         key="task_events_successful",
         label="Successful task events",

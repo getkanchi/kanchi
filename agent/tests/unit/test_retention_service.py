@@ -1,5 +1,6 @@
 import unittest
 from datetime import date, datetime, timedelta, timezone
+from unittest.mock import patch
 
 from constants import EventType
 from database import (
@@ -9,6 +10,7 @@ from database import (
     TaskProgressLatestDB,
     TaskStepsDB,
     UserSessionDB,
+    WorkerEventDB,
     WorkflowExecutionDB,
 )
 from services.retention_service import RetentionService, _cleanup_lock
@@ -99,6 +101,27 @@ class TestRetentionService(DatabaseTestCase):
                 self.service.cleanup(dry_run=True)
         finally:
             _cleanup_lock.release()
+
+    def test_cleanup_commits_large_deletes_in_batches(self):
+        now = datetime.now(timezone.utc)
+        for index in range(5):
+            self.create_worker_event_db(
+                hostname=f"old-worker-{index}",
+                timestamp=now - timedelta(days=45),
+            )
+        self.session.commit()
+
+        with patch.object(self.session, "commit", wraps=self.session.commit) as commit:
+            result = self.service.cleanup(dry_run=False, batch_size=2)
+
+        worker_result = next(item for item in result.results if item.key == "worker_events")
+        self.assertEqual(worker_result.deleted, 5)
+        self.assertEqual(self.session.query(WorkerEventDB).count(), 0)
+        self.assertGreaterEqual(commit.call_count, 3)
+
+    def test_cleanup_rejects_invalid_batch_size(self):
+        with self.assertRaisesRegex(ValueError, "batch_size"):
+            self.service.cleanup(dry_run=False, batch_size=0)
 
 
 if __name__ == "__main__":
