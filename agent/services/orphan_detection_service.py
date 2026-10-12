@@ -111,18 +111,22 @@ class OrphanDetectionService:
         self,
         orphaned_tasks: List[TaskEventDB],
         orphaned_at: datetime,
-        connection_manager
+        connection_manager,
+        workflow_engine
     ):
         """
-        Create and broadcast orphan events to WebSocket clients.
+        Broadcast orphan events to WebSocket clients and dispatch them to workflows.
 
         Args:
             orphaned_tasks: List of orphaned task database objects
             orphaned_at: Timestamp when tasks were orphaned
             connection_manager: ConnectionManager instance for broadcasting
+            workflow_engine: WorkflowEngine instance, or None when workflows are disabled
         """
         orphan_events = self.create_orphan_events(orphaned_tasks, orphaned_at)
 
         for orphan_event in orphan_events:
             logger.info(f"Broadcasting orphan event for task {orphan_event.task_id}")
             connection_manager.queue_broadcast(orphan_event)
+            if workflow_engine:
+                workflow_engine.process_event(orphan_event)
