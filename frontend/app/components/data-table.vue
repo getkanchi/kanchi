@@ -63,12 +63,20 @@ const emit = defineEmits<{
   setSearchQuery: [query: string]
   setFilters: [filters: ParsedFilter[]]
   setTimeRange: [range: TimeRange]
-  clearTimeRange: []
 }>()
 
 const expandedRows = ref(new Set<string>())
 const searchInput = ref(props.searchQuery || '')
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
+
+watch(() => props.searchQuery, (value) => {
+  if (searchTimeout) clearTimeout(searchTimeout)
+  searchInput.value = value || ''
+})
+
+onUnmounted(() => {
+  if (searchTimeout) clearTimeout(searchTimeout)
+})
 
 // Use task action store for manual rerun functionality
 const tasksStore = useTasksStore()
@@ -288,7 +296,6 @@ const getProgressMessage = (snapshot: any) => snapshot?.latest?.message || ''
           :model-value="timeRange || { start: null, end: null }"
           :disabled="isLiveMode"
           @update:model-value="emit('setTimeRange', $event)"
-          @clear="emit('clearTimeRange')"
           @disable-live-mode="emit('toggleLiveMode')"
         />
 

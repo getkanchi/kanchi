@@ -45,9 +45,9 @@ export const useUrlQuerySync = () => {
   }
 
   /**
-   * Update URL query params without navigation
+   * Serialize view state to URL query params
    */
-  async function updateQueryParams(state: UrlQueryState, replace = true) {
+  function buildQueryParams(state: UrlQueryState) {
     const query: Record<string, string> = {}
 
     // Only add non-empty values to query
@@ -61,6 +61,18 @@ export const useUrlQuerySync = () => {
     if (state.endTime) query.endTime = state.endTime
     if (state.environment) query.environment = state.environment
 
+    return query
+  }
+
+  function matchesQueryParams(state: UrlQueryState) {
+    const query = buildQueryParams(state)
+    return Object.keys(query).length === Object.keys(route.query).length &&
+      Object.entries(query).every(([key, value]) => route.query[key] === value)
+  }
+
+  async function updateQueryParams(state: UrlQueryState, replace = true) {
+    if (matchesQueryParams(state)) return
+    const query = buildQueryParams(state)
     if (replace) {
       await router.replace({ query })
     } else {
@@ -141,6 +153,7 @@ export const useUrlQuerySync = () => {
   return {
     parseQueryParams,
     updateQueryParams,
+    matchesQueryParams,
     clearQueryParams,
     syncToUrl,
     initializeFromUrl,
