@@ -189,7 +189,6 @@
           @set-search-query="tasksStore.setSearchQuery"
           @set-filters="handleSetFilters"
           @set-time-range="handleSetTimeRange"
-          @clear-time-range="handleClearTimeRange"
         />
       </div>
 
@@ -238,8 +237,10 @@ const wsStore = useWebSocketStore()
 const environmentStore = useEnvironmentStore()
 const taskActionsStore = useTaskActionsStore()
 
-// Time range state
-const timeRange = ref<TimeRange>({ start: null, end: null })
+const timeRange = computed<TimeRange>(() => ({
+  start: tasksStore.filters.start_time ? new Date(tasksStore.filters.start_time) : null,
+  end: tasksStore.filters.end_time ? new Date(tasksStore.filters.end_time) : null
+}))
 const LOOKBACK_OPTIONS = [12, 24, 48, 72] as const
 
 const normalizeLookback = (hours?: number | null) => {
@@ -262,6 +263,8 @@ const { queryStringToFilters, filtersToQueryString } = useFilterParser()
 
 // URL query sync
 const urlQuerySync = useUrlQuerySync()
+const route = useRoute()
+const dashboardPath = route.path
 
 // Track if we're initializing from URL to avoid duplicate fetches
 const isInitializing = ref(true)
@@ -403,15 +406,9 @@ function handleSetFilters(filters: ParsedFilter[]) {
 }
 
 function handleSetTimeRange(range: TimeRange) {
-  timeRange.value = range
   const startTime = range.start ? range.start.toISOString() : null
   const endTime = range.end ? range.end.toISOString() : null
   tasksStore.setTimeRange(startTime, endTime)
-}
-
-function handleClearTimeRange() {
-  timeRange.value = { start: null, end: null }
-  tasksStore.setTimeRange(null, null)
 }
 
 async function handleRerunTask(taskId: string) {
@@ -507,65 +504,10 @@ const getCurrentState = computed((): UrlQueryState => ({
   environment: environmentStore.activeEnvironment?.id || null
 }))
 
-// Apply state from URL
-function applyStateFromUrl(state: UrlQueryState) {
-  // Apply environment first if specified
-  if (state.environment && state.environment !== environmentStore.activeEnvironment?.id) {
-    environmentStore.activateEnvironment(state.environment)
-  }
+let isRestoringFromUrl = false
 
-  // Apply filters
-  if (state.filters) {
-    tasksStore.setFilters({ filters: state.filters })
-  }
-
-  // Apply search
-  if (state.search) {
-    tasksStore.setSearchQuery(state.search)
-  }
-
-  // Apply sorting
-  if (state.sortBy) {
-    tasksStore.setSorting(state.sortBy, state.sortOrder || 'desc')
-  }
-
-  // Apply pagination
-  if (state.pageSize) {
-    tasksStore.setPageSize(state.pageSize)
-  }
-  if (state.page !== undefined) {
-    tasksStore.setPage(state.page)
-  }
-
-  // Apply time range
-  if (state.startTime || state.endTime) {
-    const start = state.startTime ? new Date(state.startTime) : null
-    const end = state.endTime ? new Date(state.endTime) : null
-    timeRange.value = { start, end }
-    tasksStore.setTimeRange(state.startTime, state.endTime)
-  }
-}
-
-urlQuerySync.initializeFromUrl((state) => {
-  applyStateFromUrl(state)
-})
-
-// Watch state changes and sync to URL (debounced to avoid excessive updates)
-let syncTimeout: ReturnType<typeof setTimeout> | null = null
-watch(getCurrentState, (newState) => {
-  if (isInitializing.value) return
-
-  if (syncTimeout) clearTimeout(syncTimeout)
-  syncTimeout = setTimeout(() => {
-    urlQuerySync.updateQueryParams(newState, true)
-  }, 300)
-}, { deep: true })
-
-// Watch for environment changes and refresh data
-watch(() => environmentStore.activeEnvironment, async () => {
-  console.log('[Dashboard] Environment changed, refreshing data...')
-  await Promise.all([
-    tasksStore.fetchRecentEvents(),
+function refreshSupportingData() {
+  return Promise.all([
     tasksStore.fetchStats(),
     workersStore.fetchWorkers(),
     orphanTasksStore.fetchOrphanedTasks(),
@@ -573,7 +515,61 @@ watch(() => environmentStore.activeEnvironment, async () => {
     taskActionsStore.fetchConfig().catch(() => {}),
     taskActionsStore.fetchActions().catch(() => {})
   ])
+}
+
+async function applyStateFromUrl(state: UrlQueryState) {
+  isRestoringFromUrl = true
+  const environmentChanged = Boolean(
+    state.environment && state.environment !== environmentStore.activeEnvironment?.id
+  )
+
+  try {
+    if (environmentChanged) {
+      await environmentStore.activateEnvironment(state.environment!)
+    }
+
+    if ((state.page ?? 0) > 0 || state.startTime || state.endTime) {
+      wsStore.setMode('static')
+      tasksStore.setLiveMode(false)
+    }
+
+    const request = tasksStore.restoreView({
+      search: state.search || null,
+      filters: state.filters || null,
+      start_time: state.startTime || null,
+      end_time: state.endTime || null
+    }, {
+      page: state.page ?? 0,
+      limit: state.pageSize ?? 10,
+      sort_by: state.sortBy || null,
+      sort_order: state.sortOrder || 'desc'
+    })
+
+    void urlQuerySync.updateQueryParams(getCurrentState.value)
+    if (environmentChanged && !isInitializing.value) {
+      return Promise.all([request, refreshSupportingData()])
+    }
+    return request
+  } finally {
+    isRestoringFromUrl = false
+  }
+}
+
+watch(getCurrentState, (state) => {
+  if (isInitializing.value || isRestoringFromUrl) return
+  void urlQuerySync.updateQueryParams(state)
+}, { deep: true, flush: 'post' })
+
+watch(() => route.query, () => {
+  if (route.path !== dashboardPath || isInitializing.value) return
+  if (urlQuerySync.matchesQueryParams(getCurrentState.value)) return
+  void applyStateFromUrl(urlQuerySync.parseQueryParams())
 })
+
+watch(() => environmentStore.activeEnvironment, async () => {
+  if (isInitializing.value || isRestoringFromUrl) return
+  await Promise.all([tasksStore.fetchRecentEvents(), refreshSupportingData()])
+}, { flush: 'sync' })
 
 watch(() => configStore.taskIssueLookbackHours, (hours) => {
   const normalized = normalizeLookback(hours)
@@ -596,19 +592,19 @@ onMounted(async () => {
   await configStore.fetchConfig().catch(() => {})
   failedTasksStore.setLookbackHours(normalizeLookback(configStore.taskIssueLookbackHours))
 
-  // Initial data fetch
-  await Promise.all([
-    tasksStore.fetchRecentEvents(),
-    tasksStore.fetchStats(),
-    workersStore.fetchWorkers(),
-    orphanTasksStore.fetchOrphanedTasks(),
-    failedTasksStore.fetchFailedTasks({ hours: failedTasksStore.lookbackHours })
-  ])
+  const initialState = urlQuerySync.parseQueryParams()
+  const initialEnvironmentId = initialState.environment || environmentStore.activeEnvironment?.id
+  await applyStateFromUrl(initialState)
+  await refreshSupportingData()
 
   tasksStore.setLiveMode(wsStore.clientMode === 'live')
 
   // Mark initialization as complete
   isInitializing.value = false
+  void urlQuerySync.updateQueryParams(getCurrentState.value)
+  if (environmentStore.activeEnvironment?.id !== initialEnvironmentId) {
+    await Promise.all([tasksStore.fetchRecentEvents(), refreshSupportingData()])
+  }
 
   orphanTasksInterval = setInterval(() => {
     orphanTasksStore.fetchOrphanedTasks().catch(() => {})
