@@ -105,7 +105,8 @@ class WorkerHealthMonitor:
 
                 if orphaned_tasks:
                     orphan_service.broadcast_orphan_events(
-                        orphaned_tasks, orphaned_at, self.event_handler.connection_manager
+                        orphaned_tasks, orphaned_at, self.event_handler.connection_manager,
+                        self.event_handler.workflow_engine
                     )
 
         except Exception as e:

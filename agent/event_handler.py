@@ -127,7 +127,7 @@ class EventHandler:
 
             if orphaned_tasks:
                 orphan_service.broadcast_orphan_events(
-                    orphaned_tasks, orphaned_at, self.connection_manager
+                    orphaned_tasks, orphaned_at, self.connection_manager, self.workflow_engine
                 )
 
         except Exception as e:
