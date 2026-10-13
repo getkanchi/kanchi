@@ -1,6 +1,4 @@
-// From frontend/: npm install --no-save --package-lock=false @playwright/test@1.56.1
-// npx playwright install chromium; npm run dev -- --host 127.0.0.1
-// In another terminal: npx playwright test tests/e2e/workflow-cancel-edits.spec.ts --workers=1
+// Requires a frontend server at TEST_BASE_URL (default: http://127.0.0.1:3000).
 import { test, expect } from '@playwright/test'
 
 const baseURL = process.env.TEST_BASE_URL || 'http://127.0.0.1:3000'
