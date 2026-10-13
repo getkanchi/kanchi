@@ -168,6 +168,15 @@
             Use commas to separate multiple values
           </div>
         </div>
+        <Button
+          v-if="currentFilter.values.length > 0"
+          variant="ghost"
+          class="w-full justify-start"
+          @pointerdown.prevent
+          @click="addFilter"
+        >
+          Apply filter
+        </Button>
       </div>
     </div>
   </div>
@@ -335,6 +344,12 @@ const handleInput = (event: Event) => {
 }
 
 const handleKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Enter' && showSuggestions.value && currentFilter.value.values.length > 0 && !currentFilter.value.partial.trim()) {
+    event.preventDefault()
+    addFilter()
+    return
+  }
+
   if (showSuggestions.value) {
     const suggestions =
       filterStage.value === 'field' ? filteredFieldSuggestions.value :
@@ -466,12 +481,12 @@ const selectValue = (value: string) => {
 const addFilter = () => {
   if (!currentFilter.value.field || !currentFilter.value.operator) return
 
-  let values = currentFilter.value.values
-  if (values.length === 0 && currentFilter.value.partial) {
+  let values = [...currentFilter.value.values]
+  if (currentFilter.value.partial) {
     // Parse values from partial input (might be comma-separated)
     if (currentFilter.value.operator === 'in' || currentFilter.value.operator === 'not_in') {
-      values = currentFilter.value.partial.split(',').map(v => v.trim()).filter(v => v)
-    } else {
+      values.push(...currentFilter.value.partial.split(',').map(v => v.trim()).filter(v => v))
+    } else if (values.length === 0) {
       values = [currentFilter.value.partial]
     }
   }
