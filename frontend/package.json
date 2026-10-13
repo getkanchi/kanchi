@@ -10,7 +10,8 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "generate:api": "./generate-api-types.sh",
-    "generate:api:local": "./generate-api-types.sh http://localhost:8765"
+    "generate:api:local": "./generate-api-types.sh http://localhost:8765",
+    "test:workflows": "playwright test tests/e2e --workers=1"
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.3",
@@ -44,6 +45,7 @@
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^12.0.0",
+    "@playwright/test": "1.56.1",
     "@vue/devtools-kit": "^7.7.5",
     "axios": "^1.12.1",
     "openapi-typescript": "^7.9.1",
