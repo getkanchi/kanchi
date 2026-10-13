@@ -85,11 +85,12 @@ export const useTasksStore = defineStore('tasks', () => {
     }
   }
 
+  let recentEventsRequest = 0
+
   async function fetchRecentEvents(silent = false) {
+    const request = ++recentEventsRequest
     try {
-      if (!silent) {
-        isLoading.value = true
-      }
+      isLoading.value = !silent
       error.value = null
 
       const params = {
@@ -99,6 +100,7 @@ export const useTasksStore = defineStore('tasks', () => {
       }
 
       const response = await apiService.getRecentEvents(params)
+      if (request !== recentEventsRequest) return
 
       const data = response as any
       if (data.data && Array.isArray(data.data)) {
@@ -110,10 +112,11 @@ export const useTasksStore = defineStore('tasks', () => {
       
       lastRefreshTime.value = new Date()
     } catch (err) {
+      if (request !== recentEventsRequest) return
       error.value = err instanceof Error ? err.message : 'Failed to fetch recent events'
       if (!silent) throw err
     } finally {
-      if (!silent) {
+      if (request === recentEventsRequest) {
         isLoading.value = false
       }
     }
