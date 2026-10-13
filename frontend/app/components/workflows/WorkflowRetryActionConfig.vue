@@ -73,10 +73,10 @@ const emit = defineEmits<{
   'close': []
 }>()
 
-const localAction = ref<ActionConfig>({ ...props.action })
+const localAction = ref<ActionConfig>({ ...props.action, params: { ...props.action.params } })
 
 watch(() => props.action, (newAction) => {
-  localAction.value = { ...newAction }
+  localAction.value = { ...newAction, params: { ...newAction.params } }
 }, { deep: true })
 
 function save() {
