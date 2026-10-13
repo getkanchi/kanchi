@@ -81,8 +81,6 @@ export const useFilterParser = () => {
 
     const field = segments[0].trim().toLowerCase()
 
-    if (!filterFields.find(f => f.value === field)) return null
-
     let operator: string
     let valueStr: string
 
@@ -98,15 +96,11 @@ export const useFilterParser = () => {
 
     // Parse multiple values for in/not_in operators
     const values = (operator === 'in' || operator === 'not_in')
-      ? valueStr.split(',').map(v => v.trim()).filter(v => v)
+      ? valueStr.split(',').map(v => v.trim())
       : [valueStr]
 
-    return {
-      field,
-      operator,
-      values,
-      raw: filterStr
-    }
+    const filter = { field, operator, values, raw: filterStr }
+    return isValidFilter(filter) ? filter : null
   }
 
   /**
@@ -120,8 +114,8 @@ export const useFilterParser = () => {
       ? values.join(',')
       : values[0] || ''
 
-    // Omit operator if it's the default 'is'
-    if (operator === 'is') {
+    // Keep the operator when a value contains a colon so it can be parsed again.
+    if (operator === 'is' && !valueStr.includes(':')) {
       return `${field}:${valueStr}`
     }
 
@@ -159,7 +153,12 @@ export const useFilterParser = () => {
       return false
     }
 
-    if (filter.values.length === 0) return false
+    if (filter.values.length === 0 || filter.values.some(value => !value.trim())) return false
+
+    if (filter.field === 'state') {
+      const statuses = getSuggestionsForField('state')
+      return filter.values.every(value => statuses.includes(value.toUpperCase()))
+    }
 
     return true
   }
