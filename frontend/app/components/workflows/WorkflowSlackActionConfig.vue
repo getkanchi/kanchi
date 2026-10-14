@@ -162,7 +162,7 @@ const emit = defineEmits<{
   'close': []
 }>()
 
-const localAction = ref<ActionConfig>({ ...props.action })
+const localAction = ref<ActionConfig>({ ...props.action, params: { ...props.action.params } })
 const workflowStore = useWorkflowsStore()
 const slackConfigs = computed(() =>
   workflowStore.actionConfigs.filter(config => config.action_type === 'slack.notify')
@@ -170,7 +170,7 @@ const slackConfigs = computed(() =>
 const showConfigManager = ref(false)
 
 watch(() => props.action, (newAction) => {
-  localAction.value = { ...newAction }
+  localAction.value = { ...newAction, params: { ...newAction.params } }
 }, { deep: true })
 
 const availableVariables = '{{task_id}}, {{task_name}}, {{queue}}, {{exception}}, {{retry_count}}'
