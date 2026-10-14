@@ -34,28 +34,28 @@ const iconMap = {
 const variantClasses = computed(() => {
   const variants = {
     success: {
-      container: 'bg-green-500/10 border-green-500/30',
-      icon: 'text-green-400',
-      title: 'text-green-200',
-      content: 'text-green-300/90'
+      container: 'bg-status-success-bg border-status-success-border',
+      icon: 'text-status-success',
+      title: 'text-status-success',
+      content: 'text-status-success'
     },
     warning: {
-      container: 'bg-orange-500/10 border-orange-500/30',
-      icon: 'text-orange-400',
-      title: 'text-orange-200',
-      content: 'text-orange-300/80'
+      container: 'bg-status-warning-bg border-status-warning-border',
+      icon: 'text-status-warning',
+      title: 'text-status-warning',
+      content: 'text-status-warning'
     },
     error: {
-      container: 'bg-red-500/10 border-red-500/30',
-      icon: 'text-red-400',
-      title: 'text-red-200',
-      content: 'text-red-300/90'
+      container: 'bg-status-error-bg border-status-error-border',
+      icon: 'text-status-error',
+      title: 'text-status-error',
+      content: 'text-status-error'
     },
     info: {
-      container: 'bg-blue-500/10 border-blue-500/30',
-      icon: 'text-blue-400',
-      title: 'text-blue-200',
-      content: 'text-blue-300/90'
+      container: 'bg-status-info-bg border-status-info-border',
+      icon: 'text-status-info',
+      title: 'text-status-info',
+      content: 'text-status-info'
     }
   }
   return variants[props.variant]

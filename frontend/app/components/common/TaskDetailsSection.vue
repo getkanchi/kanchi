@@ -164,8 +164,8 @@ const formatResult = (result: unknown): string => {
       >
         <div class="flex items-center justify-between mb-3">
           <div class="flex items-center gap-1.5">
-            <AlertTriangle class="h-3.5 w-3.5 text-red-400" />
-            <h4 class="text-sm font-medium text-red-400">Error Traceback:</h4>
+            <AlertTriangle class="h-3.5 w-3.5 text-status-error" />
+            <h4 class="text-sm font-medium text-status-error">Error Traceback:</h4>
           </div>
           <CopyButton
             :text="traceback"
@@ -174,7 +174,7 @@ const formatResult = (result: unknown): string => {
             :show-text="true"
           />
         </div>
-        <pre class="bg-red-950/20 border border-red-900/20 p-3 rounded text-xs overflow-x-auto text-red-400 font-mono">{{ traceback }}</pre>
+        <pre class="bg-status-error-bg border border-status-error-border p-3 rounded text-xs overflow-x-auto text-status-error font-mono">{{ traceback }}</pre>
       </div>
 
       <slot />

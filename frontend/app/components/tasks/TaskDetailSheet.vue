@@ -183,11 +183,11 @@
 
           <!-- Failures Section (Compact) -->
           <div v-if="failures && failures.length > 0"
-               class="bg-red-950/10 border border-red-900/30 rounded-lg p-2.5">
+               class="bg-status-error-bg border border-status-error-border rounded-lg p-2.5">
             <div class="flex items-center justify-between mb-2">
               <div class="flex items-center gap-1.5">
-                <AlertTriangle class="h-3.5 w-3.5 text-red-400" />
-                <h3 class="text-[10px] font-mono font-bold text-red-400 uppercase tracking-wider">
+                <AlertTriangle class="h-3.5 w-3.5 text-status-error" />
+                <h3 class="text-[10px] font-mono font-bold text-status-error uppercase tracking-wider">
                   Failures (24H)
                 </h3>
                 <Badge variant="destructive" class="text-[10px] px-1 py-0">{{ failures.length }}</Badge>
@@ -196,14 +196,14 @@
                 @click="failuresExpanded = !failuresExpanded"
                 variant="ghost"
                 size="sm"
-                class="text-[10px] text-red-400 hover:text-red-300 font-mono h-auto py-0 px-2"
+                class="text-[10px] text-status-error hover:text-status-error font-mono h-auto py-0 px-2"
               >
                 {{ failuresExpanded ? 'Hide' : 'Show' }}
               </Button>
             </div>
 
             <!-- Collapsed: Show only count and last error -->
-            <div v-if="!failuresExpanded" class="text-[11px] text-red-400/80 font-mono">
+            <div v-if="!failuresExpanded" class="text-[11px] text-status-error font-mono">
               Last: {{ new Date(failures[0].timestamp).toLocaleTimeString() }}
             </div>
 
@@ -221,7 +221,7 @@
                 @click="showAllFailures = true"
                 variant="outline"
                 size="sm"
-                class="w-full text-[10px] text-red-400 hover:text-red-300 border-red-900/30 hover:bg-red-950/20 font-mono"
+                class="w-full text-[10px] text-status-error hover:text-status-error border-status-error-border hover:bg-status-error-hover font-mono"
               >
                 Show {{ failures.length - 3 }} more →
               </Button>

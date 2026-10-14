@@ -153,7 +153,7 @@ onMounted(() => {
 }
 
 .nav-link.active {
-  color: var(--color-text-primary, #fff);
+  color: var(--text-primary);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
 }
 
@@ -162,11 +162,11 @@ onMounted(() => {
 }
 
 .nav-link.inactive {
-  color: var(--color-text-secondary, #94a3b8);
+  color: var(--text-secondary);
 }
 
 .nav-link.inactive:hover {
-  color: var(--color-text-primary, #fff);
+  color: var(--text-primary);
 }
 
 .navbar::after {
