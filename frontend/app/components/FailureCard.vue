@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-background-base border border-red-900/20 rounded p-2 space-y-1.5 text-xs">
+  <div class="bg-background-surface border border-status-error-border rounded p-2 space-y-1.5 text-xs">
     <!-- Compact header -->
     <div class="flex items-center justify-between gap-2">
       <div class="flex items-center gap-2 font-mono min-w-0 flex-1">
@@ -22,23 +22,23 @@
     </div>
 
     <!-- Error preview (collapsed) -->
-    <div v-if="!expanded" class="text-red-400 font-mono truncate text-[11px] leading-tight">
+    <div v-if="!expanded" class="text-status-error font-mono truncate text-[11px] leading-tight">
       {{ getErrorPreview(failure.traceback || failure.exception) }}
     </div>
 
     <!-- Expanded details -->
-    <div v-else class="space-y-2 pt-1 border-t border-red-900/10">
+    <div v-else class="space-y-2 pt-1 border-t border-status-error-border">
       <!-- Traceback -->
-      <div v-if="failure.traceback" class="p-2 border border-red-900/20 rounded bg-red-950/20">
+      <div v-if="failure.traceback" class="p-2 border border-status-error-border rounded bg-status-error-bg">
         <div class="flex items-center justify-between mb-1.5">
-          <h5 class="text-[10px] font-medium text-red-400 uppercase tracking-wide">Error</h5>
+          <h5 class="text-[10px] font-medium text-status-error uppercase tracking-wide">Error</h5>
           <CopyButton
             :text="failure.traceback"
             :copy-key="`tb-${failure.task_id}`"
             :show-text="false"
           />
         </div>
-        <pre class="text-[10px] text-red-400 font-mono overflow-x-auto max-h-24 leading-tight whitespace-pre-wrap break-all">{{ failure.traceback }}</pre>
+        <pre class="text-[10px] text-status-error font-mono overflow-x-auto max-h-24 leading-tight whitespace-pre-wrap break-all">{{ failure.traceback }}</pre>
       </div>
 
       <!-- Args/Kwargs - inline compact -->

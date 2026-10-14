@@ -61,49 +61,49 @@ export default {
             DEFAULT: 'var(--status-success)',
             bg: 'var(--status-success-bg)',
             border: 'var(--status-success-border)',
-            hover: 'hsl(158,100%,13%)'
+            hover: 'var(--status-success-hover)'
           },
           // Error states
           error: {
             DEFAULT: 'var(--status-error)',
             bg: 'var(--status-error-bg)',
             border: 'var(--status-error-border)',
-            hover: 'hsl(347, 77%, 18%)'
+            hover: 'var(--status-error-hover)'
           },
           // Warning states
           warning: {
             DEFAULT: 'var(--status-warning)',
             bg: 'var(--status-warning-bg)',
             border: 'var(--status-warning-border)',
-            hover: 'hsl(45, 85%, 18%)'
+            hover: 'var(--status-warning-hover)'
           },
           // Info states
           info: {
             DEFAULT: 'var(--status-info)',
             bg: 'var(--status-info-bg)',
             border: 'var(--status-info-border)',
-            hover: 'hsl(199, 89%, 18%)'
+            hover: 'var(--status-info-hover)'
           },
           // Retry states
           retry: {
             DEFAULT: 'var(--status-retry)',
             bg: 'var(--status-retry-bg)',
             border: 'var(--status-retry-border)',
-            hover: 'hsl(24, 95%, 18%)'
+            hover: 'var(--status-retry-hover)'
           },
           // Neutral states
           neutral: {
             DEFAULT: 'var(--status-neutral)',
             bg: 'var(--status-neutral-bg)',
             border: 'var(--status-neutral-border)',
-            hover: 'hsl(215, 20%, 18%)'
+            hover: 'var(--status-neutral-hover)'
           },
           // Special states
           special: {
             DEFAULT: 'var(--status-special)',
             bg: 'var(--status-special-bg)',
             border: 'var(--status-special-border)',
-            hover: 'hsl(263, 70%, 18%)'
+            hover: 'var(--status-special-hover)'
           }
         }
       },
