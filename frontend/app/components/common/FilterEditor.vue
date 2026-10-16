@@ -120,7 +120,7 @@ function applyFilter() {
   filter.raw = serializeFilter(filter)
   const exists = props.filters.some(existing =>
     existing.field === filter.field && existing.operator === filter.operator &&
-    existing.values.length === filter.values.length && existing.values.every(value => filter.values.includes(value))
+    new Set(existing.values).size === filter.values.length && existing.values.every(value => filter.values.includes(value))
   )
   if (!exists) emit('update:filters', [...props.filters, filter])
   editorOpen.value = false
