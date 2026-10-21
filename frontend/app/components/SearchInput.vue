@@ -273,14 +273,16 @@ watch([filteredFieldSuggestions, filteredOperatorSuggestions, filteredValueSugge
 })
 
 const handleInput = (event: Event) => {
-  const value = (event.target as HTMLInputElement).value
+  let value = (event.target as HTMLInputElement).value
 
-  if (currentFilter.value.field) {
+  if (currentFilter.value.field && currentFilter.value.operator) {
     currentFilter.value.partial = value
     currentInput.value = value
     showSuggestions.value = true
     return
   }
+
+  if (currentFilter.value.field) value = `${currentFilter.value.field}:${value}`
 
   // Otherwise, parse from scratch (user is typing a new filter or search)
   currentInput.value = value
@@ -329,9 +331,7 @@ const handleInput = (event: Event) => {
   showSuggestions.value = true
 
   // Emit regular search if no filter pattern detected
-  if (!value.includes(':')) {
-    emit('update:modelValue', value)
-  }
+  emit('update:modelValue', currentFilter.value.field ? '' : value)
 }
 
 const handleKeydown = (event: KeyboardEvent) => {
@@ -350,7 +350,10 @@ const handleKeydown = (event: KeyboardEvent) => {
     } else if (event.key === 'Enter') {
       event.preventDefault()
 
-      if (suggestions.length > 0) {
+      if (filterStage.value === 'operator' && currentFilter.value.partial && suggestions.length === 0) {
+        currentFilter.value.operator = 'is'
+        addFilter()
+      } else if (suggestions.length > 0) {
         // Select highlighted suggestion
         if (filterStage.value === 'field') {
           selectField(filteredFieldSuggestions.value[selectedSuggestionIndex.value].value)
@@ -414,6 +417,7 @@ const handleBlur = () => {
 
 const selectField = (field: FilterField) => {
   currentInput.value = ''
+  emit('update:modelValue', '')
   currentFilter.value = {
     field,
     operator: null,
@@ -489,6 +493,8 @@ const addFilter = () => {
       raw: ''
     }])
   }
+
+  if (!parseFilter(newFilter.raw)) return
 
   const exists = activeFilters.value.some(f =>
     f.field === newFilter.field &&
