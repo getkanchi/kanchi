@@ -212,6 +212,12 @@ export const useTasksStore = defineStore('tasks', () => {
     fetchRecentEvents()
   }
 
+  function restoreView(newFilters: TaskFilters, newPagination: PaginationParams) {
+    filters.value = { ...newFilters }
+    paginationParams.value = { ...newPagination }
+    return fetchRecentEvents()
+  }
+
   function setSorting(sortBy: string | null, sortOrder: 'asc' | 'desc' = 'desc') {
     paginationParams.value.sort_by = sortBy
     paginationParams.value.sort_order = sortOrder
@@ -363,6 +369,7 @@ export const useTasksStore = defineStore('tasks', () => {
     nextPage,
     prevPage,
     setFilters,
+    restoreView,
     setSorting,
     setSearchQuery,
     setTimeRange,

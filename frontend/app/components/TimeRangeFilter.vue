@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { CalendarDays, X } from 'lucide-vue-next'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
 import { Button } from '~/components/ui/button'
@@ -22,9 +22,6 @@ import {
 import { CalendarDate } from '@internationalized/date'
 import { cn } from '@/lib/utils'
 
-const route = useRoute()
-const router = useRouter()
-
 export interface TimeRange {
   start: Date | null
   end: Date | null
@@ -42,56 +39,15 @@ const props = withDefaults(defineProps<TimeRangeFilterProps>(), {
 
 const emit = defineEmits<{
   'update:modelValue': [value: TimeRange]
-  'clear': []
   'disableLiveMode': []
 }>()
 
 const open = ref(false)
 
-function getInitialDateRange() {
-  // Try URL params first
-  const startParam = route.query.start as string
-  const endParam = route.query.end as string
-
-  if (startParam && endParam) {
-    try {
-      const startDate = new Date(startParam)
-      const endDate = new Date(endParam)
-      if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
-        return {
-          start: new CalendarDate(startDate.getFullYear(), startDate.getMonth() + 1, startDate.getDate()),
-          end: new CalendarDate(endDate.getFullYear(), endDate.getMonth() + 1, endDate.getDate())
-        }
-      }
-    } catch (e) {
-      console.warn('Invalid date params in URL:', e)
-    }
-  }
-
-  // Fall back to props
-  if (props.modelValue.start && props.modelValue.end) {
-    return {
-      start: new CalendarDate(
-        props.modelValue.start.getFullYear(),
-        props.modelValue.start.getMonth() + 1,
-        props.modelValue.start.getDate()
-      ),
-      end: new CalendarDate(
-        props.modelValue.end.getFullYear(),
-        props.modelValue.end.getMonth() + 1,
-        props.modelValue.end.getDate()
-      )
-    }
-  }
-
-  // Default to undefined so no date is selected initially
-  return {
-    start: undefined,
-    end: undefined
-  }
-}
-
-const dateRange = ref<{ start: CalendarDate | undefined; end: CalendarDate | undefined }>(getInitialDateRange())
+const dateRange = ref<{ start: CalendarDate | undefined; end: CalendarDate | undefined }>({
+  start: undefined,
+  end: undefined
+})
 
 // Max date is today (disable future dates)
 const maxDate = computed(() => {
@@ -99,18 +55,22 @@ const maxDate = computed(() => {
   return new CalendarDate(today.getFullYear(), today.getMonth() + 1, today.getDate())
 })
 
-// Time inputs
-const startTime = ref(
-  props.modelValue.start
-    ? `${String(props.modelValue.start.getHours()).padStart(2, '0')}:${String(props.modelValue.start.getMinutes()).padStart(2, '0')}`
-    : '00:00'
-)
+const startTime = ref('00:00')
+const endTime = ref('23:59')
 
-const endTime = ref(
-  props.modelValue.end
-    ? `${String(props.modelValue.end.getHours()).padStart(2, '0')}:${String(props.modelValue.end.getMinutes()).padStart(2, '0')}`
+watch(() => props.modelValue, (range) => {
+  const { start, end } = range
+  dateRange.value = {
+    start: start ? new CalendarDate(start.getFullYear(), start.getMonth() + 1, start.getDate()) : undefined,
+    end: end ? new CalendarDate(end.getFullYear(), end.getMonth() + 1, end.getDate()) : undefined
+  }
+  startTime.value = start
+    ? `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`
+    : '00:00'
+  endTime.value = end
+    ? `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`
     : '23:59'
-)
+}, { immediate: true, deep: true })
 
 // Display label for the button
 const displayLabel = computed(() => {
@@ -213,13 +173,6 @@ function applyRange() {
     0
   )
 
-  router.push({
-    query: {
-      ...route.query,
-      start: start.toISOString(),
-      end: end.toISOString()
-    }
-  })
   emit('update:modelValue', { start, end })
   open.value = false
 }
@@ -232,12 +185,6 @@ function clearRange() {
   startTime.value = '00:00'
   endTime.value = '23:59'
 
-  const query = { ...route.query }
-  delete query.start
-  delete query.end
-  router.push({ query })
-
-  emit('clear')
   emit('update:modelValue', { start: null, end: null })
   open.value = false
 }
@@ -252,23 +199,6 @@ function handleButtonClick() {
 function handleClearClick() {
   clearRange()
 }
-
-onMounted(() => {
-  const startParam = route.query.start as string
-  const endParam = route.query.end as string
-
-  if (startParam && endParam) {
-    try {
-      const start = new Date(startParam)
-      const end = new Date(endParam)
-      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
-        emit('update:modelValue', { start, end })
-      }
-    } catch (e) {
-      console.warn('Invalid date params in URL:', e)
-    }
-  }
-})
 </script>
 
 <template>
