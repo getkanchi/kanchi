@@ -34,8 +34,8 @@
             <p class="text-xs text-text-muted">Continue to next action if retry fails</p>
           </div>
           <Switch
-            :checked="localAction.continue_on_failure"
-            @update:checked="localAction.continue_on_failure = $event"
+            :model-value="localAction.continue_on_failure"
+            @update:model-value="localAction.continue_on_failure = $event"
           />
         </div>
       </div>

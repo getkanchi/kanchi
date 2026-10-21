@@ -190,8 +190,8 @@
               <p class="text-xs text-text-muted">Toggle workflow activation.</p>
             </div>
             <Switch
-              :checked="workflow.enabled"
-              @update:checked="workflow.enabled = $event"
+              :model-value="workflow.enabled"
+              @update:model-value="workflow.enabled = $event"
             />
           </div>
         </div>
