@@ -6,6 +6,7 @@ function normalizeBaseURL(value: string | undefined): string {
 }
 
 export default defineNuxtConfig({
+  ssr: false,
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
   app: {
