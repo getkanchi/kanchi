@@ -519,13 +519,18 @@ function refreshSupportingData() {
 
 async function applyStateFromUrl(state: UrlQueryState) {
   isRestoringFromUrl = true
-  const environmentChanged = Boolean(
+  let environmentChanged = Boolean(
     state.environment && state.environment !== environmentStore.activeEnvironment?.id
   )
 
   try {
     if (environmentChanged) {
-      await environmentStore.activateEnvironment(state.environment!)
+      try {
+        await environmentStore.activateEnvironment(state.environment!)
+      } catch {
+        // Unknown or inaccessible environment in the URL: keep the active one.
+        environmentChanged = false
+      }
     }
 
     if ((state.page ?? 0) > 0 || state.startTime || state.endTime) {
