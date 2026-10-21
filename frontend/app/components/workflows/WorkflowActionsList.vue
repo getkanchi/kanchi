@@ -164,7 +164,7 @@ async function selectActionType(type: string) {
 
   // Wait for the action to be added to the array before opening config dialog
   await nextTick()
-  editingAction.value = props.actions.length
+  editingAction.value = props.actions.length - 1
 }
 
 function editAction(index: number) {
