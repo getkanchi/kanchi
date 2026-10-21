@@ -91,6 +91,7 @@
         @focus="handleFocus"
         @blur="handleBlur"
       />
+      <FilterEditor :filters="activeFilters" @update:filters="activeFilters = $event; emit('update:filters', $event)" />
     </div>
 
     <!-- Autocomplete dropdown -->
@@ -188,6 +189,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Search } from 'lucide-vue-next'
 import FilterBadge from '~/components/FilterBadge.vue'
+import FilterEditor from '~/components/common/FilterEditor.vue'
 import type { ParsedFilter, FilterField, FilterOperator } from '~/composables/useFilterParser'
 
 const props = defineProps<{

@@ -204,7 +204,7 @@ export const useTasksStore = defineStore('tasks', () => {
   }
 
   function setFilters(newFilters: TaskFilters) {
-    filters.value = { ...newFilters }
+    filters.value = { ...filters.value, ...newFilters }
     paginationParams.value.page = 0
     fetchRecentEvents()
   }
