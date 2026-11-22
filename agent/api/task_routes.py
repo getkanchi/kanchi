@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from services import TaskService, EnvironmentService, SessionService, AppConfigService, ProgressService
 from database import TaskEventDB
-from models import TaskEvent, TaskProgressSnapshot
+from models import TaskEvent, TaskProgressSnapshot, TASK_ISSUE_LOOKBACK_MAX_HOURS
 from database import ensure_utc_isoformat
 from config import Config
 from security.auth import AuthenticatedUser
@@ -155,7 +155,7 @@ def create_router(app_state) -> APIRouter:
         hours: Optional[int] = Query(
             default=None,
             ge=1,
-            le=168,
+            le=TASK_ISSUE_LOOKBACK_MAX_HOURS,
             description="Lookback window in hours (defaults to configured value)"
         ),
         limit: int = 50,
