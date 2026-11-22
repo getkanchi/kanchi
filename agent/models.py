@@ -711,9 +711,12 @@ class AppSettingUpdate(BaseModel):
     category: Optional[str] = None
 
 
+TASK_ISSUE_LOOKBACK_MAX_HOURS = 30 * 24
+
+
 class TaskIssueConfig(BaseModel):
     """Configuration for the task issue summary section."""
-    lookback_hours: int = Field(default=24, ge=1, le=168)
+    lookback_hours: int = Field(default=24, ge=1, le=TASK_ISSUE_LOOKBACK_MAX_HOURS)
 
 
 class DataRetentionConfig(BaseModel):

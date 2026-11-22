@@ -15,6 +15,7 @@ from models import (
     DataRetentionConfig,
     RetentionLastRun,
     RetentionScheduleConfig,
+    TASK_ISSUE_LOOKBACK_MAX_HOURS,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,7 +44,7 @@ DEFAULT_SETTING_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "description": "Number of hours of failed tasks to surface in the dashboard issue summary.",
         "category": "task_issue_summary",
         "min": 1,
-        "max": 168,
+        "max": TASK_ISSUE_LOOKBACK_MAX_HOURS,
     },
     RETENTION_TASK_SUCCESSFUL_DAYS_KEY: {
         "default": 14,

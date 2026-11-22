@@ -796,7 +796,7 @@ export interface TaskIssueConfig {
   /**
    * Lookback Hours
    * @min 1
-   * @max 168
+   * @max 720
    * @default 24
    */
   lookback_hours?: number;

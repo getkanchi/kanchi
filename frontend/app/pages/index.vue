@@ -209,6 +209,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { formatLookbackLabel, normalizeLookback } from '~/utils/taskIssueLookback'
 import { getTaskColumns } from "~/config/tableColumns"
 import DataTable from "~/components/data-table.vue"
 import WorkerStatusSummary from "~/components/WorkerStatusSummary.vue"
@@ -241,24 +242,6 @@ const timeRange = computed<TimeRange>(() => ({
   start: tasksStore.filters.start_time ? new Date(tasksStore.filters.start_time) : null,
   end: tasksStore.filters.end_time ? new Date(tasksStore.filters.end_time) : null
 }))
-const LOOKBACK_OPTIONS = [12, 24, 48, 72] as const
-
-const normalizeLookback = (hours?: number | null) => {
-  const candidate = Number.isFinite(hours) ? Math.round(Number(hours)) : NaN
-  if (!Number.isFinite(candidate)) {
-    return LOOKBACK_OPTIONS[1] // default 24h
-  }
-  const options = Array.from(LOOKBACK_OPTIONS)
-  if (options.includes(candidate as typeof LOOKBACK_OPTIONS[number])) {
-    return candidate as (typeof LOOKBACK_OPTIONS)[number]
-  }
-  return options.reduce((closest, option) => {
-    const currentDiff = Math.abs(option - candidate)
-    const bestDiff = Math.abs(closest - candidate)
-    return currentDiff < bestDiff ? option : closest
-  }, options[0])
-}
-
 const { queryStringToFilters, filtersToQueryString } = useFilterParser()
 
 // URL query sync
@@ -306,13 +289,6 @@ const failedSummaryVariant = computed(() => failedTasksStore.failedTasks.length 
 const orphanCardStatus = computed(() => uniqueOrphanedTasks.value.length > 0 ? 'warning' : 'success')
 const orphanSummaryVariant = computed(() => uniqueOrphanedTasks.value.length > 0 ? 'warning' : 'success')
 const failedTasksLookbackHours = computed(() => failedTasksStore.lookbackHours)
-const formatLookbackLabel = (hours: number) => {
-  if (!Number.isFinite(hours)) return `${LOOKBACK_OPTIONS[1]}h`
-  if (hours % 24 === 0 && hours >= 24) {
-    return `${hours / 24}d`
-  }
-  return `${hours}h`
-}
 const failedTasksTitle = computed(() => `Failed tasks (${formatLookbackLabel(failedTasksLookbackHours.value)})`)
 const failedTasksEmptyTitle = computed(() => `No failed tasks detected in the last ${formatLookbackLabel(failedTasksLookbackHours.value)}`)
 

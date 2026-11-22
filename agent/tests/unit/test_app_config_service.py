@@ -41,6 +41,22 @@ class TestAppConfigService(DatabaseTestCase):
         self.assertEqual(updated.value, 12)
         self.assertEqual(self.service.get_task_issue_lookback_hours(), 12)
 
+    def test_task_issue_lookback_accepts_thirty_days(self):
+        self.service.upsert_setting(
+            TASK_ISSUE_LOOKBACK_KEY,
+            AppSettingUpdate(value=720, value_type="number"),
+        )
+        self.assertEqual(self.service.get_task_issue_lookback_hours(), 720)
+        snapshot = self.service.get_config_snapshot()
+        self.assertEqual(snapshot.task_issue_summary.lookback_hours, 720)
+
+    def test_task_issue_lookback_rejects_more_than_thirty_days(self):
+        with self.assertRaises(ValueError):
+            self.service.upsert_setting(
+                TASK_ISSUE_LOOKBACK_KEY,
+                AppSettingUpdate(value=721, value_type="number"),
+            )
+
     def test_upsert_setting_rejects_invalid_number(self):
         with self.assertRaises(ValueError):
             self.service.upsert_setting(

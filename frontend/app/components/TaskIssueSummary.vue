@@ -48,23 +48,22 @@
           />
         </div>
         <div class="flex flex-wrap items-center justify-end gap-3">
-            <Tabs
+            <Select
+              v-if="showLookbackSelector"
               :model-value="activeLookbackString"
               :disabled="isUpdatingLookback"
+              size="sm"
+              aria-label="Lookback window"
               @update:model-value="handleLookbackSelectString"
-              class="flex items-center"
             >
-              <TabsList class="bg-background-surface border-border-subtle p-0.5">
-                <TabsTrigger
-                  v-for="option in lookbackOptionsNormalized"
-                  :key="option"
-                  :value="String(option)"
-                  class="min-w-[44px] px-2.5 py-1 text-xs"
-                >
-                  {{ formatLookbackLabel(option) }}
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+              <option
+                v-for="option in TASK_ISSUE_LOOKBACK_OPTIONS"
+                :key="option"
+                :value="String(option)"
+              >
+                Last {{ formatLookbackLabel(option) }}
+              </option>
+            </Select>
           <div class="text-sm text-gray-500 text-right">
             <template v-if="totalFiltered > 0">
               Showing {{ pageStart }} to {{ pageEnd }} of {{ totalFiltered }} tasks
@@ -355,7 +354,7 @@ import StatusDot from '~/components/StatusDot.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '~/components/ui/checkbox'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { TASK_ISSUE_LOOKBACK_OPTIONS, formatLookbackLabel, normalizeLookback } from '~/utils/taskIssueLookback'
 import {
   Table,
   TableBody,
@@ -623,36 +622,11 @@ const pageSizeOptions = computed(() => {
 const hasPrevPage = computed(() => currentPage.value > 0)
 const hasNextPage = computed(() => totalFiltered.value > 0 && currentPage.value < totalPages.value - 1)
 
-const lookbackOptionsNormalized = computed(() => [12, 24, 48, 72])
-
-const activeLookback = computed(() => {
-  const options = lookbackOptionsNormalized.value
-  const sourceHours = props.lookbackHours ?? configStore.taskIssueLookbackHours
-  const candidate = Number.isFinite(sourceHours) ? Math.round(Number(sourceHours)) : NaN
-  if (!Number.isFinite(candidate)) {
-    return options[0]
-  }
-  if (options.includes(candidate)) {
-    return candidate
-  }
-  return options.reduce((closest, option) => {
-    const currentDiff = Math.abs(option - candidate)
-    const bestDiff = Math.abs(closest - candidate)
-    return currentDiff < bestDiff ? option : closest
-  }, options[0])
-})
+const activeLookback = computed(() => normalizeLookback(props.lookbackHours ?? configStore.taskIssueLookbackHours))
 const activeLookbackString = computed(() => String(activeLookback.value))
 
 const isUpdatingLookback = ref(false)
 const lookbackError = ref<string | null>(null)
-
-const formatLookbackLabel = (hours: number) => {
-  if (hours % 24 === 0 && hours >= 24) {
-    const days = hours / 24
-    return `${days}d`
-  }
-  return `${hours}h`
-}
 
 watch(() => props.limit, (next) => {
   if (typeof next === 'number' && next > 0) {
